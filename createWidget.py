@@ -3,7 +3,7 @@ import typing
 from functools import partial
 from typing import Any
 import tkinter as tk
-from PIL import Image,ImageTk
+from PIL import ImageTk
 from tkinter import ttk
 from tkinter import filedialog
 
@@ -20,7 +20,7 @@ string2: Any
 string3: Any
 
 pytkguivars.useGrider = False
-pytkguivars.snapTo = 8
+pytkguivars.snapTo = 16
 pytkguivars.imageIndex = 0
 
 
@@ -52,11 +52,12 @@ def snapToClosest(v: int) -> int:
 
 
 class createWidget:
-    widgetList = [[Any]] * 64
+    widgetList = [None] * 64
     widgetId = 0
     dragType = ['move','dragEast','dragWest','dragNorth','dragSouth']
     
     def __init__(self,root,widget):
+        self.popup = None
         self.cornerX = None
         self.cornerY = None
         self.bordermode = None
@@ -129,7 +130,16 @@ class createWidget:
             self.widget.grid(row=self.row,column=self.col)
         else:
             self.widget.place(x=self.x,y=self.y)
-    
+    def addPlace(self,placeDict):
+        print(placeDict)
+        self.x = int(placeDict.get('x'))
+        self.y = int(placeDict.get('y'))
+        self.width = int(placeDict.get('width'))
+        self.height = int(placeDict.get('height'))
+        self.start_x = self.x  # Set start_x on mouse down
+        self.start_y = self.y  # Set start_y on mouse down
+        self.widget.place(x=self.x,y=self.y,width=self.width,height=self.height)
+
     def keyPress(self,event):
         # self.widget.widgetName
         if event.keysym == 'Down':
@@ -162,7 +172,7 @@ class createWidget:
             self.row = 23
         self.widget.grid(row=self.row,column=self.col)
     
-    def saveTest(self):
+    def saveTestxxxxx(self):
         for w in self.widgetList:
             # lprint(w.cget(''))
             print("=-----------")
@@ -229,9 +239,7 @@ class createWidget:
         self.ipady = int(kids['ipady'].get())
         self.padx = int(kids['padx'].get())
         self.pady = int(kids['pady'].get())
-        # from combo box
         self.sticky = kids['sticky'].get()
-        # self.gridMe()
     
     def applyPlaceSettings(self):
         # Apply grid popup settings
@@ -295,11 +303,13 @@ class createWidget:
         b1 = ttk.Button(self.gridPopupFrame,width=8,text="Close",command=popup.destroy)
         b2 = ttk.Button(self.gridPopupFrame,width=8,text="Apply",command=self.applyGridSettings)
         b1.grid(row=row,column=0)
+        row += 1
         # blank Label to make the layout better
         lab2 = ttk.Label(self.gridPopupFrame,text="   ")
         lab2.grid(row=row,column=2)
         b2.grid(row=row,column=3)
-    
+        row += 1
+
     def place_popup(self):
         # colour='azure'
         popup = tk.Tk()
@@ -367,6 +377,7 @@ class createWidget:
         b1 = ttk.Button(self.gridPopupFrame,width=8,text="Close",command=popup.destroy)
         b2 = ttk.Button(self.gridPopupFrame,width=8,text="Apply",command=self.applyPlaceSettings)
         b1.grid(row=row,column=0)
+        row += 1
         # blank Label to make the layout better
         lab2 = ttk.Label(self.gridPopupFrame,text="   ")
         lab2.grid(row=row,column=2)
@@ -378,12 +389,7 @@ class createWidget:
         f_types = [('Jpg kFiles','*.jpg'),('Png Files','*.png')]
         filename = filedialog.askopenfilename(filetypes=f_types)
         idx = pytkguivars.imageIndex
-        # pytkguivars.imagesUsed[idx].set(ImageTk.PhotoImage(file=filename))
-        # testImage = ImageTk.PhotoImage(file=filename)
         pytkguivars.imagesUsed[idx] = ImageTk.PhotoImage(file=filename)
-        # pytkguivars.imageFileNames[idx].set(filename)
-        # guivars.stringVars[row].set(testImage)
-        # self.widget.configure(image=testImage)
         self.widget.configure(image=pytkguivars.imagesUsed[idx])
         pytkguivars.imageIndex += 1
     
@@ -411,8 +417,12 @@ class createWidget:
                 k = key
                 val = self.widget.cget(k)
             if k:
-                if pytkguivars.stringUsed[row]:
-                    val = pytkguivars.stringVars[row].get()
+                if not pytkguivars.stringUsed[row]:
+                    print("NOT USED Key " + k + " Value " + str(val))
+                else:
+                    strVar = pytkguivars.stringVars[row]
+                    print("Row", row, "StringVar", strVar)
+                    val = strVar.get()
                     print("Key " + k + " Value " + str(val))
                     # Yep this is weird python shit. configure would not use the tag name as a variable
                     # eg. self.widget.configure(k:val)
@@ -437,11 +447,15 @@ class createWidget:
                         if (k == 'anchor' or k == 'justify') and len(val) < 1:
                             print("Ignored")
                         else:
-                            self.widget.configure(**{k:val})
-                else:
-                    print("NOT USED Key " + k + " Value " + str(val))
-    
-    def editTtkPopup(self,popup):
+                            # if val is not int:
+                            #    val = 0
+                            print("k",k,"val",val,"val")
+                            try:
+                                self.widget.configure(**{k: val})
+                            except Exception as e:
+                                print(e)
+
+    def editTtkPopup(self, popup):
         global string1
         global string2
         keys = self.widget.keys()
@@ -454,6 +468,9 @@ class createWidget:
         if kids:
             widgetName = self.widget.widgetName
             print(widgetName)
+            l0 = ttk.Label(popup,text=widgetName)
+            l0.grid(row=row,column=1,columnspan=5,sticky=tk.SW)
+            row += 1
             if widgetName == 'ttk::notebook':
                 print(widgetName)
             elif widgetName == 'ttk::frame':
@@ -487,6 +504,7 @@ class createWidget:
                 val = self.widget.cget(k)
             
             l1 = ttk.Label(popup,text=k)
+            # l1.grid(row=row,column=1,columnspan=5,sticky=tk.SW)
             guivars.stringVars[row] = tk.StringVar(popup)
             guivars.childNameVars[row] = tk.StringVar(popup)
             guivars.stringVars[row].set(val)
@@ -576,6 +594,7 @@ class createWidget:
         b2 = ttk.Button(popup,width=8,text="Apply",command=self.applyEditSettings)
         b1.grid(row=row,column=0)
         b2.grid(row=row,column=3)
+        row += 1
         # blank Label to make the layout better
         lab2 = ttk.Label(popup,text="   ")
         lab2.grid(row=row,column=2)
@@ -645,7 +664,7 @@ class createWidget:
     def rightMouseDown(self,event):
         # popup a menu for the type of object
         print(self.widget.widgetName)
-        print(event)
+        # print(event)
         print(createWidget.widgetList[self.widgetId].widgetName)
         # self.widget.destroy()
         self.makePopup()
@@ -664,7 +683,6 @@ class createWidget:
         self.y = y
         self.cornerY = self.y + height
         self.cornerX = self.x + width
-        # dragType = [ 'move', 'dragEast', 'dragWest' , 'dragNorth' , 'dragSouth']
         print("Left Mouse Down --  Width " + str(width) + " Height " + str(height))
         if event.x > (width - 4):
             self.dragType = 'dragEast'
@@ -678,7 +696,7 @@ class createWidget:
         elif event.y < 5:
             self.dragType = 'dragNorth'
             print("Drag top Side")
-        print(event)
+        # print(event)
     
     def leftMouseDragxx(self,event):
         self.xpos = event.x_root - self.x_root
@@ -693,8 +711,8 @@ class createWidget:
         height = self.widget.winfo_height()
         try:
             self.widget.lift()
-        except:
-            None
+        except Exception as e:
+            print("Lift exception ",e)
         if self.dragType == 'dragEast':
             width = event.x
         elif self.dragType == 'dragSouth':
@@ -729,50 +747,41 @@ class createWidget:
         self.start_y = self.widget.winfo_y()
         width = self.widget.winfo_width()
         height = self.widget.winfo_height()
-        # print(event)
         x = event.x_root - self.widget.winfo_rootx()
         y = event.y_root - self.widget.winfo_rooty()
-        # parent widget
-        # z = self.root.grid_location(self.start_x, self.start_y)
-        # z = self.root.grid_location(x, y)
-        self.row = z[1]
-        print("Left Mouse Release -- col,row " + str(z))
-        # self.widget.grid(row=self.row, column=self.col)
-        # g = self.widget.grid_info()
-        # print(g)
-        # print(g['rowspan'])
+        self.x = x
+        self.y = y
 
-
-def saveTest():
-    # return None
-    for w in createWidget.widgetList:
-        if w != [typing.Any]:
-            place = w.place_info()
-            print(place)
-            grid = w.grid_info()
-            print(grid)
-            keys = w.keys()
-            print(keys)
-            tags = w.bindtags()
-            print(tags)
-            t = w.winfo_class()
-            print(t)
-            # w.__getattribute__(string1)
-            for k in keys:
-                print(k)
-                try:
-                    val = k.cget()
-                    if val is not None:
-                        print(k + ": " + str(val))
-                except:
-                    print(k + "exception")
-                """
-                val = w.cget()
-                if val == None:
-                    pass
-                else:
+    def saveTest(self):
+        # return None
+        for w in createWidget.widgetList:
+            if w is not None:
+                place = w.place_info()
+                print(place)
+                grid = w.grid_info()
+                print(grid)
+                keys = w.keys()
+                print(keys)
+                tags = w.bindtags()
+                print(tags)
+                t = w.winfo_class()
+                print(t)
+                # w.__getattribute__(string1)
+                for k in keys:
+                    print(k)
                     try:
-                        print(k + " " + val)
-                    finally:
-                        print("Unable to print val")
-                """
+                        val = k.cget()
+                        if val is not None:
+                            print(k , ": " , str(val))
+                    except Exception as e:
+                        print(k , " exception ",e)
+                    """
+                    val = w.cget()
+                    if val == None:
+                        pass
+                    else:
+                        try:
+                            print(k + " " + val)
+                        finally:
+                            print("Unable to print val")
+                    """
