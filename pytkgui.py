@@ -1,15 +1,16 @@
-import tkinter as tk
-from tkinter import ttk
 import pickle
+import tkinter as tk
+from collections import defaultdict
+from functools import partial
+from tkinter import ttk
+from typing import Any
+
+import sv_ttk
+from ttkthemes import ThemedTk
+
 import createWidget as cw
 import pytkguivars
 import pytkguivars as guivars
-
-from ttkthemes import ThemedTk
-import sv_ttk
-from functools import partial
-from typing import Any
-from collections import defaultdict
 
 # rootWin = tk.Tk()
 rootWin = ThemedTk()
@@ -159,18 +160,20 @@ def Merge(dict1,dict2):
 
 
 def tree(): return defaultdict(tree)
+
+
 def saveMe():
     global mainCanvas
     project = tree()
     widgetCount = 0
-    width = 0 # mainCanvas.winfo_width
-    height = 0 # mainCanvas.winfo_height
-    projectData = {"ProjectName":'test','ProjectPath':'/tmp/test','width': width,'height': height}
+    width = 0  # mainCanvas.winfo_width
+    height = 0  # mainCanvas.winfo_height
+    projectData = {"ProjectName":'test','ProjectPath':'/tmp/test','width':width,'height':height}
     for w in cw.createWidget.widgetList:
         if (w is not None) and (len(str(w)) > 2):
             print("=-----------")
-            parent = w.winfo_parent()
-            print('widgetName ', w.widgetName, "Parent", parent)
+            # parent = w.winfo_parent() # This can get weird errors
+            print('widgetName ',w.widgetName)
             project["widgetName"] = w.widgetName
             widgetId = 'Widget' + str(widgetCount)
             widgetCount += 1
@@ -195,11 +198,11 @@ def saveMe():
                             widgetDict = newWidget
                             keyCount += 1
             widgetKeys = widgetId + '-KeyCount'
-            tmpDict = Merge(widgetDict,{widgetKeys: keyCount})
+            tmpDict = Merge(widgetDict,{widgetKeys:keyCount})
             newWidget = {widgetId:tmpDict}
             tmpData = Merge(projectData,newWidget)
             projectData = tmpData
-    projectData1 = Merge(projectData,{'widgetCount': widgetCount})
+    projectData1 = Merge(projectData,{'widgetCount':widgetCount})
     projectData = projectData1
     print(projectData)
     pytkguivars.projectDict = projectData
@@ -207,7 +210,7 @@ def saveMe():
     pd = pickle.dumps(projectData)
     print(pd)
     f = open("/tmp/pytkguitest.pk1","wb")
-    pickle.dump(projectData, f)
+    pickle.dump(projectData,f)
     f.close()
 
 
@@ -221,7 +224,7 @@ def runMe():
     runDict = pytkguivars.projectDict
     nWidgits = runDict.get('widgetCount')
     largestWidth = 200
-    largestHeight= 200
+    largestHeight = 200
     # print('width',width,'height',height)
     print('nWidgets',nWidgits)
     print("# -------------------------")
@@ -240,13 +243,13 @@ def runMe():
             t = wType.replace('ttk::','ttk.')
             wType = t
             idx = wType.find('.')
-            if idx == -1: # Not ttk widgets
+            if idx == -1:  # Not ttk widgets
                 t = 'tk.' + wType
                 wType = t
             for ch in alphaList:
-                t = wType.replace('.' + ch , '.' + ch.upper() )
+                t = wType.replace('.' + ch,'.' + ch.upper())
                 wType = t
-            widgetDef= widgetId + ' = ' + wType + '(rootFrame'
+            widgetDef = widgetId + ' = ' + wType + '(rootFrame'
             keyCount = widgetId + "-KeyCount"
             nKeys = wDict.get(keyCount)
             for a in range(nKeys):
@@ -254,8 +257,14 @@ def runMe():
                 aDict = wDict.get(attribute)
                 key = aDict.get('Key')
                 val = aDict.get('Value')
-                tmpWidgetDef =  widgetDef + ', ' + key + '=\'' + val + '\' '
-                widgetDef = tmpWidgetDef
+                # Bug in tkinter?
+                if key == 'from':
+                    key = 'from_'
+                if val.find('<') > -1 or val.find(' ') > -1:
+                    print("key",key,"has a weird value",val)
+                else:
+                    tmpWidgetDef = widgetDef + ', ' + key + '=\'' + val + '\' '
+                    widgetDef = tmpWidgetDef
             print(widgetDef + ')')
             place = wDict.get('Place')
             # print(place)
@@ -274,10 +283,11 @@ def runMe():
                 None
             except ValueError:
                 None
-                
+            
             anchor = place.get('anchor')
             bordermode = place.get('bordermode')
-            print(widgetId + ".place(" + "x=" + x + ",y=" + y + ",width=" + width + ",height=" + height + ",anchor='" + anchor + "',bordermode='" + bordermode + "')")
+            print(
+                widgetId + ".place(" + "x=" + x + ",y=" + y + ",width=" + width + ",height=" + height + ",anchor='" + anchor + "',bordermode='" + bordermode + "')")
     # print("rootFrame.place(x=0, y=0, width=" + str(largestWidth) + " ,height=" + str(largestHeight) +")" )
     largestWidth += 20
     largestHeight += 20
@@ -290,6 +300,7 @@ def runMe():
     print("sg0.grid(row=1,sticky=tk.SE)")
     print("rootFrame.place(x=0, y=0, relwidth=1.0, relheight=1.0)")
     print("\nrootWin.mainloop()")
+
 
 def buildAWidget(widgetId,wDict):
     wType = wDict.get('WidgetName')
@@ -305,20 +316,27 @@ def buildAWidget(widgetId,wDict):
     keyCount = widgetId + "-KeyCount"
     nKeys = wDict.get(keyCount)
     place = wDict.get('Place')
-    widgetDef= wType + "(mainCanvas"
+    widgetDef = wType + "(mainCanvas"
     for a in range(nKeys):
         attribute = 'Attribute' + str(a)
         aDict = wDict.get(attribute)
         key = aDict.get('Key')
         val = aDict.get('Value')
-        tmpWidgetDef = widgetDef + ', ' + key + '=\'' + val + '\' '
-        widgetDef = tmpWidgetDef
+        # Looks like a bug in tkinter scale objects ..
+        if key == 'from':
+            key = 'from_'
+        if val.find('<') > -1 or val.find(' ') > -1:
+            print("key",key,"has a weird value",val)
+        else:
+            tmpWidgetDef = widgetDef + ', ' + key + '=\'' + val + '\' '
+            widgetDef = tmpWidgetDef
     tmp = widgetDef + ')'
     widgetDef = tmp
     widget = eval(widgetDef)
     w = cw.createWidget(mainCanvas,widget)
     print(place)
     w.addPlace(place)
+
 
 """
 label = ttk.Label(mainCanvas,text="Label",borderwidth=1,relief=tk.SOLID,anchor=tk.CENTER)
@@ -341,6 +359,8 @@ def loadProject():
         if wDict != {}:
             buildAWidget(widgetId,wDict)
             # Example .....
+
+
 def exitApp():
     rootWin.destroy()
 
@@ -482,7 +502,6 @@ def leftClick(arg):
     y = arg.y
     xstart = arg.x_root
     ystart = arg.y_root
-    
 
 
 def doNothing():

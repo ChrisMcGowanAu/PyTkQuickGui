@@ -1,17 +1,16 @@
 import random
-import typing
-from functools import partial
-from typing import Any
 import tkinter as tk
-from PIL import ImageTk
-from tkinter import ttk
+from functools import partial
 from tkinter import filedialog
+from tkinter import ttk
+from tkinter.colorchooser import askcolor
+from typing import Any
+
+import tkfontchooser
+from PIL import ImageTk
 
 import pytkguivars
 import pytkguivars as guivars
-
-from tkinter.colorchooser import askcolor
-import tkfontchooser
 
 testImage: ImageTk
 
@@ -129,16 +128,29 @@ class createWidget:
         if pytkguivars.useGrider:
             self.widget.grid(row=self.row,column=self.col)
         else:
+            # self.widget.place(x=self.x,y=self.y,width=self.width,height=self.height)
             self.widget.place(x=self.x,y=self.y)
+        
+        self.widget.update()
+        self.width = self.widget.winfo_width()
+        self.height = self.widget.winfo_height()
+        print("Width",self.width,"Height",self.height)
+    
     def addPlace(self,placeDict):
         print(placeDict)
         self.x = int(placeDict.get('x'))
         self.y = int(placeDict.get('y'))
-        self.width = int(placeDict.get('width'))
-        self.height = int(placeDict.get('height'))
         self.start_x = self.x  # Set start_x on mouse down
         self.start_y = self.y  # Set start_y on mouse down
-        self.widget.place(x=self.x,y=self.y,width=self.width,height=self.height)
+        width = placeDict.get('width')
+        height = placeDict.get('height')
+        if width == '' or height == '':
+            self.widget.place(x=self.x,y=self.y)
+        else:
+            self.width = int(width)
+            self.height = int(height)
+            self.widget.place(x=self.x,y=self.y,width=self.width,height=self.height)
+
 
     def keyPress(self,event):
         # self.widget.widgetName
@@ -171,18 +183,6 @@ class createWidget:
         if self.row > 23:
             self.row = 23
         self.widget.grid(row=self.row,column=self.col)
-    
-    def saveTestxxxxx(self):
-        for w in self.widgetList:
-            # lprint(w.cget(''))
-            print("=-----------")
-            keys = w.keys()
-            for key in keys:
-                print("Attribute: {:<20}".format(key),end=' ')
-                value = w[key]
-                vtype = type(value)
-                print('Type: {:<30} Value: {}'.format(str(vtype),value))
-            print("=-----------")
     
     def fontChange(self,row):
         font = tkfontchooser.askfont(self.root)
@@ -309,7 +309,7 @@ class createWidget:
         lab2.grid(row=row,column=2)
         b2.grid(row=row,column=3)
         row += 1
-
+    
     def place_popup(self):
         # colour='azure'
         popup = tk.Tk()
@@ -421,7 +421,7 @@ class createWidget:
                     print("NOT USED Key " + k + " Value " + str(val))
                 else:
                     strVar = pytkguivars.stringVars[row]
-                    print("Row", row, "StringVar", strVar)
+                    print("Row",row,"StringVar",strVar)
                     val = strVar.get()
                     print("Key " + k + " Value " + str(val))
                     # Yep this is weird python shit. configure would not use the tag name as a variable
@@ -451,11 +451,11 @@ class createWidget:
                             #    val = 0
                             print("k",k,"val",val,"val")
                             try:
-                                self.widget.configure(**{k: val})
+                                self.widget.configure(**{k:val})
                             except Exception as e:
                                 print(e)
-
-    def editTtkPopup(self, popup):
+    
+    def editTtkPopup(self,popup):
         global string1
         global string2
         keys = self.widget.keys()
@@ -513,7 +513,7 @@ class createWidget:
             guivars.stringUsed[row] = True
             # These are ignored --- the no entry is added for these
             uniqueName = k + str(row)
-            if k == 'class' or k == 'cursor' or k == 'show' or k == 'default' or k == 'takefocus' or k == 'state':
+            if k in ('class','cursor','show','default','takefocus','state'):
                 guivars.stringUsed[row] = False
             ###############################
             # Special cases. Most will default to an entry widget
@@ -525,8 +525,7 @@ class createWidget:
             ###############################
             # spinbox integer tags
             ###############################
-            elif (k == 'height' or k == 'columns' or k == 'width' or
-                  k == 'borderwidth' or k == 'displaycolumns' or k == 'padding'):
+            elif k in ('height','columns','width','borderwidth','displaycolumns','padding'):
                 w = ttk.Spinbox(popup,width=5,name=uniqueName,from_=0,to=99,increment=1,
                                 textvariable=guivars.stringVars[row])
                 w.grid(row=row,column=3,sticky=tk.SW)
@@ -599,16 +598,14 @@ class createWidget:
         lab2 = ttk.Label(popup,text="   ")
         lab2.grid(row=row,column=2)
         popup.mainloop()
-    
+
     def editTtkButton(self,root):
         keys = self.widget.keys()
         if keys == {}:
             root.destroy()
             return
         print(keys)
-        
-        root.mainloop()
-    
+
     def editWidget(self,w):
         # Build the edit widget
         popup = tk.Tk()
@@ -624,13 +621,7 @@ class createWidget:
         style.configure('TSpinbox',background=colour,foreground='black')
         # style.configure('TButton', background='lightgreen1', foreground='black')
         self.editPopupFrame = ttk.Frame(popup,borderwidth=2,relief='sunken')
-        
         self.editTtkPopup(popup)
-        # match self.widget.widgetName:
-        #     case 'ttk::label':
-        #         self.editTtkPopup(popup)
-        #     case 'ttk::button':
-        #         self.editTtkButton(popup) */
     
     def makePopup(self):
         # Add Menu
@@ -698,11 +689,6 @@ class createWidget:
             print("Drag top Side")
         # print(event)
     
-    def leftMouseDragxx(self,event):
-        self.xpos = event.x_root - self.x_root
-        self.ypos = event.y_root - self.y_root
-        self.widget.place(x=self.xpos,y=self.ypos)
-    
     def leftMouseDrag(self,event):
         # print(event)
         x = self.widget.winfo_x() + event.x - self.start[0]
@@ -741,16 +727,7 @@ class createWidget:
         if pytkguivars.useGrider:
             self.widget.grid(row=self.row,column=self.col)
         print("Left Mouse Release -- col,row " + str(z))
-    
-    def leftMouseReleaseXX(self,event):
-        self.start_x = self.widget.winfo_x()
-        self.start_y = self.widget.winfo_y()
-        width = self.widget.winfo_width()
-        height = self.widget.winfo_height()
-        x = event.x_root - self.widget.winfo_rootx()
-        y = event.y_root - self.widget.winfo_rooty()
-        self.x = x
-        self.y = y
+
 
     def saveTest(self):
         # return None

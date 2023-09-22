@@ -1,6 +1,4 @@
 import tkinter as tk
-from PIL import Image, ImageTk
-import tkinter.ttk as ttk
 
 projectDict: dict
 stringVars: list[tk.StringVar]
@@ -11,6 +9,7 @@ imagesUsed: list[tk.PhotoImage]
 useGrider: bool
 snapTo: int
 imageIndex: int
+
 
 def initVars():
     global stringVars
