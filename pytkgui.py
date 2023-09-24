@@ -1,4 +1,6 @@
+import os
 import pickle
+import sys
 import tkinter as tk
 from collections import defaultdict
 from functools import partial
@@ -171,6 +173,7 @@ def saveMe():
     projectData = {"ProjectName":'test','ProjectPath':'/tmp/test','width':width,'height':height}
     for w in cw.createWidget.widgetList:
         if (w is not None) and (len(str(w)) > 2):
+            w.update()
             print("=-----------")
             # parent = w.winfo_parent() # This can get weird errors
             print('widgetName ',w.widgetName)
@@ -228,6 +231,7 @@ def runMe():
     # print('width',width,'height',height)
     print('nWidgets',nWidgits)
     print("# -------------------------")
+    sys.stdout = open('/tmp/test.py','w')
     print("import tkinter as tk\nfrom tkinter import ttk\nfrom ttkthemes import ThemedTk")
     print("import sv_ttk\n")
     print("rootWin = ThemedTk()")
@@ -260,8 +264,8 @@ def runMe():
                 # Bug in tkinter?
                 if key == 'from':
                     key = 'from_'
-                if val.find('<') > -1 or val.find(' ') > -1:
-                    print("key",key,"has a weird value",val)
+                if val.find('<') > -1 or val.find('(') > -1:
+                    print("# key",key,"has a weird value",val)
                 else:
                     tmpWidgetDef = widgetDef + ', ' + key + '=\'' + val + '\' '
                     widgetDef = tmpWidgetDef
@@ -300,6 +304,10 @@ def runMe():
     print("sg0.grid(row=1,sticky=tk.SE)")
     print("rootFrame.place(x=0, y=0, relwidth=1.0, relheight=1.0)")
     print("\nrootWin.mainloop()")
+    sys.stdout.close()
+    sys.stdout = sys.__stdout__
+    cmd = "python3 /tmp/test.py &"
+    os.system(cmd)
 
 
 def buildAWidget(widgetId,wDict):
@@ -325,8 +333,8 @@ def buildAWidget(widgetId,wDict):
         # Looks like a bug in tkinter scale objects ..
         if key == 'from':
             key = 'from_'
-        if val.find('<') > -1 or val.find(' ') > -1:
-            print("key",key,"has a weird value",val)
+        if val.find('<') > -1 or val.find('(') > -1:
+            print("# key",key,"has a weird value",val)
         else:
             tmpWidgetDef = widgetDef + ', ' + key + '=\'' + val + '\' '
             widgetDef = tmpWidgetDef
@@ -542,12 +550,17 @@ def sizeGripRelease(event):
     drawGridLines()
 
 
+def rightMouseDown():
+    global mainCanvas
+
+
 def buildGrid(rows,cols):
     global mainFrame
     global mainCanvas
     # mainCanvas = ttk.Frame(mainFrame, width=40, height=100, relief="ridge", borderwidth=2 )
     mainCanvas = tk.Canvas(mainFrame,width=40,height=100,relief=tk.SOLID,borderwidth=1,bg="#f0f0d0")
     mainCanvas.grid(row=0,column=0,columnspan=cols,rowspan=rows,padx=5,pady=5,sticky="NSEW")
+    mainCanvas.bind('<Button-3>',rightMouseDown)
     drawGridLines()
     """
     valuesR = range(rows)
