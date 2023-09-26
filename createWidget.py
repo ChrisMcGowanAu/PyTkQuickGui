@@ -56,6 +56,8 @@ class createWidget:
     dragType = ['move','dragEast','dragWest','dragNorth','dragSouth']
     
     def __init__(self,root,widget):
+        self.parentX = 0
+        self.parentY = 0
         self.popup = None
         self.cornerX = None
         self.cornerY = None
@@ -150,8 +152,7 @@ class createWidget:
             self.width = int(width)
             self.height = int(height)
             self.widget.place(x=self.x,y=self.y,width=self.width,height=self.height)
-
-
+    
     def keyPress(self,event):
         # self.widget.widgetName
         if event.keysym == 'Down':
@@ -313,6 +314,7 @@ class createWidget:
     def place_popup(self):
         # colour='azure'
         popup = tk.Tk()
+        popup.update()
         x = popup.winfo_pointerx()
         y = popup.winfo_pointery()
         # popup.geometry('%dx%d+%d+%d' % (200, 200, x, y))
@@ -396,9 +398,10 @@ class createWidget:
     def defineStyle(self):
         print('defineStyle TBD')
         style = ttk.Style(self.root)
-        style.element_names()
+        print(style.element_names())
+        print(style.theme_names())
         styleVals = style.element_names()
-        print(styleVals)
+        # print(styleVals)
     
     def applyEditSettings(self):
         # keys = self.widget.keys()
@@ -598,14 +601,14 @@ class createWidget:
         lab2 = ttk.Label(popup,text="   ")
         lab2.grid(row=row,column=2)
         popup.mainloop()
-
+    
     def editTtkButton(self,root):
         keys = self.widget.keys()
         if keys == {}:
             root.destroy()
             return
         print(keys)
-
+    
     def editWidget(self,w):
         # Build the edit widget
         popup = tk.Tk()
@@ -622,6 +625,71 @@ class createWidget:
         # style.configure('TButton', background='lightgreen1', foreground='black')
         self.editPopupFrame = ttk.Frame(popup,borderwidth=2,relief='sunken')
         self.editTtkPopup(popup)
+   
+    def findParentWidget(self) :
+        parent = self.widget.place_info().get('in')
+        print('Parent',parent,'self.root',self.root)
+        if self.root == parent:
+            return parent
+        else:
+            for w in createWidget.widgetList:
+                if w is not None and w != self.widget:
+                    wName = w.widgetName
+                    if w == parent:
+                        return w
+        return self.root
+    
+    def reParent(self):
+        name0 = self.widget.widgetName
+        place = self.widget.place_info()
+        # print(place)
+        x1 = int(place.get('x'))
+        y1 = int(place.get('y'))
+        w = int(place.get('width'))
+        h = int(place.get('height'))
+        x2 = x1 + w
+        y2 = y1 + h
+        # print("Name",name0,"nw",x1,",",y1,"se",x2,",",y2)
+        #print("This Name",name0,"x",place.get('x'),"y",place.get('y'),"width",place.get('width'),"height",
+        #      place.get('height'))
+        # print(self.widget.keys())
+        for w in createWidget.widgetList:
+            if w is not None and w != self.widget:
+                name = w.widgetName
+                place = w.place_info()
+                # print(place)
+                wx1 = int(place.get('x'))
+                wy1 = int(place.get('y'))
+                width = int(place.get('width'))
+                height = int(place.get('height'))
+                wx2 = wx1 + width
+                wy2 = wy1 + height
+                # print("Name",name,"nw",wx1,",",wy1,"se",wx2,",",wy2)
+                # print("Name",name,"x",place.get('x'),"y",place.get('y'),"width",place.get('width'),"height",
+                #      place.get('height'))
+                if x1 >= wx1 and y1 >= wy1 and x2 <= wx2 and y2 <= wy2:
+                    print("Match ! Name",name0,"fits inside",name)
+                    # print(w.keys())
+                    newx = x1 - wx1
+                    newy = y1 - wy1
+                    # self.widget.place('in=',w,'x=',newx,'y=',newy)
+                    self.widget.place(in_=w,x=newx,y=newy)
+                    # It has to above the parent
+                    tk.Misc.lift(self.widget, aboveThis=None)
+                    # tk.Misc.lift(self.widget,aboveThis=w)
+                    self.widget.update()
+    
+    def clone(self):
+        mainCanvas = self.root
+        widgetId = createWidget.widgetId
+        newWidgetDict = pytkguivars.saveWidgetAsDict(widgetId,self.widget)
+        widgetDef = pytkguivars.buildAWidget(widgetId,newWidgetDict)
+        widgetAltName= 'Widget' + str(widgetId)
+        widgetDict = newWidgetDict.get(widgetAltName)
+        widget = eval(widgetDef)
+        place = widgetDict.get('Place')
+        createWidget(mainCanvas,widget)
+        widget.place(x=self.x + 16, y=self.y + 16,width=self.width,height=self.height)
     
     def makePopup(self):
         # Add Menu
@@ -632,11 +700,12 @@ class createWidget:
         self.popup.add_command(label="Edit",command=mypartial)
         # self.popup.add_command(label="Edit", command=self.editWidget)
         self.popup.add_command(label="Layout",command=self.place_popup)
-        self.popup.add_command(label="Clone")
-        self.popup.add_command(label="Col Span +",command=self.incColSpan)
-        self.popup.add_command(label="Col Span -",command=self.decColSpan)
+        self.popup.add_command(label="Clone",command=self.clone)
+        self.popup.add_command(label="Re-Parent",command=self.reParent)
+        # self.popup.add_command(label="Col Span +",command=self.incColSpan)
+        # self.popup.add_command(label="Col Span -",command=self.decColSpan)
         self.popup.add_command(label="Delete",command=self.widget.destroy)
-        self.popup.add_command(label="Save",command=self.saveTest)
+        self.popup.add_command(label="Save",command=self.saveTestxxx)
         self.popup.add_separator()
         self.popup.add_command(label="Quit",command=self.popup.destroy)
     
@@ -663,15 +732,29 @@ class createWidget:
     
     def leftMouseDown(self,event):
         self.start = (event.x,event.y)
-        self.x_root = event.x_root - self.start_x
-        self.y_root = event.y_root - self.start_y
-        self.dragType = 'move'
-        width = self.widget.winfo_width()
-        height = self.widget.winfo_height()
+        self.dragType = ''
+        parent = self.findParentWidget()
+        if parent != self.root:
+            # print(parent,self.root)
+            px = parent.place_info().get('x')
+            py = parent.place_info().get('y')
+            # print(px,py)
+            # print("Before",self.start)
+            self.parentX = int(px)
+            self.parentY = int(py)
+            self.start = (event.x + int(px) ,event.y + int(py))
+            # print("After",self.start)
+
         x = self.widget.winfo_x() + event.x - self.start[0]
         y = self.widget.winfo_y() + event.y - self.start[1]
         self.x = x
         self.y = y
+        
+        # Is the stuff above all crap?
+        width = self.widget.winfo_width()
+        height = self.widget.winfo_height()
+        self.x = self.widget.winfo_x()
+        self.y = self.widget.winfo_y()
         self.cornerY = self.y + height
         self.cornerX = self.x + width
         print("Left Mouse Down --  Width " + str(width) + " Height " + str(height))
@@ -695,14 +778,17 @@ class createWidget:
         y = self.widget.winfo_y() + event.y - self.start[1]
         width = self.widget.winfo_width()
         height = self.widget.winfo_height()
+        """
         try:
-            self.widget.lift()
+            tk.Misc.lift(self.widget,aboveThis=None)
         except Exception as e:
             print("Lift exception ",e)
+        """
+
         if self.dragType == 'dragEast':
-            width = event.x
+            width = event.x + self.parentX
         elif self.dragType == 'dragSouth':
-            height = event.y
+            height = event.y + self.parentY
         elif self.dragType == 'dragWest':
             self.x = x
             width = self.cornerX - self.x
@@ -715,21 +801,21 @@ class createWidget:
         self.widget.place(x=self.x,y=self.y,width=width,height=height)
     
     def leftMouseRelease(self,event):
-        z = self.root.grid_location(self.x,self.y)
-        self.row = z[1]
-        self.col = z[0]
+        self.dragType = ''
         newX = snapToClosest(self.x)
         newY = snapToClosest(self.y)
         self.x = newX
         self.y = newY
-        
-        self.widget.place(x=self.x,y=self.y)
         if pytkguivars.useGrider:
+            z = self.root.grid_location(self.x,self.y)
+            self.row = z[1]
+            self.col = z[0]
             self.widget.grid(row=self.row,column=self.col)
-        print("Left Mouse Release -- col,row " + str(z))
-
-
-    def saveTest(self):
+            print("Left Mouse Release -- col,row " + str(z))
+        else:
+            self.widget.place(x=self.x,y=self.y)
+    
+    def saveTestxxx(self):
         # return None
         for w in createWidget.widgetList:
             if w is not None:
@@ -749,9 +835,9 @@ class createWidget:
                     try:
                         val = k.cget()
                         if val is not None:
-                            print(k , ": " , str(val))
+                            print(k,": ",str(val))
                     except Exception as e:
-                        print(k , " exception ",e)
+                        print(k," exception ",e)
                     """
                     val = w.cget()
                     if val == None:
