@@ -1,4 +1,5 @@
 import tkinter as tk
+import logging as log
 
 projectDict: dict
 stringVars: list[tk.StringVar]
@@ -47,21 +48,23 @@ def saveWidgetAsDict(widgetCount,w):
     :return: Dict()
     """
     w.update()
-    print("=-----------")
+    log.info("=-----------")
     # parent = w.winfo_parent() # This can get weird errors
-    print('widgetName ',w.widgetName)
+    log.info('widgetName %s',w.widgetName)
     widgetName = 'Widget' + str(widgetCount)
     place = w.place_info()
+    # Remove 'in' from place.
+    del place['in']
     widgetDict = {'WidgetName':w.widgetName,'Place':place}
-    place['in'] = widgetName
+    # place['in'] = widgetName
     keyCount = 0 
     keys = w.keys()
     if keys:
         for key in keys:
-            print('Key->',key,'<-')
+            log.info('Key->%s<-',key)
             if key != 'in':
                 value = w[key]
-                print('Value->',value,'<-')
+                log.info('Value->%s<-',str(value))
                 attrId = 'Attribute' + str(keyCount)
                 # widgetAttribute = {attrId: {'Key': key,'Type': type(value),'Value': str(value)}}
                 # Ignore empty values
@@ -77,18 +80,18 @@ def saveWidgetAsDict(widgetCount,w):
 
 
 def buildAWidget(widgetId,wDictOrig):
-    # print('wDictOrig',wDictOrig)
+    # log.info('wDictOrig',wDictOrig)
     widgetAltName= 'Widget' + str(widgetId)
     testDict = wDictOrig.get(widgetAltName)
     widgetName = str(widgetId)
     if testDict is not None:
-        # print(testDict)
+        # log.info(testDict)
         wDict = testDict
         widgetName = widgetAltName
     else:
         wDict = wDictOrig
     wType = wDict.get('WidgetName')
-    # print('wType',wType,type(wType))
+    # log.info('wType',wType,type(wType))
     t = wType.replace('ttk::','ttk.')
     wType = t
     idx = wType.find('.')
@@ -111,7 +114,7 @@ def buildAWidget(widgetId,wDictOrig):
         if key == 'from':
             key = 'from_'
         if val.find('<') > -1 or val.find('(') > -1:
-            print("# key",key,"has a weird value",val)
+            log.info("# key",key,"has a weird value",val)
         else:
             if len(val) > 0:
                 tmpWidgetDef = widgetDef + ',' + key + '=\'' + val + '\''

@@ -1,3 +1,4 @@
+import logging as log
 import random
 import tkinter as tk
 from functools import partial
@@ -13,7 +14,6 @@ import pytkguivars
 import pytkguivars as guivars
 
 testImage: ImageTk
-
 string1: Any
 string2: Any
 string3: Any
@@ -22,6 +22,11 @@ pytkguivars.useGrider = False
 pytkguivars.snapTo = 16
 pytkguivars.imageIndex = 0
 
+# This is my enum type for list indicies
+NAME: int = 0
+PARENT: int = 1
+WIDGET: int = 2
+CHILDREN: int = 3
 
 class GridWidget:
     lastx = 0
@@ -35,7 +40,7 @@ class GridWidget:
         self.widget.grid(row=self.row,column=self.col,sticky='WENS')
     
     def mouseEnter(self,event):
-        print("Row " + str(self.row) + " Col " + str(self.col))
+        log.info("Row " + str(self.row) + " Col " + str(self.col))
 
 
 def snapToClosest(v: int) -> int:
@@ -50,8 +55,97 @@ def snapToClosest(v: int) -> int:
     return newV
 
 
+def findPythonWidgetNameList(name: str) -> list:
+    found = False
+    # [pythonName,parentName,widget,[children,...]])
+    # NAME: int = 0 PARENT: int = 1 WIDGET: int = 2 CHILDREN: int = 3
+    for nl in createWidget.widgetNameList:
+        # print('Name',name,'nl[0]',nl[NAME])
+        if nl[NAME] == name:
+            found = True
+            return nl
+    if not found:
+        log.error("Unable to locate pythonName ->%s<-",name)
+        for w in createWidget.widgetNameList:
+            print(str(w))
+        return []
+
+
+def updateWidgetNameList(pythonName,w):
+    # createWidget.widgetNameList.append([self.pythonName,'toolRoot',self.widget,[]])
+    # [pythonName,parentName,widget,[children,...]])
+    # NAME: int = 0 PARENT: int = 1 WIDGET: int = 2 CHILDREN: int = 3
+    nl = findPythonWidgetNameList(pythonName)
+    if nl != []:
+        # Replace the parent
+        ParentName = ''
+        found = False
+        for nl2 in createWidget.widgetNameList:
+            print(nl)
+            if nl2[WIDGET] == w:
+                ParentName = nl2[NAME]
+                nl2[CHILDREN].append(pythonName)
+                found = True
+                break
+        if not found:
+            log.error("Unable to locate widget ->%s<-",str(w))
+            print(createWidget.widgetNameList)
+        nl[PARENT] = ParentName
+
+
+def deleteWidgetFromLists(pythonName,widget):
+    # [pythonName,parentName,widget,[children,...]])
+    # NAME: int = 0 PARENT: int = 1 WIDGET: int = 2 CHILDREN: int = 3
+    commands = []
+    nl = findPythonWidgetNameList(pythonName)
+    children = nl[CHILDREN]
+    if children:
+        for child in children:
+            log.warning("Deleting %s from %s children=%s",child,pythonName,children)
+            childNl = findPythonWidgetNameList(child)
+            if childNl:
+                name = childNl[NAME]
+                childWidget = childNl[WIDGET]
+                commands.append([name,childWidget])
+                # Dont call this here. The  deletes are saved for later
+                # deleteWidgetFromLists(name,childWidget)
+        for c in commands:
+            deleteWidgetFromLists(c[0],c[1])
+    
+    parent = nl[PARENT]
+    if parent != 'toolRoot':
+        parentNl = findPythonWidgetNameList(parent)
+        # Remove pythonName from the children
+        parentNl[CHILDREN].remove(pythonName)
+    log.warning("Deleting %s and %s",str(nl),str(widget))
+    createWidget.widgetList.remove(widget)
+    createWidget.widgetNameList.remove(nl)
+
+
+def raiseChildren(pythonName):
+    # [pythonName,parentName,widget,[children,...]])
+    # NAME: int = 0 PARENT: int = 1 WIDGET: int = 2 CHILDREN: int = 3
+    nl = findPythonWidgetNameList(pythonName)
+    if nl:
+        children = nl[CHILDREN]
+        if children:
+            for child in children:
+                childNl = findPythonWidgetNameList(child)
+                if childNl:
+                    childNl[WIDGET].lift()
+                    childName = childNl[NAME]
+                    raiseChildren(childName)
+    else:
+        log.warning("Failed to find %s",pythonName)
+
+
 class createWidget:
-    widgetList = [None] * 64
+    # This just a list of widgets in the order they are created
+    widgetList = []
+    # Widget Name list will have child lists in the form
+    # This just a list of widgets in the order they are created
+    # [widgetName, parentName , widget, childList]
+    widgetNameList = []
     widgetId = 0
     dragType = ['move','dragEast','dragWest','dragNorth','dragSouth']
     
@@ -61,7 +155,7 @@ class createWidget:
         self.popup = None
         self.cornerX = None
         self.cornerY = None
-        self.bordermode = None
+        # self.bordermode = None
         self.anchor = None
         self.height = None
         self.relwidth = None
@@ -82,7 +176,6 @@ class createWidget:
         self.start = (0,0)
         self.gridPopupFrame = None
         self.editPopupFrame = None
-        # self.tkVar = tk.StringVar()
         self.tkVar = "abcd"
         self.root = root
         self.widget: tk.Widget
@@ -90,26 +183,14 @@ class createWidget:
         w = tk.Widget.getint(self.widget,3)
         h = tk.Widget.getint(self.widget,5)
         # tk.wantobjects()
-        print(self.widget.widgetName)
+        log.info(self.widget.widgetName)
         #######################
         # Notebook is a funny case, just 'raw' it does not display
         if self.widget.widgetName == 'ttk::notebook':
-            print('Notebook')
-            # Frame 1 and 2
-            frame1 = ttk.Frame(self.widget)
-            frame2 = ttk.Frame(self.widget)
-            label1 = ttk.Label(frame1,text="This is Window One")
-            label1.pack(pady=50,padx=20)
-            label2 = ttk.Label(frame2,text="This is Window Two")
-            label2.pack(pady=50,padx=20)
-            frame1.pack(fill=tk.BOTH,expand=True)
-            frame2.pack(fill=tk.BOTH,expand=True)
-            self.widget.add(frame1,text="Window 1")
-            self.widget.add(frame2,text="Window 2")
-        # self.widget.place(x=50, y=50)
-        self.x = random.randint(50,300)
-        self.y = random.randint(50,300)
-        # print(random.randint(3, 9))
+            log.warning('Notebook is not yet done correctly')
+        self.x = random.randint(50,50)
+        self.y = random.randint(50,50)
+        # log.info(random.randint(3, 9))
         self.row = 4
         self.col = 4
         self.x_root = self.x
@@ -117,9 +198,11 @@ class createWidget:
         self.start_x = self.x  # Set start_x on mouse down
         self.start_y = self.y  # Set start_y on mouse down
         
-        print(self.widget.widgetName)
-        print("Widget ID " + str(createWidget.widgetId))
-        createWidget.widgetList[createWidget.widgetId] = widget
+        log.info(self.widget.widgetName)
+        self.pythonName = 'Widget' + str(createWidget.widgetId)
+        log.info("Widget ID " + str(createWidget.widgetId))
+        createWidget.widgetList.append(self.widget)
+        createWidget.widgetNameList.append([self.pythonName,'toolRoot',self.widget,[]])
         self.widgetId = createWidget.widgetId
         createWidget.widgetId += 1
         #  K_UP, K_DOWN, K_LEFT, and K_RIGHT
@@ -136,10 +219,16 @@ class createWidget:
         self.widget.update()
         self.width = self.widget.winfo_width()
         self.height = self.widget.winfo_height()
-        print("Width",self.width,"Height",self.height)
+        if pytkguivars.useGrider:
+            log.warning("Gridder Used TBD")
+        else:
+            self.widget.place(x=self.x,y=self.y,width=self.width,height=self.height)
+
+        log.info("Width %d Height %d",self.width,self.height)
+        # log.info("Width",self.width,"Height",self.height)
     
     def addPlace(self,placeDict):
-        print(placeDict)
+        log.info(placeDict)
         self.x = int(placeDict.get('x'))
         self.y = int(placeDict.get('y'))
         self.start_x = self.x  # Set start_x on mouse down
@@ -187,7 +276,6 @@ class createWidget:
     
     def fontChange(self,row):
         font = tkfontchooser.askfont(self.root)
-        font_str = ""
         if font:
             # spaces in the family name need to be escaped
             font['family'] = font['family'].replace(' ','\ ')
@@ -195,41 +283,34 @@ class createWidget:
             if font['underline']:
                 font_str += ' underline'
                 font_str += ' overstrike'
-            print("Font=" + str(font_str) + " row=" + str(row))
+            log.info("Font=" + str(font_str) + " row=" + str(row))
             guivars.stringVars[row].set(font_str)
-        #    self.widget.configure(font=font_str, text='Chosen font: ' + font_str.replace('\ ', ' '))
+            #    self.widget.configure(font=font_str, text='Chosen font: ' + font_str.replace('\ ', ' '))
     
-    def changeColour(self,row):
+    @staticmethod
+    def changeColour(row):
         colors = askcolor(title="Tkinter color chooser")
-        guivars.stringVars[row].set(colors[1])
-        """
-        if key == 'background':
-            self.widget.configure(background=colors[1])
-        else:
-            self.widget.configure(foreground=colors[1])
-        print(key)
-        """
-        # print(colors[1])
+        if colors[1] is not None:
+            guivars.stringVars[row].set(colors[1])
     
     def incColSpan(self):
         self.colSpan += 1
-        print("incColSpan " + str(self.colSpan))
+        log.info("incColSpan " + str(self.colSpan))
         self.widget.grid(row=self.row,column=self.col,columnspan=self.colSpan)
     
     def decColSpan(self):
         if self.colSpan > 1:
             self.colSpan -= 1
-        print("decColSpan " + str(self.colSpan))
+        log.info("decColSpan " + str(self.colSpan))
         self.widget.grid(row=self.row,column=self.col,columnspan=self.colSpan)
     
     def gridMe(self):
-        self.widget.grid(row=self.row,column=self.col,
-                         ipadx=self.ipadx,ipady=self.ipady,padx=self.padx,pady=self.pady,
+        self.widget.grid(row=self.row,column=self.col,ipadx=self.ipadx,ipady=self.ipady,padx=self.padx,pady=self.pady,
                          columnspan=self.colSpan,rowspan=self.rowSpan,sticky=self.sticky)
     
     def applyGridSettings(self):
         # Apply grid popup settings
-        print("Apply grid settings")
+        log.info("Apply grid settings")
         kids = self.gridPopupFrame.children
         # Children are ttk.Spinbox widgits with the name set as the grid name
         self.row = int(kids['row'].get())
@@ -244,19 +325,19 @@ class createWidget:
     
     def applyPlaceSettings(self):
         # Apply grid popup settings
-        print("Apply place settings")
+        log.info("Apply place settings")
         kids = self.gridPopupFrame.children
-        print(kids)
-        width = self.widget.winfo_width()
-        height = self.widget.winfo_height()
+        log.info(kids)
+        # width = self.widget.winfo_width()
+        # height = self.widget.winfo_height()
         self.x = int(kids['x'].get())
         self.y = int(kids['y'].get())
         self.width = int(kids['width'].get())
         self.height = int(kids['height'].get())
         self.anchor = kids['anchor'].get()
         self.bordermode = kids['bordermode'].get()
-        self.widget.place(x=self.x,y=self.y,width=self.width,height=self.height,
-                          anchor=self.anchor,bordermode=self.bordermode)
+        self.widget.place(x=self.x,y=self.y,width=self.width,height=self.height,anchor=self.anchor,
+                          bordermode=self.bordermode)
     
     def grid_popup(self):
         # colour='azure'
@@ -281,7 +362,7 @@ class createWidget:
         spinVars = [Any] * 16
         lab0 = ttk.Label(self.gridPopupFrame,text="Grid layout settings for " + self.widget.widgetName)
         lab0.grid(row=0,column=0,columnspan=4,sticky=tk.NS)
-        print(gi)
+        log.info(gi)
         row = 1
         stickyVals = [" ",tk.N,tk.S,tk.E,tk.W,tk.NS,tk.EW,tk.NSEW]
         for x in gi:
@@ -297,7 +378,7 @@ class createWidget:
                     self.vars[row] = val
                     w = ttk.Spinbox(self.gridPopupFrame,width=5,name=x,from_=0,to=99,increment=1)
                     w.set(int(val))
-                print("self.vals " + str(row) + " " + str(val))
+                log.info("self.vals " + str(row) + " " + str(val))
                 lab1.grid(row=row,column=0,sticky=tk.NE)
                 w.grid(row=row,column=3,sticky=tk.SW)
                 row += 1
@@ -336,7 +417,7 @@ class createWidget:
         spinVars = [Any] * 16
         lab0 = ttk.Label(self.gridPopupFrame,text="Grid layout settings for " + self.widget.widgetName)
         lab0.grid(row=0,column=0,columnspan=4,sticky=tk.NS)
-        print(gi)
+        log.info(gi)
         row = 1
         stickyVals = [" ",tk.N,tk.S,tk.E,tk.W,tk.NS,tk.EW,tk.NSEW]
         anchorVals = [tk.CENTER,tk.N,tk.NE,tk.E,tk.SE,tk.S,tk.SW,tk.W,tk.NW]
@@ -347,7 +428,7 @@ class createWidget:
         for x in gi:
             if x != 'in':
                 val = gi[x]
-                print(str(val))
+                log.info(str(val))
                 if val == '':
                     val = 0
                 spinVars[row] = val
@@ -372,7 +453,7 @@ class createWidget:
                     self.vars[row] = val
                     w = ttk.Spinbox(self.gridPopupFrame,width=5,name=x,from_=0,to=99,increment=1)
                     w.set(int(val))
-                print("self.vals " + str(row) + " " + str(val))
+                log.info("self.vals " + str(row) + " " + str(val))
                 lab1.grid(row=row,column=0,sticky=tk.NE)
                 w.grid(row=row,column=3,sticky=tk.SW)
                 row += 1
@@ -387,8 +468,7 @@ class createWidget:
     
     def selectImage(self,row):
         global testImage
-        print('selectImage TBD')
-        f_types = [('Jpg kFiles','*.jpg'),('Png Files','*.png')]
+        f_types = [ ('Png Files','*.png'), ('Jpg kFiles','*.jpg') ]
         filename = filedialog.askopenfilename(filetypes=f_types)
         idx = pytkguivars.imageIndex
         pytkguivars.imagesUsed[idx] = ImageTk.PhotoImage(file=filename)
@@ -396,98 +476,83 @@ class createWidget:
         pytkguivars.imageIndex += 1
     
     def defineStyle(self):
-        print('defineStyle TBD')
+        log.info('defineStyle TBD')
         style = ttk.Style(self.root)
-        print(style.element_names())
-        print(style.theme_names())
-        styleVals = style.element_names()
-        # print(styleVals)
+        log.info(style.element_names())
+        log.info(style.theme_names())
+        styleVals = style.element_names()  # log.info(styleVals)
     
     def applyEditSettings(self):
         # keys = self.widget.keys()
         keys = self.keys
-        print("Apply edit settings")
+        log.info("Apply edit settings")
         kids = self.widget.children
-        print(kids)
+        log.info(kids)
         row = 0
         for key in keys:
             row += 1
+            val = ''
             if type(key) is tuple:
-                childW = key[0]
-                k = key[1]
-                # child_widget = getattr(self.widget,childW)
+                # childW = key[0]
+                k = key[1]  # child_widget = getattr(self.widget,childW)
             else:
                 k = key
                 val = self.widget.cget(k)
             if k:
                 if not pytkguivars.stringUsed[row]:
-                    print("NOT USED Key " + k + " Value " + str(val))
+                    log.info("NOT USED Key " + k + " Value " + str(val))
                 else:
                     strVar = pytkguivars.stringVars[row]
-                    print("Row",row,"StringVar",strVar)
+                    log.info("Row %d StringVar %s",row,str(strVar))
                     val = strVar.get()
-                    print("Key " + k + " Value " + str(val))
+                    log.info("Key " + k + " Value " + str(val))
                     # Yep this is weird python shit. configure would not use the tag name as a variable
                     # eg. self.widget.configure(k:val)
                     # so chat gpt-ity said to do this
                     child = guivars.childNameVars[row].get()
                     if child:
-                        print("Configure tag=" + str(k) + " Child=" + str(child) + " Row=" + str(row) + " Value=" + str(
+                        log.info("Configure tag=" + str(k) + " Child=" + str(child) + " Row=" + str(row) + " Value=" + str(
                             val))
                         # child_widget = getattr(self.widget,child)
                         # command_str = f"child_widget.configure({{k: {val}}})"
-                        # print(command_str)
+                        # log.info(command_str)
                         if child == 'label':
                             self.widget.label.configure(**{k:val})
                         elif child == 'scale':
                             self.widget.scale.configure(**{k:val})
                         else:
-                            print(child + " child not handled")
+                            log.info(child + " child not handled")
                     else:
                         # command_str = f"self.widget.configure({{k: {val}}})"
-                        # print(command_str)
-                        print("Configure tag=" + str(k) + " Row=" + str(row) + " Value=" + str(val))
+                        # log.info(command_str)
+                        log.info("Configure tag=" + str(k) + " Row=" + str(row) + " Value=" + str(val))
                         if (k == 'anchor' or k == 'justify') and len(val) < 1:
-                            print("Ignored")
+                            log.info("Ignored")
                         else:
                             # if val is not int:
                             #    val = 0
-                            print("k",k,"val",val,"val")
+                            log.info("k %s val %s",str(k),str(val))
                             try:
                                 self.widget.configure(**{k:val})
                             except Exception as e:
-                                print(e)
+                                log.error(e)
+                                log.warning("k %s val %s",str(k),str(val))
     
     def editTtkPopup(self,popup):
         global string1
         global string2
-        keys = self.widget.keys()
         row = 0
+        gridRow = 0
+        wname = self.widget.widgetName
+        w = ttk.Label(popup,text=wname,borderwidth=1,relief=tk.SOLID,justify=tk.CENTER)
+        # w = ttk.Label(popup,text=wname,borderwidth=1,justify=tk.CENTER)
+        w.grid(row=gridRow,column=1,columnspan=4,sticky=tk.SW)
+        gridRow += 1
+        keys = self.widget.keys()
         if keys == {}:
             popup.destroy()
             return
-        print(keys)
-        kids = self.widget.children
-        if kids:
-            widgetName = self.widget.widgetName
-            print(widgetName)
-            l0 = ttk.Label(popup,text=widgetName)
-            l0.grid(row=row,column=1,columnspan=5,sticky=tk.SW)
-            row += 1
-            if widgetName == 'ttk::notebook':
-                print(widgetName)
-            elif widgetName == 'ttk::frame':
-                keys1 = self.widget.label.keys()
-                for k1 in keys1:
-                    keys.append(tuple(('label',k1)))
-                keys2 = self.widget.scale.keys()
-                for k2 in keys2:
-                    keys.append(tuple(('scale',k2)))
-                
-                print(keys)
-            else:
-                print('unhandled child' + widgetName)
-        # self.labelKeys = ['text', 'background', 'foreground', 'font', 'width', 'anchor', 'textvariable']
+        log.info(keys)
         anchorVals = [tk.CENTER,tk.N,tk.NE,tk.E,tk.SE,tk.S,tk.SW,tk.W,tk.NW]
         justifyVals = [tk.LEFT,tk.CENTER,tk.RIGHT]
         reliefVals = [tk.FLAT,tk.GROOVE,tk.RAISED,tk.RIDGE,tk.SOLID,tk.SUNKEN]
@@ -496,6 +561,7 @@ class createWidget:
         self.keys = keys
         for key in self.keys:
             row += 1
+            gridRow += 1
             k = key
             childW = ""
             if type(key) is tuple:
@@ -524,48 +590,43 @@ class createWidget:
             elif k == 'font':
                 # rowX = row
                 w = ttk.Button(popup,name=uniqueName,text="Select a Font",command=lambda row=row:self.fontChange(row))
-                w.grid(row=row,column=3,columnspan=2,sticky=tk.SW)
+                w.grid(row=gridRow,column=3,columnspan=2,sticky=tk.SW)
             ###############################
             # spinbox integer tags
             ###############################
             elif k in ('height','columns','width','borderwidth','displaycolumns','padding'):
                 w = ttk.Spinbox(popup,width=5,name=uniqueName,from_=0,to=99,increment=1,
                                 textvariable=guivars.stringVars[row])
-                w.grid(row=row,column=3,sticky=tk.SW)
+                w.grid(row=gridRow,column=3,sticky=tk.SW)
             ###############################
             # Combobox fields
             ###############################
             elif k == 'anchor':
-                w = ttk.Combobox(popup,values=anchorVals,width=6,name=uniqueName,
-                                 textvariable=guivars.stringVars[row])
+                w = ttk.Combobox(popup,values=anchorVals,width=6,name=uniqueName,textvariable=guivars.stringVars[row])
                 w.set(val)
-                w.grid(row=row,column=3,sticky=tk.SW)
+                w.grid(row=gridRow,column=3,sticky=tk.SW)
             elif k == 'justify':
-                w = ttk.Combobox(popup,values=justifyVals,width=6,name=uniqueName,
-                                 textvariable=guivars.stringVars[row])
+                w = ttk.Combobox(popup,values=justifyVals,width=6,name=uniqueName,textvariable=guivars.stringVars[row])
                 w.set(val)
-                w.grid(row=row,column=3,sticky=tk.SW)
+                w.grid(row=gridRow,column=3,sticky=tk.SW)
             elif k == 'relief':
-                w = ttk.Combobox(popup,values=reliefVals,width=6,name=uniqueName,
-                                 textvariable=guivars.stringVars[row])
+                w = ttk.Combobox(popup,values=reliefVals,width=6,name=uniqueName,textvariable=guivars.stringVars[row])
                 w.set(val)
-                w.grid(row=row,column=3,sticky=tk.SW)
+                w.grid(row=gridRow,column=3,sticky=tk.SW)
             elif k == 'compound':
-                w = ttk.Combobox(popup,values=compoundVals,width=6,name=uniqueName,
-                                 textvariable=guivars.stringVars[row])
+                w = ttk.Combobox(popup,values=compoundVals,width=6,name=uniqueName,textvariable=guivars.stringVars[row])
                 w.set(val)
-                w.grid(row=row,column=3,sticky=tk.SW)
+                w.grid(row=gridRow,column=3,sticky=tk.SW)
             elif k == 'orient':
-                w = ttk.Combobox(popup,values=orientVals,width=6,name=uniqueName,
-                                 textvariable=guivars.stringVars[row])
+                w = ttk.Combobox(popup,values=orientVals,width=6,name=uniqueName,textvariable=guivars.stringVars[row])
                 w.set(val)
-                w.grid(row=row,column=3,sticky=tk.SW)
+                w.grid(row=gridRow,column=3,sticky=tk.SW)
             ###############################
             # Style is tricky TBD
             ###############################
             elif k == 'style':
                 w = ttk.Button(popup,name=uniqueName,text="Define/Select a Style",command=self.defineStyle)
-                w.grid(row=row,column=3,sticky=tk.SW)
+                w.grid(row=gridRow,column=3,sticky=tk.SW)
             ###############################
             # Image need work TBD
             ###############################
@@ -573,33 +634,56 @@ class createWidget:
                 # thisRow1 = row
                 w = ttk.Button(popup,name=uniqueName,text="Select an image",
                                command=lambda row=row:self.selectImage(row))
-                w.grid(row=row,column=3,sticky=tk.SW)
+                w.grid(row=gridRow,column=3,sticky=tk.SW)
             ###############################
             # Colour selection possibly a canvas with the colour
             ###############################
-            elif k == 'foreground' or k == 'background':
+            elif k == 'bg' or k == 'foreground' or k == 'background':
                 w = ttk.Button(popup,name=uniqueName,text="Select a Color",
                                command=lambda row=row:self.changeColour(row))
-                w.grid(row=row,column=3,columnspan=2,sticky=tk.SW)
+                w.grid(row=gridRow,column=3,columnspan=2,sticky=tk.SW)
             ###############################
             # The Default --- use and entry widget for all other tags
             ###############################
             else:
                 w = tk.Entry(popup,name=uniqueName,textvariable=guivars.stringVars[row])
-                w.grid(row=row,column=3,sticky=tk.SW)
+                w.grid(row=gridRow,column=3,sticky=tk.SW)
             
             if guivars.stringUsed[row]:
-                l1.grid(row=row,column=0,columnspan=2,sticky=tk.E)
+                l1.grid(row=gridRow,column=0,columnspan=2,sticky=tk.E)
         
         # Some widgets have 'children'
+        kids = self.widget.children
+        if kids:
+            for k in kids:
+                widgetName = k.widgetName
+                log.info(widgetName)
+                l0 = ttk.Label(popup,text=widgetName,borderwidth=1,border=tk.SOLID,justify=tk.CENTER)
+                l0.grid(row=gridRow,column=1,columnspan=5,sticky=tk.SW)
+                row += 1
+                gridRow += 1
+                if widgetName == 'ttk::notebook':
+                    log.info(widgetName)
+                elif widgetName == 'ttk::labelframe':
+                    keys1 = self.widget.label.keys()
+                    for k1 in keys1:
+                        keys.append(tuple(('label',k1)))
+                    keys2 = self.widget.scale.keys()
+                    for k2 in keys2:
+                        keys.append(tuple(('scale',k2)))
+                    log.info(keys)
+                else:
+                    log.info('unhandled child %s',widgetName)
+        # self.labelKeys = ['text', 'background', 'foreground', 'font', 'width', 'anchor', 'textvariable']
         b1 = ttk.Button(popup,width=8,text="Close",command=popup.destroy)
         b2 = ttk.Button(popup,width=8,text="Apply",command=self.applyEditSettings)
-        b1.grid(row=row,column=0)
-        b2.grid(row=row,column=3)
+        b1.grid(row=gridRow,column=0)
+        b2.grid(row=gridRow,column=3)
         row += 1
+        gridRow += 1
         # blank Label to make the layout better
         lab2 = ttk.Label(popup,text="   ")
-        lab2.grid(row=row,column=2)
+        lab2.grid(row=gridRow,column=2)
         popup.mainloop()
     
     def editTtkButton(self,root):
@@ -607,7 +691,7 @@ class createWidget:
         if keys == {}:
             root.destroy()
             return
-        print(keys)
+        log.info(keys)
     
     def editWidget(self,w):
         # Build the edit widget
@@ -616,25 +700,26 @@ class createWidget:
         y = popup.winfo_pointery()
         popup.wm_title("Edit Widget")
         popup.geometry('+%d+%d' % (x,y))
-        colour = 'bisque'
+        colour = 'lightgreen'
         style = ttk.Style(popup)
         style.configure('TFrame',background=colour,foreground='black')
         style.configure('TLabel',background=colour,foreground='black')
         style.configure('TCombobox',background=colour,foreground='black')
         style.configure('TSpinbox',background=colour,foreground='black')
-        # style.configure('TButton', background='lightgreen1', foreground='black')
+        style.configure('TButton',background=colour,foreground='black')
+        style.configure('TLabel',background=colour,foreground='black')
         self.editPopupFrame = ttk.Frame(popup,borderwidth=2,relief='sunken')
         self.editTtkPopup(popup)
-   
-    def findParentWidget(self) :
+    
+    def findParentWidget(self):
         parent = self.widget.place_info().get('in')
-        print('Parent',parent,'self.root',self.root)
+        log.info('Parent %s self.root %s',str(parent),str(self.root))
         if self.root == parent:
             return parent
         else:
             for w in createWidget.widgetList:
                 if w is not None and w != self.widget:
-                    wName = w.widgetName
+                    # wName = w.widgetName
                     if w == parent:
                         return w
         return self.root
@@ -642,40 +727,48 @@ class createWidget:
     def reParent(self):
         name0 = self.widget.widgetName
         place = self.widget.place_info()
-        # print(place)
+        # log.info(place)
         x1 = int(place.get('x'))
         y1 = int(place.get('y'))
         w = int(place.get('width'))
         h = int(place.get('height'))
         x2 = x1 + w
         y2 = y1 + h
-        # print("Name",name0,"nw",x1,",",y1,"se",x2,",",y2)
-        #print("This Name",name0,"x",place.get('x'),"y",place.get('y'),"width",place.get('width'),"height",
+        # log.info("Name",name0,"nw",x1,",",y1,"se",x2,",",y2)
+        # log.info("This Name",name0,"x",place.get('x'),"y",place.get('y'),"width",place.get('width'),"height",
         #      place.get('height'))
-        # print(self.widget.keys())
+        # log.info(self.widget.keys())
         for w in createWidget.widgetList:
             if w is not None and w != self.widget:
                 name = w.widgetName
                 place = w.place_info()
-                # print(place)
+                # log.info(place)
                 wx1 = int(place.get('x'))
                 wy1 = int(place.get('y'))
-                width = int(place.get('width'))
-                height = int(place.get('height'))
+                try:
+                    width = int(place.get('width'))
+                    height = int(place.get('height'))
+                except ValueError as e:
+                    log.error(e)
+                    width = 10
+                    height = 10
                 wx2 = wx1 + width
                 wy2 = wy1 + height
-                # print("Name",name,"nw",wx1,",",wy1,"se",wx2,",",wy2)
-                # print("Name",name,"x",place.get('x'),"y",place.get('y'),"width",place.get('width'),"height",
+                # log.info("Name",name,"nw",wx1,",",wy1,"se",wx2,",",wy2)
+                # log.info("Name",name,"x",place.get('x'),"y",place.get('y'),"width",place.get('width'),"height",
                 #      place.get('height'))
                 if x1 >= wx1 and y1 >= wy1 and x2 <= wx2 and y2 <= wy2:
-                    print("Match ! Name",name0,"fits inside",name)
-                    # print(w.keys())
-                    newx = x1 - wx1
-                    newy = y1 - wy1
-                    # self.widget.place('in=',w,'x=',newx,'y=',newy)
-                    self.widget.place(in_=w,x=newx,y=newy)
+                    log.info("Match Name %s fits inside %s",name0,name)
+                    newX = x1 - wx1
+                    newY = y1 - wy1
+                    # self.widget.place('in=',w,'x=',newX,'y=',newY)
+                    self.widget.place(in_=w,x=newX,y=newY)
+                    # w.children.append(self.widget)
+                    updateWidgetNameList(self.pythonName,w)
+                    # createWidget.widgetNameList.append([self.pythonName,'toolRoot',self.widget,[]])
+                    self.widget.parent = w
                     # It has to above the parent
-                    tk.Misc.lift(self.widget, aboveThis=None)
+                    tk.Misc.lift(self.widget,aboveThis=None)
                     # tk.Misc.lift(self.widget,aboveThis=w)
                     self.widget.update()
     
@@ -684,13 +777,17 @@ class createWidget:
         widgetId = createWidget.widgetId
         newWidgetDict = pytkguivars.saveWidgetAsDict(widgetId,self.widget)
         widgetDef = pytkguivars.buildAWidget(widgetId,newWidgetDict)
-        widgetAltName= 'Widget' + str(widgetId)
-        widgetDict = newWidgetDict.get(widgetAltName)
+        # widgetAltName = 'Widget' + str(widgetId)
+        # widgetDict = newWidgetDict.get(widgetAltName)
         widget = eval(widgetDef)
-        place = widgetDict.get('Place')
+        # place = widgetDict.get('Place')
         createWidget(mainCanvas,widget)
-        widget.place(x=self.x + 16, y=self.y + 16,width=self.width,height=self.height)
+        widget.place(x=self.x + 16,y=self.y + 16,width=self.width,height=self.height)
     
+    def deleteWidget(self):
+        deleteWidgetFromLists(self.pythonName,self.widget)
+        self.widget.destroy()
+        
     def makePopup(self):
         # Add Menu
         self.popup = tk.Menu(self.root,tearoff=0)
@@ -704,7 +801,7 @@ class createWidget:
         self.popup.add_command(label="Re-Parent",command=self.reParent)
         # self.popup.add_command(label="Col Span +",command=self.incColSpan)
         # self.popup.add_command(label="Col Span -",command=self.decColSpan)
-        self.popup.add_command(label="Delete",command=self.widget.destroy)
+        self.popup.add_command(label="Delete",command=self.deleteWidget)
         self.popup.add_command(label="Save",command=self.saveTestxxx)
         self.popup.add_separator()
         self.popup.add_command(label="Quit",command=self.popup.destroy)
@@ -717,15 +814,14 @@ class createWidget:
             # Release the grab
             self.popup.grab_release()
             # self.widget.unbind("<Button-3>")
-            self.popup.bind("<Button-3>",self.menu_popup)
-            # button = ttk.Button(self.popup, text="Quit", command=self.popup.destroy)
-            # button.pack()
+            self.popup.bind("<Button-3>",
+                            self.menu_popup)  # button = ttk.Button(self.popup, text="Quit", command=self.popup.destroy)  # button.pack()
     
     def rightMouseDown(self,event):
         # popup a menu for the type of object
-        print(self.widget.widgetName)
-        # print(event)
-        print(createWidget.widgetList[self.widgetId].widgetName)
+        log.info(self.widget.widgetName)
+        # log.info(event)
+        # log.info(createWidget.widgetList[self.widgetId].widgetName)
         # self.widget.destroy()
         self.makePopup()
         self.menu_popup(event)
@@ -735,16 +831,15 @@ class createWidget:
         self.dragType = ''
         parent = self.findParentWidget()
         if parent != self.root:
-            # print(parent,self.root)
+            # log.info(parent,self.root)
             px = parent.place_info().get('x')
             py = parent.place_info().get('y')
-            # print(px,py)
-            # print("Before",self.start)
+            # log.info(px,py)
+            # log.info("Before",self.start)
             self.parentX = int(px)
             self.parentY = int(py)
-            self.start = (event.x + int(px) ,event.y + int(py))
-            # print("After",self.start)
-
+            self.start = (event.x + int(px),event.y + int(py))  # log.info("After",self.start)
+        
         x = self.widget.winfo_x() + event.x - self.start[0]
         y = self.widget.winfo_y() + event.y - self.start[1]
         self.x = x
@@ -757,23 +852,25 @@ class createWidget:
         self.y = self.widget.winfo_y()
         self.cornerY = self.y + height
         self.cornerX = self.x + width
-        print("Left Mouse Down --  Width " + str(width) + " Height " + str(height))
+        log.info("Left Mouse Down --  Width " + str(width) + " Height " + str(height))
         if event.x > (width - 4):
             self.dragType = 'dragEast'
-            print("Drag right Side")
+            log.info("Drag right Side")
         elif event.x < 4:
             self.dragType = 'dragWest'
-            print("Drag left Side")
+            log.info("Drag left Side")
         if event.y > (height - 4):
             self.dragType = 'dragSouth'
-            print("Drag bottom Side")
+            log.info("Drag bottom Side")
         elif event.y < 5:
             self.dragType = 'dragNorth'
-            print("Drag top Side")
-        # print(event)
+            log.info("Drag top Side")  # log.info(event)
+        # Make sure any children are on top.
+        self.widget.lift()
+        raiseChildren(self.pythonName)
     
     def leftMouseDrag(self,event):
-        # print(event)
+        # log.info(event)
         x = self.widget.winfo_x() + event.x - self.start[0]
         y = self.widget.winfo_y() + event.y - self.start[1]
         width = self.widget.winfo_width()
@@ -782,9 +879,9 @@ class createWidget:
         try:
             tk.Misc.lift(self.widget,aboveThis=None)
         except Exception as e:
-            print("Lift exception ",e)
+            log.error("Lift exception ",e)
         """
-
+        
         if self.dragType == 'dragEast':
             width = event.x + self.parentX
         elif self.dragType == 'dragSouth':
@@ -811,7 +908,7 @@ class createWidget:
             self.row = z[1]
             self.col = z[0]
             self.widget.grid(row=self.row,column=self.col)
-            print("Left Mouse Release -- col,row " + str(z))
+            log.info("Left Mouse Release -- col,row " + str(z))
         else:
             self.widget.place(x=self.x,y=self.y)
     
@@ -820,31 +917,31 @@ class createWidget:
         for w in createWidget.widgetList:
             if w is not None:
                 place = w.place_info()
-                print(place)
+                log.info(place)
                 grid = w.grid_info()
-                print(grid)
+                log.info(grid)
                 keys = w.keys()
-                print(keys)
+                log.info(keys)
                 tags = w.bindtags()
-                print(tags)
+                log.info(tags)
                 t = w.winfo_class()
-                print(t)
+                log.info(t)
                 # w.__getattribute__(string1)
                 for k in keys:
-                    print(k)
+                    log.info(k)
                     try:
                         val = k.cget()
                         if val is not None:
-                            print(k,": ",str(val))
+                            log.info(k,": ",str(val))
                     except Exception as e:
-                        print(k," exception ",e)
+                        log.error(k," exception ",e)
                     """
                     val = w.cget()
                     if val == None:
                         pass
                     else:
                         try:
-                            print(k + " " + val)
+                            log.info(k + " " + val)
                         finally:
-                            print("Unable to print val")
+                            log.info("Unable to print val")
                     """
