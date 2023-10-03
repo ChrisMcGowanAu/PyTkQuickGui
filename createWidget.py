@@ -40,7 +40,7 @@ class GridWidget:
         self.widget.grid(row=self.row,column=self.col,sticky='WENS')
     
     def mouseEnter(self,event):
-        log.info("Row " + str(self.row) + " Col " + str(self.col))
+        log.debug("Row " + str(self.row) + " Col " + str(self.col))
 
 
 def snapToClosest(v: int) -> int:
@@ -65,9 +65,8 @@ def findPythonWidgetNameList(name: str) -> list:
             found = True
             return nl
     if not found:
-        log.error("Unable to locate pythonName ->%s<-",name)
-        for w in createWidget.widgetNameList:
-            print(str(w))
+        log.error('Unable to locate pythonName ->%s<-',name)
+        log.error('createWidget.widgetNameList %s',str(createWidget.widgetNameList))
         return []
 
 
@@ -81,27 +80,29 @@ def updateWidgetNameList(pythonName,w):
         ParentName = ''
         found = False
         for nl2 in createWidget.widgetNameList:
-            print(nl)
+            # print(nl)
             if nl2[WIDGET] == w:
                 ParentName = nl2[NAME]
-                nl2[CHILDREN].append(pythonName)
+                # Check if the child is already there
+                if pythonName not in nl2[CHILDREN]:
+                    nl2[CHILDREN].append(pythonName)
                 found = True
                 break
         if not found:
             log.error("Unable to locate widget ->%s<-",str(w))
-            print(createWidget.widgetNameList)
-        nl[PARENT] = ParentName
+            log.error('createWidget.widgetNameList %s',str(createWidget.widgetNameList))
+        else :
+            nl[PARENT] = ParentName
 
 
 def deleteWidgetFromLists(pythonName,widget):
-    # [pythonName,parentName,widget,[children,...]])
     # NAME: int = 0 PARENT: int = 1 WIDGET: int = 2 CHILDREN: int = 3
     commands = []
     nl = findPythonWidgetNameList(pythonName)
     children = nl[CHILDREN]
     if children:
         for child in children:
-            log.warning("Deleting %s from %s children=%s",child,pythonName,children)
+            log.info("Deleting %s from %s children=%s",child,pythonName,children)
             childNl = findPythonWidgetNameList(child)
             if childNl:
                 name = childNl[NAME]
@@ -113,11 +114,11 @@ def deleteWidgetFromLists(pythonName,widget):
             deleteWidgetFromLists(c[0],c[1])
     
     parent = nl[PARENT]
-    if parent != 'toolRoot':
+    if parent != pytkguivars.rootWidgetName:
         parentNl = findPythonWidgetNameList(parent)
         # Remove pythonName from the children
         parentNl[CHILDREN].remove(pythonName)
-    log.warning("Deleting %s and %s",str(nl),str(widget))
+    log.info("Deleting %s and %s",str(nl),str(widget))
     createWidget.widgetList.remove(widget)
     createWidget.widgetNameList.remove(nl)
 
@@ -132,7 +133,12 @@ def raiseChildren(pythonName):
             for child in children:
                 childNl = findPythonWidgetNameList(child)
                 if childNl:
-                    childNl[WIDGET].lift()
+                    w = childNl[WIDGET]
+                    try:
+                        w.lift()
+                    except AttributeError as e:
+                        log.error("Widget ->%s<- got Exception %s",w,str(e))
+                    
                     childName = childNl[NAME]
                     raiseChildren(childName)
     else:
@@ -183,14 +189,14 @@ class createWidget:
         w = tk.Widget.getint(self.widget,3)
         h = tk.Widget.getint(self.widget,5)
         # tk.wantobjects()
-        log.info(self.widget.widgetName)
+        log.debug(self.widget.widgetName)
         #######################
         # Notebook is a funny case, just 'raw' it does not display
         if self.widget.widgetName == 'ttk::notebook':
             log.warning('Notebook is not yet done correctly')
         self.x = random.randint(50,50)
         self.y = random.randint(50,50)
-        # log.info(random.randint(3, 9))
+        # log.debug(random.randint(3, 9))
         self.row = 4
         self.col = 4
         self.x_root = self.x
@@ -198,11 +204,11 @@ class createWidget:
         self.start_x = self.x  # Set start_x on mouse down
         self.start_y = self.y  # Set start_y on mouse down
         
-        log.info(self.widget.widgetName)
+        log.debug(self.widget.widgetName)
         self.pythonName = 'Widget' + str(createWidget.widgetId)
-        log.info("Widget ID " + str(createWidget.widgetId))
+        log.debug("Widget ID " + str(createWidget.widgetId))
         createWidget.widgetList.append(self.widget)
-        createWidget.widgetNameList.append([self.pythonName,'toolRoot',self.widget,[]])
+        createWidget.widgetNameList.append([self.pythonName,pytkguivars.rootWidgetName,self.widget,[]])
         self.widgetId = createWidget.widgetId
         createWidget.widgetId += 1
         #  K_UP, K_DOWN, K_LEFT, and K_RIGHT
@@ -223,12 +229,10 @@ class createWidget:
             log.warning("Gridder Used TBD")
         else:
             self.widget.place(x=self.x,y=self.y,width=self.width,height=self.height)
-
-        log.info("Width %d Height %d",self.width,self.height)
-        # log.info("Width",self.width,"Height",self.height)
+        log.debug("New %s WidgetId %d Width %d Height %d",self.widget.widgetName,self.widgetId,self.width,self.height)
     
     def addPlace(self,placeDict):
-        log.info(placeDict)
+        log.debug(placeDict)
         self.x = int(placeDict.get('x'))
         self.y = int(placeDict.get('y'))
         self.start_x = self.x  # Set start_x on mouse down
@@ -283,25 +287,27 @@ class createWidget:
             if font['underline']:
                 font_str += ' underline'
                 font_str += ' overstrike'
-            log.info("Font=" + str(font_str) + " row=" + str(row))
+            log.debug("Font=" + str(font_str) + " row=" + str(row))
             guivars.stringVars[row].set(font_str)
             #    self.widget.configure(font=font_str, text='Chosen font: ' + font_str.replace('\ ', ' '))
     
     @staticmethod
     def changeColour(row):
         colors = askcolor(title="Tkinter color chooser")
-        if colors[1] is not None:
+        if colors[1] != '':
             guivars.stringVars[row].set(colors[1])
+        else:
+            log.warning("Color Chooser did not return anything")
     
     def incColSpan(self):
         self.colSpan += 1
-        log.info("incColSpan " + str(self.colSpan))
+        log.debug("incColSpan " + str(self.colSpan))
         self.widget.grid(row=self.row,column=self.col,columnspan=self.colSpan)
     
     def decColSpan(self):
         if self.colSpan > 1:
             self.colSpan -= 1
-        log.info("decColSpan " + str(self.colSpan))
+        log.debug("decColSpan " + str(self.colSpan))
         self.widget.grid(row=self.row,column=self.col,columnspan=self.colSpan)
     
     def gridMe(self):
@@ -310,7 +316,7 @@ class createWidget:
     
     def applyGridSettings(self):
         # Apply grid popup settings
-        log.info("Apply grid settings")
+        log.debug("Apply grid settings")
         kids = self.gridPopupFrame.children
         # Children are ttk.Spinbox widgits with the name set as the grid name
         self.row = int(kids['row'].get())
@@ -325,9 +331,9 @@ class createWidget:
     
     def applyPlaceSettings(self):
         # Apply grid popup settings
-        log.info("Apply place settings")
+        log.debug("Apply place settings")
         kids = self.gridPopupFrame.children
-        log.info(kids)
+        log.debug(kids)
         # width = self.widget.winfo_width()
         # height = self.widget.winfo_height()
         self.x = int(kids['x'].get())
@@ -362,7 +368,7 @@ class createWidget:
         spinVars = [Any] * 16
         lab0 = ttk.Label(self.gridPopupFrame,text="Grid layout settings for " + self.widget.widgetName)
         lab0.grid(row=0,column=0,columnspan=4,sticky=tk.NS)
-        log.info(gi)
+        log.debug(gi)
         row = 1
         stickyVals = [" ",tk.N,tk.S,tk.E,tk.W,tk.NS,tk.EW,tk.NSEW]
         for x in gi:
@@ -378,7 +384,7 @@ class createWidget:
                     self.vars[row] = val
                     w = ttk.Spinbox(self.gridPopupFrame,width=5,name=x,from_=0,to=99,increment=1)
                     w.set(int(val))
-                log.info("self.vals " + str(row) + " " + str(val))
+                log.debug("self.vals " + str(row) + " " + str(val))
                 lab1.grid(row=row,column=0,sticky=tk.NE)
                 w.grid(row=row,column=3,sticky=tk.SW)
                 row += 1
@@ -417,7 +423,7 @@ class createWidget:
         spinVars = [Any] * 16
         lab0 = ttk.Label(self.gridPopupFrame,text="Grid layout settings for " + self.widget.widgetName)
         lab0.grid(row=0,column=0,columnspan=4,sticky=tk.NS)
-        log.info(gi)
+        log.debug(gi)
         row = 1
         stickyVals = [" ",tk.N,tk.S,tk.E,tk.W,tk.NS,tk.EW,tk.NSEW]
         anchorVals = [tk.CENTER,tk.N,tk.NE,tk.E,tk.SE,tk.S,tk.SW,tk.W,tk.NW]
@@ -428,7 +434,7 @@ class createWidget:
         for x in gi:
             if x != 'in':
                 val = gi[x]
-                log.info(str(val))
+                log.debug(str(val))
                 if val == '':
                     val = 0
                 spinVars[row] = val
@@ -453,7 +459,7 @@ class createWidget:
                     self.vars[row] = val
                     w = ttk.Spinbox(self.gridPopupFrame,width=5,name=x,from_=0,to=99,increment=1)
                     w.set(int(val))
-                log.info("self.vals " + str(row) + " " + str(val))
+                log.debug("self.vals " + str(row) + " " + str(val))
                 lab1.grid(row=row,column=0,sticky=tk.NE)
                 w.grid(row=row,column=3,sticky=tk.SW)
                 row += 1
@@ -476,18 +482,30 @@ class createWidget:
         pytkguivars.imageIndex += 1
     
     def defineStyle(self):
-        log.info('defineStyle TBD')
+        log.debug('defineStyle In Progress')
+        popup = tk.Tk()
+        popup.update()
+        x = popup.winfo_pointerx()
+        y = popup.winfo_pointery()
+        # popup.geometry('%dx%d+%d+%d' % (200, 200, x, y))
+        popup.geometry('+%d+%d' % (x,y))
+        popup.wm_title("Edit TTK Widget Stype")
+        colour = 'bisque'
+        style = ttk.Style(popup)
+        style.configure('TFrame',background=colour,foreground='black')
+        style.configure('TLabel',background=colour,foreground='black')
+        style.configure('TCombobox',background=colour,foreground='black')
         style = ttk.Style(self.root)
-        log.info(style.element_names())
-        log.info(style.theme_names())
-        styleVals = style.element_names()  # log.info(styleVals)
+        log.debug(style.element_names())
+        log.debug(style.theme_names())
+        styleVals = style.element_names()  # log.debug(styleVals)
     
     def applyEditSettings(self):
         # keys = self.widget.keys()
         keys = self.keys
-        log.info("Apply edit settings")
+        log.debug("Apply edit settings")
         kids = self.widget.children
-        log.info(kids)
+        log.debug(kids)
         row = 0
         for key in keys:
             row += 1
@@ -500,38 +518,39 @@ class createWidget:
                 val = self.widget.cget(k)
             if k:
                 if not pytkguivars.stringUsed[row]:
-                    log.info("NOT USED Key " + k + " Value " + str(val))
+                    log.debug("NOT USED Key " + k + " Value " + str(val))
                 else:
                     strVar = pytkguivars.stringVars[row]
-                    log.info("Row %d StringVar %s",row,str(strVar))
+                    log.debug("Row %d StringVar %s",row,str(strVar))
                     val = strVar.get()
-                    log.info("Key " + k + " Value " + str(val))
+                    log.debug("Key " + k + " Value " + str(val))
                     # Yep this is weird python shit. configure would not use the tag name as a variable
                     # eg. self.widget.configure(k:val)
                     # so chat gpt-ity said to do this
                     child = guivars.childNameVars[row].get()
                     if child:
-                        log.info("Configure tag=" + str(k) + " Child=" + str(child) + " Row=" + str(row) + " Value=" + str(
+                        log.debug(
+                            "Configure tag=" + str(k) + " Child=" + str(child) + " Row=" + str(row) + " Value=" + str(
                             val))
                         # child_widget = getattr(self.widget,child)
                         # command_str = f"child_widget.configure({{k: {val}}})"
-                        # log.info(command_str)
+                        # log.debug(command_str)
                         if child == 'label':
                             self.widget.label.configure(**{k:val})
                         elif child == 'scale':
                             self.widget.scale.configure(**{k:val})
                         else:
-                            log.info(child + " child not handled")
+                            log.debug(child + " child not handled")
                     else:
                         # command_str = f"self.widget.configure({{k: {val}}})"
-                        # log.info(command_str)
-                        log.info("Configure tag=" + str(k) + " Row=" + str(row) + " Value=" + str(val))
+                        # log.debug(command_str)
+                        log.debug("Configure tag=" + str(k) + " Row=" + str(row) + " Value=" + str(val))
                         if (k == 'anchor' or k == 'justify') and len(val) < 1:
-                            log.info("Ignored")
+                            log.debug("Ignored")
                         else:
                             # if val is not int:
                             #    val = 0
-                            log.info("k %s val %s",str(k),str(val))
+                            log.debug("k %s val %s",str(k),str(val))
                             try:
                                 self.widget.configure(**{k:val})
                             except Exception as e:
@@ -552,7 +571,7 @@ class createWidget:
         if keys == {}:
             popup.destroy()
             return
-        log.info(keys)
+        log.debug(keys)
         anchorVals = [tk.CENTER,tk.N,tk.NE,tk.E,tk.SE,tk.S,tk.SW,tk.W,tk.NW]
         justifyVals = [tk.LEFT,tk.CENTER,tk.RIGHT]
         reliefVals = [tk.FLAT,tk.GROOVE,tk.RAISED,tk.RIDGE,tk.SOLID,tk.SUNKEN]
@@ -657,13 +676,13 @@ class createWidget:
         if kids:
             for k in kids:
                 widgetName = k.widgetName
-                log.info(widgetName)
+                log.debug(widgetName)
                 l0 = ttk.Label(popup,text=widgetName,borderwidth=1,border=tk.SOLID,justify=tk.CENTER)
                 l0.grid(row=gridRow,column=1,columnspan=5,sticky=tk.SW)
                 row += 1
                 gridRow += 1
                 if widgetName == 'ttk::notebook':
-                    log.info(widgetName)
+                    log.debug(widgetName)
                 elif widgetName == 'ttk::labelframe':
                     keys1 = self.widget.label.keys()
                     for k1 in keys1:
@@ -671,9 +690,9 @@ class createWidget:
                     keys2 = self.widget.scale.keys()
                     for k2 in keys2:
                         keys.append(tuple(('scale',k2)))
-                    log.info(keys)
+                    log.debug(keys)
                 else:
-                    log.info('unhandled child %s',widgetName)
+                    log.debug('unhandled child %s',widgetName)
         # self.labelKeys = ['text', 'background', 'foreground', 'font', 'width', 'anchor', 'textvariable']
         b1 = ttk.Button(popup,width=8,text="Close",command=popup.destroy)
         b2 = ttk.Button(popup,width=8,text="Apply",command=self.applyEditSettings)
@@ -691,7 +710,7 @@ class createWidget:
         if keys == {}:
             root.destroy()
             return
-        log.info(keys)
+        log.debug(keys)
     
     def editWidget(self,w):
         # Build the edit widget
@@ -713,7 +732,7 @@ class createWidget:
     
     def findParentWidget(self):
         parent = self.widget.place_info().get('in')
-        log.info('Parent %s self.root %s',str(parent),str(self.root))
+        log.debug('Parent %s self.root %s',str(parent),str(self.root))
         if self.root == parent:
             return parent
         else:
@@ -727,22 +746,22 @@ class createWidget:
     def reParent(self):
         name0 = self.widget.widgetName
         place = self.widget.place_info()
-        # log.info(place)
+        # log.debug(place)
         x1 = int(place.get('x'))
         y1 = int(place.get('y'))
         w = int(place.get('width'))
         h = int(place.get('height'))
         x2 = x1 + w
         y2 = y1 + h
-        # log.info("Name",name0,"nw",x1,",",y1,"se",x2,",",y2)
-        # log.info("This Name",name0,"x",place.get('x'),"y",place.get('y'),"width",place.get('width'),"height",
+        # log.debug("Name",name0,"nw",x1,",",y1,"se",x2,",",y2)
+        # log.debug("This Name",name0,"x",place.get('x'),"y",place.get('y'),"width",place.get('width'),"height",
         #      place.get('height'))
-        # log.info(self.widget.keys())
+        # log.debug(self.widget.keys())
         for w in createWidget.widgetList:
             if w is not None and w != self.widget:
                 name = w.widgetName
                 place = w.place_info()
-                # log.info(place)
+                # log.debug(place)
                 wx1 = int(place.get('x'))
                 wy1 = int(place.get('y'))
                 try:
@@ -754,11 +773,11 @@ class createWidget:
                     height = 10
                 wx2 = wx1 + width
                 wy2 = wy1 + height
-                # log.info("Name",name,"nw",wx1,",",wy1,"se",wx2,",",wy2)
-                # log.info("Name",name,"x",place.get('x'),"y",place.get('y'),"width",place.get('width'),"height",
+                # log.debug("Name",name,"nw",wx1,",",wy1,"se",wx2,",",wy2)
+                # log.debug("Name",name,"x",place.get('x'),"y",place.get('y'),"width",place.get('width'),"height",
                 #      place.get('height'))
                 if x1 >= wx1 and y1 >= wy1 and x2 <= wx2 and y2 <= wy2:
-                    log.info("Match Name %s fits inside %s",name0,name)
+                    log.debug("Match Name %s fits inside %s",name0,name)
                     newX = x1 - wx1
                     newY = y1 - wy1
                     # self.widget.place('in=',w,'x=',newX,'y=',newY)
@@ -780,7 +799,7 @@ class createWidget:
         # widgetAltName = 'Widget' + str(widgetId)
         # widgetDict = newWidgetDict.get(widgetAltName)
         widget = eval(widgetDef)
-        # place = widgetDict.get('Place')
+        # place = newWidgetDict.get('Place')
         createWidget(mainCanvas,widget)
         widget.place(x=self.x + 16,y=self.y + 16,width=self.width,height=self.height)
     
@@ -819,9 +838,9 @@ class createWidget:
     
     def rightMouseDown(self,event):
         # popup a menu for the type of object
-        log.info(self.widget.widgetName)
-        # log.info(event)
-        # log.info(createWidget.widgetList[self.widgetId].widgetName)
+        log.debug(self.widget.widgetName)
+        # log.debug(event)
+        # log.debug(createWidget.widgetList[self.widgetId].widgetName)
         # self.widget.destroy()
         self.makePopup()
         self.menu_popup(event)
@@ -831,14 +850,14 @@ class createWidget:
         self.dragType = ''
         parent = self.findParentWidget()
         if parent != self.root:
-            # log.info(parent,self.root)
+            # log.debug(parent,self.root)
             px = parent.place_info().get('x')
             py = parent.place_info().get('y')
-            # log.info(px,py)
-            # log.info("Before",self.start)
+            # log.debug(px,py)
+            # log.debug("Before",self.start)
             self.parentX = int(px)
             self.parentY = int(py)
-            self.start = (event.x + int(px),event.y + int(py))  # log.info("After",self.start)
+            self.start = (event.x + int(px),event.y + int(py))  # log.debug("After",self.start)
         
         x = self.widget.winfo_x() + event.x - self.start[0]
         y = self.widget.winfo_y() + event.y - self.start[1]
@@ -852,25 +871,25 @@ class createWidget:
         self.y = self.widget.winfo_y()
         self.cornerY = self.y + height
         self.cornerX = self.x + width
-        log.info("Left Mouse Down --  Width " + str(width) + " Height " + str(height))
+        log.debug("Left Mouse Down --  Width " + str(width) + " Height " + str(height))
         if event.x > (width - 4):
             self.dragType = 'dragEast'
-            log.info("Drag right Side")
+            log.debug("Drag right Side")
         elif event.x < 4:
             self.dragType = 'dragWest'
-            log.info("Drag left Side")
+            log.debug("Drag left Side")
         if event.y > (height - 4):
             self.dragType = 'dragSouth'
-            log.info("Drag bottom Side")
+            log.debug("Drag bottom Side")
         elif event.y < 5:
             self.dragType = 'dragNorth'
-            log.info("Drag top Side")  # log.info(event)
+            log.debug("Drag top Side")  # log.info(event)
         # Make sure any children are on top.
         self.widget.lift()
         raiseChildren(self.pythonName)
     
     def leftMouseDrag(self,event):
-        # log.info(event)
+        # log.debug(event)
         x = self.widget.winfo_x() + event.x - self.start[0]
         y = self.widget.winfo_y() + event.y - self.start[1]
         width = self.widget.winfo_width()
@@ -908,7 +927,7 @@ class createWidget:
             self.row = z[1]
             self.col = z[0]
             self.widget.grid(row=self.row,column=self.col)
-            log.info("Left Mouse Release -- col,row " + str(z))
+            log.debug("Left Mouse Release -- col,row " + str(z))
         else:
             self.widget.place(x=self.x,y=self.y)
     
@@ -917,31 +936,31 @@ class createWidget:
         for w in createWidget.widgetList:
             if w is not None:
                 place = w.place_info()
-                log.info(place)
+                log.debug(place)
                 grid = w.grid_info()
-                log.info(grid)
+                log.debug(grid)
                 keys = w.keys()
-                log.info(keys)
+                log.debug(keys)
                 tags = w.bindtags()
-                log.info(tags)
+                log.debug(tags)
                 t = w.winfo_class()
-                log.info(t)
+                log.debug(t)
                 # w.__getattribute__(string1)
                 for k in keys:
-                    log.info(k)
+                    log.debug(k)
                     try:
                         val = k.cget()
                         if val is not None:
-                            log.info(k,": ",str(val))
+                            log.debug("k %s and val %s",str(k),str(val))
                     except Exception as e:
-                        log.error(k," exception ",e)
+                        log.error("exceptipn %s",str(e))
                     """
                     val = w.cget()
                     if val == None:
                         pass
                     else:
                         try:
-                            log.info(k + " " + val)
+                            log.debug(k + " " + val)
                         finally:
-                            log.info("Unable to print val")
+                            log.debug("Unable to print val")
                     """
