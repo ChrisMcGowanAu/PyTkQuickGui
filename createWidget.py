@@ -170,11 +170,8 @@ class createWidget:
     dragType = ['move','dragEast','dragWest','dragNorth','dragSouth']
     
     def __init__(self,root,widget):
-<<<<<<< HEAD
         self.bordermode = None
         self.stylePopupFrame = None
-=======
->>>>>>> main
         self.parentX = 0
         self.parentY = 0
         self.popup = None

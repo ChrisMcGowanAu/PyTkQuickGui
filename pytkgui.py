@@ -1,7 +1,4 @@
-<<<<<<< HEAD
 import logging
-=======
->>>>>>> main
 import os
 import pickle
 import sys
