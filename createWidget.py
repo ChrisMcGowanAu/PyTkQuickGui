@@ -262,41 +262,6 @@ class createWidget:
             self.width = int(width)
             self.height = int(height)
             self.widget.place(x=self.x,y=self.y,width=self.width,height=self.height)
-<<<<<<< HEAD
-=======
-    
-    def keyPress(self,event):
-        # self.widget.widgetName
-        if event.keysym == 'Down':
-            self.row += 1
-        elif event.keysym == 'Up':
-            self.row -= 1
-        elif event.keysym == 'Left':
-            self.col -= 1
-        elif event.keysym == 'Right':
-            self.col += 1
-        if self.row < 1:
-            self.row = 1
-        if self.col < 1:
-            self.col = 1
-        self.widget.grid(row=self.row,column=self.col)
-    
-    def keyUp(self,event):
-        self.row += 1
-        if self.row < 1:
-            self.row = 0
-        if self.row > 23:
-            self.row = 23
-        self.widget.grid(row=self.row,column=self.col)
-    
-    def keyDown(self,event):
-        self.row -= 1
-        if self.row < 1:
-            self.row = 0
-        if self.row > 23:
-            self.row = 23
-        self.widget.grid(row=self.row,column=self.col)
->>>>>>> main
     
     def fontChange(self,row):
         fd = FontDialog()
@@ -376,74 +341,8 @@ class createWidget:
         y = popup.winfo_pointery()
         # popup.geometry('%dx%d+%d+%d' % (200, 200, x, y))
         popup.geometry(f'+{x:d}+{y:d}')
-<<<<<<< HEAD
         popup.title("Edit Widget Layout")
         gridPopupFrame = ttk.Frame(popup,borderwidth=2,relief='sunken')
-=======
-        popup.wm_title("Edit Widget Layout")
-        colour = 'bisque'
-        style = ttk.Style(popup)
-        style.configure('TFrame',background=colour,foreground='black')
-        style.configure('TLabel',background=colour,foreground='black')
-        style.configure('TCombobox',background=colour,foreground='black')
-        style.configure('TSpinbox',background=colour,foreground='black')
-        # style.configure('TButton', background='lightgreen1', foreground='black')
-        self.gridPopupFrame = ttk.Frame(popup,borderwidth=2,relief='sunken')
-        gi = self.widget.grid_info()
-        if gi == {}:
-            return
-        self.gridPopupFrame.grid(row=self.row,column=self.col + self.colSpan,rowspan=16,columnspan=4)
-        spinVars = [Any] * 16
-        lab0 = ttk.Label(self.gridPopupFrame,text="Grid layout settings for " + self.widget.widgetName)
-        lab0.grid(row=0,column=0,columnspan=4,sticky=tk.NS)
-        print(gi)
-        row = 1
-        stickyVals = [" ",tk.N,tk.S,tk.E,tk.W,tk.NS,tk.EW,tk.NSEW]
-        for x in gi:
-            if x != 'in':
-                val = gi[x]
-                spinVars[row] = val
-                lab1 = ttk.Label(self.gridPopupFrame,text=x)
-                w: Any
-                if x == 'sticky':
-                    w = ttk.Combobox(self.gridPopupFrame,values=stickyVals,width=6,name=x)
-                    w.set(val)
-                else:
-                    self.vars[row] = val
-                    w = ttk.Spinbox(self.gridPopupFrame,width=5,name=x,from_=0,to=99,increment=1)
-                    w.set(int(val))
-                print("self.vals " + str(row) + " " + str(val))
-                lab1.grid(row=row,column=0,sticky=tk.NE)
-                w.grid(row=row,column=3,sticky=tk.SW)
-                row += 1
-        b1 = ttk.Button(self.gridPopupFrame,width=8,text="Close",command=popup.destroy)
-        b2 = ttk.Button(self.gridPopupFrame,width=8,text="Apply",command=self.applyGridSettings)
-        b1.grid(row=row,column=0)
-        row += 1
-        # blank Label to make the layout better
-        lab2 = ttk.Label(self.gridPopupFrame,text="   ")
-        lab2.grid(row=row,column=2)
-        b2.grid(row=row,column=3)
-        row += 1
-    
-    def place_popup(self):
-        # colour='azure'
-        popup = tk.Tk()
-        popup.update()
-        x = popup.winfo_pointerx()
-        y = popup.winfo_pointery()
-        # popup.geometry('%dx%d+%d+%d' % (200, 200, x, y))
-        popup.geometry('+%d+%d' % (x,y))
-        popup.wm_title("Edit Widget Layout")
-        colour = 'bisque'
-        style = ttk.Style(popup)
-        style.configure('TFrame',background=colour,foreground='black')
-        style.configure('TLabel',background=colour,foreground='black')
-        style.configure('TCombobox',background=colour,foreground='black')
-        style.configure('TSpinbox',background=colour,foreground='black')
-        # style.configure('TButton', background='lightgreen1', foreground='black')
-        self.gridPopupFrame = ttk.Frame(popup,borderwidth=2,relief='sunken')
->>>>>>> main
         # gi = self.widget.grid_info()
         gridPopupFrame.grid(row=self.row,column=self.col + self.colSpan,rowspan=16,columnspan=4)
         spinVars = [Any] * 16
@@ -506,17 +405,6 @@ class createWidget:
         self.widget.configure(image=pytkguivars.imagesUsed[idx])
         pytkguivars.imageIndex += 1
     
-<<<<<<< HEAD
-=======
-    def defineStyle(self):
-        print('defineStyle TBD')
-        style = ttk.Style(self.root)
-        print(style.element_names())
-        print(style.theme_names())
-        styleVals = style.element_names()
-        # print(styleVals)
-    
->>>>>>> main
     def applyEditSettings(self):
         # keys = self.widget.keys()
         keys = self.keys
@@ -780,62 +668,27 @@ class createWidget:
         row += 1
         gridRow += 1
         # blank Label to make the layout better
-<<<<<<< HEAD
         lab2 = ttk.Label(editPopupFrame,text="   ")
         lab2.grid(row=gridRow,column=2)
         # editPopupFrame.grid()
         # editPopup.mainloop()
-=======
-        lab2 = ttk.Label(popup,text="   ")
-        lab2.grid(row=row,column=2)
-        popup.mainloop()
->>>>>>> main
     
     def editTtkButton(self,root):
         keys = self.widget.keys()
         if keys == {}:
             root.destroy()
             return
-<<<<<<< HEAD
         log.debug(keys)
     
     def findParentWidget(self):
         parent = self.widget.place_info().get('in')
         log.debug('Parent %s self.root %s',str(parent),str(self.root))
-=======
-        print(keys)
-    
-    def editWidget(self,w):
-        # Build the edit widget
-        popup = tk.Tk()
-        x = popup.winfo_pointerx()
-        y = popup.winfo_pointery()
-        popup.wm_title("Edit Widget")
-        popup.geometry('+%d+%d' % (x,y))
-        colour = 'bisque'
-        style = ttk.Style(popup)
-        style.configure('TFrame',background=colour,foreground='black')
-        style.configure('TLabel',background=colour,foreground='black')
-        style.configure('TCombobox',background=colour,foreground='black')
-        style.configure('TSpinbox',background=colour,foreground='black')
-        # style.configure('TButton', background='lightgreen1', foreground='black')
-        self.editPopupFrame = ttk.Frame(popup,borderwidth=2,relief='sunken')
-        self.editTtkPopup(popup)
-   
-    def findParentWidget(self) :
-        parent = self.widget.place_info().get('in')
-        print('Parent',parent,'self.root',self.root)
->>>>>>> main
         if self.root == parent:
             return parent
         else:
             for w in createWidget.widgetList:
                 if w is not None and w != self.widget:
-<<<<<<< HEAD
                     # wName = w.widgetName
-=======
-                    wName = w.widgetName
->>>>>>> main
                     if w == parent:
                         return w
         return self.root
@@ -843,33 +696,21 @@ class createWidget:
     def reParent(self):
         name0 = self.widget.widgetName
         place = self.widget.place_info()
-<<<<<<< HEAD
         # log.debug(place)
-=======
-        # print(place)
->>>>>>> main
         x1 = int(place.get('x'))
         y1 = int(place.get('y'))
         w = int(place.get('width'))
         h = int(place.get('height'))
         x2 = x1 + w
         y2 = y1 + h
-<<<<<<< HEAD
         # log.debug("Name",name0,"nw",x1,",",y1,"se",x2,",",y2)
         # log.debug("This Name",name0,"x",place.get('x'),"y",place.get('y'),"width",place.get('width'),"height",
         #      place.get('height'))
         # log.debug(self.widget.keys())
-=======
-        # print("Name",name0,"nw",x1,",",y1,"se",x2,",",y2)
-        #print("This Name",name0,"x",place.get('x'),"y",place.get('y'),"width",place.get('width'),"height",
-        #      place.get('height'))
-        # print(self.widget.keys())
->>>>>>> main
         for w in createWidget.widgetList:
             if w is not None and w != self.widget:
                 name = w.widgetName
                 place = w.place_info()
-<<<<<<< HEAD
                 # log.debug(place)
                 wx1 = int(place.get('x'))
                 wy1 = int(place.get('y'))
@@ -947,29 +788,6 @@ class createWidget:
     def deleteWidget(self):
         deleteWidgetFromLists(self.pythonName,self.widget)
         self.widget.destroy()
-=======
-                # print(place)
-                wx1 = int(place.get('x'))
-                wy1 = int(place.get('y'))
-                width = int(place.get('width'))
-                height = int(place.get('height'))
-                wx2 = wx1 + width
-                wy2 = wy1 + height
-                # print("Name",name,"nw",wx1,",",wy1,"se",wx2,",",wy2)
-                # print("Name",name,"x",place.get('x'),"y",place.get('y'),"width",place.get('width'),"height",
-                #      place.get('height'))
-                if x1 >= wx1 and y1 >= wy1 and x2 <= wx2 and y2 <= wy2:
-                    print("Match ! Name",name0,"fits inside",name)
-                    # print(w.keys())
-                    newx = x1 - wx1
-                    newy = y1 - wy1
-                    # self.widget.place('in=',w,'x=',newx,'y=',newy)
-                    self.widget.place(in_=w,x=newx,y=newy)
-                    self.widget.update()
-    
-    def clone(self):
-        None
->>>>>>> main
     
     def makePopup(self):
         # Add Menu
@@ -980,14 +798,7 @@ class createWidget:
         self.popup.add_command(label="Layout",command=self.place_popup)
         self.popup.add_command(label="Clone",command=self.clone)
         self.popup.add_command(label="Re-Parent",command=self.reParent)
-<<<<<<< HEAD
         self.popup.add_command(label="Delete",command=self.deleteWidget)
-=======
-        # self.popup.add_command(label="Col Span +",command=self.incColSpan)
-        # self.popup.add_command(label="Col Span -",command=self.decColSpan)
-        self.popup.add_command(label="Delete",command=self.widget.destroy)
-        self.popup.add_command(label="Save",command=self.saveTest)
->>>>>>> main
         self.popup.add_separator()
         self.popup.add_command(label="Close",command=self.popup.destroy)
     
@@ -1016,7 +827,6 @@ class createWidget:
         self.dragType = ''
         parent = self.findParentWidget()
         if parent != self.root:
-<<<<<<< HEAD
             # log.debug(parent,self.root)
             px = parent.place_info().get('x')
             py = parent.place_info().get('y')
@@ -1026,18 +836,6 @@ class createWidget:
             self.parentY = int(py)
             self.start = (event.x + int(px),event.y + int(py))  # log.debug("After",self.start)
         
-=======
-            # print(parent,self.root)
-            px = parent.place_info().get('x')
-            py = parent.place_info().get('y')
-            # print(px,py)
-            # print("Before",self.start)
-            self.parentX = int(px)
-            self.parentY = int(py)
-            self.start = (event.x + int(px) ,event.y + int(py))
-            # print("After",self.start)
-
->>>>>>> main
         x = self.widget.winfo_x() + event.x - self.start[0]
         y = self.widget.winfo_y() + event.y - self.start[1]
         self.x = x
@@ -1106,59 +904,17 @@ class createWidget:
         newHeight = snapToClosest(self.widget.winfo_height())
         self.x = newX
         self.y = newY
-<<<<<<< HEAD
         if newWidth < 16:
             newWidth = 16
         if newHeight < 16:
             newHeight = 16
         self.height = newHeight
         self.width = newWidth
-=======
->>>>>>> main
         if pytkguivars.useGrider:
             z = self.root.grid_location(self.x,self.y)
             self.row = z[1]
             self.col = z[0]
             self.widget.grid(row=self.row,column=self.col)
-<<<<<<< HEAD
             log.debug("Left Mouse Release -- col,row %s %s",str(z),str(event))
         else:
             self.widget.place(x=self.x,y=self.y,height=self.height,width=self.width)
-=======
-            print("Left Mouse Release -- col,row " + str(z))
-        else:
-            self.widget.place(x=self.x,y=self.y)
-    def saveTest(self):
-        # return None
-        for w in createWidget.widgetList:
-            if w is not None:
-                place = w.place_info()
-                print(place)
-                grid = w.grid_info()
-                print(grid)
-                keys = w.keys()
-                print(keys)
-                tags = w.bindtags()
-                print(tags)
-                t = w.winfo_class()
-                print(t)
-                # w.__getattribute__(string1)
-                for k in keys:
-                    print(k)
-                    try:
-                        val = k.cget()
-                        if val is not None:
-                            print(k,": ",str(val))
-                    except Exception as e:
-                        print(k," exception ",e)
-                    """
-                    val = w.cget()
-                    if val == None:
-                        pass
-                    else:
-                        try:
-                            print(k + " " + val)
-                        finally:
-                            print("Unable to print val")
-                    """
->>>>>>> main

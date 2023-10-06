@@ -89,10 +89,13 @@ def saveWidgetAsDict(widgetName) -> dict:
         w = widgetDetails[cw.WIDGET]
         widgetParent = widgetDetails[cw.PARENT]
         # w.update()
-        log.debug('widgetName %s',w.widgetName)
+        log.info('widgetName %s',w.widgetName)
         place = w.place_info()
         # Remove 'in' from place.
-        del place['in']
+        try:
+            del place['in']
+        except KeyError as e:
+            log.warning("Key 'in' missing from place exception %s place ->%s<-",str(e),str(place))
         widgetDict = {'WidgetName':w.widgetName,'WidgetParent':widgetParent,'Place':place}
         keyCount = 0
         keys = w.keys()
