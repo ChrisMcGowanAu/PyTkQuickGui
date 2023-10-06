@@ -213,19 +213,8 @@ def findWidgetsParent(widgetName) -> str:
     log.error("Failed to find a parent for %s",widgetName)
     return ''
 
-
-def saveProject():
-    global mainCanvas
-    widgetCount = 0
+def workOutWidgetCreationOrder() -> list:
     createdWidgetOrder = [pytkguivars.rootWidgetName]
-    width = 0  # mainCanvas.winfo_width
-    height = 0  # mainCanvas.winfo_height
-<<<<<<< HEAD
-    cleanList = createCleanNameList()
-    projectData = {"ProjectName":'test','ProjectPath':'/tmp/test','width':width,'height':height,
-                   'theme':pytkguivars.theme,'widgetNameList':cleanList,
-                   'backgroundColor':pytkguivars.backgroundColor}
-    # Work out the order to create the Widgets so the parenting is correct
     sanityCheckCount = 0
     finished = False
     while not finished:
@@ -248,7 +237,20 @@ def saveProject():
                     createdWidgetOrder.append(widgetName)
                 else:
                     finished = False
-    log.debug('createdWidgetOrder %s',str(createdWidgetOrder))
+    return createdWidgetOrder
+def  saveProject():
+    global mainCanvas
+    widgetCount = 0
+    createdWidgetOrder = [pytkguivars.rootWidgetName]
+    width = 0  # mainCanvas.winfo_width
+    height = 0  # mainCanvas.winfo_height
+    cleanList = createCleanNameList()
+    projectData = {"ProjectName":'test','ProjectPath':'/tmp/test','width':width,'height':height,
+                   'theme':pytkguivars.theme,'widgetNameList':cleanList,
+                   'backgroundColor':pytkguivars.backgroundColor}
+    # Work out the order to create the Widgets so the parenting is correct
+    createdWidgetOrder = workOutWidgetCreationOrder()
+    log.info('createdWidgetOrder %s',str(createdWidgetOrder))
     pytkguivars.createdWidgetOrder = createdWidgetOrder
     for widgetName in createdWidgetOrder:
         # widgetParent = findWidgetsParent(widgetName)
@@ -261,43 +263,6 @@ def saveProject():
         # project["widgetName"] = .widgetName
         tmpData = Merge(projectData,newWidget)
         projectData = tmpData
-=======
-    projectData = {"ProjectName":'test','ProjectPath':'/tmp/test','width':width,'height':height}
-    for w in cw.createWidget.widgetList:
-        if (w is not None) and (len(str(w)) > 2):
-            w.update()
-            print("=-----------")
-            # parent = w.winfo_parent() # This can get weird errors
-            print('widgetName ',w.widgetName)
-            project["widgetName"] = w.widgetName
-            widgetId = 'Widget' + str(widgetCount)
-            widgetCount += 1
-            place = w.place_info()
-            widgetDict = {'WidgetName':w.widgetName,'Place':place}
-            place['in'] = widgetId
-            project["Place"] = place
-            keyCount = 0
-            keys = w.keys()
-            if keys:
-                for key in keys:
-                    print('Key->',key,'<-')
-                    if key != 'in':
-                        value = w[key]
-                        print('Value->',value,'<-')
-                        attrId = 'Attribute' + str(keyCount)
-                        # widgetAttribute = {attrId: {'Key': key,'Type': type(value),'Value': str(value)}}
-                        # Ignore empty values
-                        if (value is not None) and (len(str(value)) > 0):
-                            widgetAttribute = {attrId:{'Key':key,'Value':str(value)}}
-                            newWidget = Merge(widgetDict,widgetAttribute)
-                            widgetDict = newWidget
-                            keyCount += 1
-            widgetKeys = widgetId + '-KeyCount'
-            tmpDict = Merge(widgetDict,{widgetKeys:keyCount})
-            newWidget = {widgetId:tmpDict}
-            tmpData = Merge(projectData,newWidget)
-            projectData = tmpData
->>>>>>> main
     projectData1 = Merge(projectData,{'widgetCount':widgetCount})
     projectData = projectData1
     log.debug('projectData ->%s<-',str(projectData))
@@ -323,6 +288,7 @@ def runMe():
     largestWidth = 200
     largestHeight = 200
     # print('width',width,'height',height)
+    createdWidgetOrder = workOutWidgetCreationOrder()
     print('nWidgets',nWidgets)
     print("# -------------------------")
     sys.stdout = open('/tmp/test.py','w')
@@ -340,6 +306,9 @@ def runMe():
         if widgetName == rootName:
             continue
         parentName = findWidgetsParent(widgetName)
+        if len(parentName) < 2:
+            log.warning("widget %s has no parent. Has it been deleted?",widgetName)
+            continue
         # Get the parent Name
         wDict = runDict.get(widgetName)
         if wDict != {}:
@@ -360,7 +329,6 @@ def runMe():
                     # Bug in tkinter -- no
                     # 'from' is a python keyword
                     key = 'from_'
-<<<<<<< HEAD
                 if val.find('<') > -1:
                     # Typically, this a TK object that is in < xxx > format
                     log.warning("key %s ->%s<-has a weird value",key,val)
@@ -378,12 +346,6 @@ def runMe():
                         tmpWidgetDef = widgetDef + ',' + key + '=\'' + val + '\''
                     else:
                         tmpWidgetDef = widgetDef + ',' + key + '=' + val
-=======
-                if val.find('<') > -1 or val.find('(') > -1:
-                    print("# key",key,"has a weird value",val)
-                else:
-                    tmpWidgetDef = widgetDef + ', ' + key + '=\'' + val + '\' '
->>>>>>> main
                     widgetDef = tmpWidgetDef
             print(widgetDef + ')')
             place = wDict.get('Place')
@@ -426,7 +388,6 @@ def runMe():
     os.system(cmd)
 
 
-<<<<<<< HEAD
 def checkWidgetNameList():
     # Check for cild entries that are left over from reparenting operations
     # NAME 0 PARENT 1 WIDGET 2 CHILDREN 3
@@ -444,42 +405,6 @@ def checkWidgetNameList():
                         found = True
                 if found:
                     children2.remove(widgetName1)
-=======
-def buildAWidget(widgetId,wDict):
-    wType = wDict.get('WidgetName')
-    t = wType.replace('ttk::','ttk.')
-    wType = t
-    idx = wType.find('.')
-    if idx == -1:  # Not ttk widgets
-        t = 'tk.' + wType
-        wType = t
-    for ch in alphaList:
-        t = wType.replace('.' + ch,'.' + ch.upper())
-        wType = t
-    keyCount = widgetId + "-KeyCount"
-    nKeys = wDict.get(keyCount)
-    place = wDict.get('Place')
-    widgetDef = wType + "(mainCanvas"
-    for a in range(nKeys):
-        attribute = 'Attribute' + str(a)
-        aDict = wDict.get(attribute)
-        key = aDict.get('Key')
-        val = aDict.get('Value')
-        # Looks like a bug in tkinter scale objects ..
-        if key == 'from':
-            key = 'from_'
-        if val.find('<') > -1 or val.find('(') > -1:
-            print("# key",key,"has a weird value",val)
-        else:
-            tmpWidgetDef = widgetDef + ', ' + key + '=\'' + val + '\' '
-            widgetDef = tmpWidgetDef
-    tmp = widgetDef + ')'
-    widgetDef = tmp
-    widget = eval(widgetDef)
-    w = cw.createWidget(mainCanvas,widget)
-    print(place)
-    w.addPlace(place)
->>>>>>> main
 
 
 def changeParentOfTo(widgetName,parentName):
