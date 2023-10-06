@@ -1,17 +1,21 @@
 import logging as log
 import random
 import tkinter as tk
-from functools import partial
 from tkinter import filedialog
-from tkinter import ttk
-from tkinter.colorchooser import askcolor
+# from tkinter.colorchooser import askcolor
 from typing import Any
 
-import tkfontchooser
+import ttkbootstrap as ttk
 from PIL import ImageTk
+from ttkbootstrap.dialogs.colorchooser import ColorChooserDialog
+from ttkbootstrap.dialogs.dialogs import FontDialog
+from ttkbootstrap.dialogs.dialogs import QueryDialog
 
+# from tkinter import ttk
 import pytkguivars
 import pytkguivars as guivars
+
+# ufrom ttkbootstrap.constants import *
 
 testImage: ImageTk
 string1: Any
@@ -28,6 +32,15 @@ PARENT: int = 1
 WIDGET: int = 2
 CHILDREN: int = 3
 
+stickyVals = [" ",tk.N,tk.S,tk.E,tk.W,tk.NS,tk.EW,tk.NSEW]
+borderVals = [tk.INSIDE,tk.OUTSIDE]
+anchorVals = [tk.CENTER,tk.N,tk.NE,tk.E,tk.SE,tk.S,tk.SW,tk.W,tk.NW]
+justifyVals = [tk.LEFT,tk.CENTER,tk.RIGHT]
+reliefVals = [tk.FLAT,tk.GROOVE,tk.RAISED,tk.RIDGE,tk.SOLID,tk.SUNKEN]
+compoundVals = [tk.NONE,tk.TOP,tk.BOTTOM,tk.LEFT,tk.RIGHT]
+orientVals = [tk.VERTICAL,tk.HORIZONTAL]
+
+
 class GridWidget:
     lastx = 0
     lasty = 0
@@ -40,7 +53,7 @@ class GridWidget:
         self.widget.grid(row=self.row,column=self.col,sticky='WENS')
     
     def mouseEnter(self,event):
-        log.debug("Row " + str(self.row) + " Col " + str(self.col))
+        log.debug("Row " + str(self.row) + " Col " + str(self.col) + str(event))
 
 
 def snapToClosest(v: int) -> int:
@@ -91,7 +104,7 @@ def updateWidgetNameList(pythonName,w):
         if not found:
             log.error("Unable to locate widget ->%s<-",str(w))
             log.error('createWidget.widgetNameList %s',str(createWidget.widgetNameList))
-        else :
+        else:
             nl[PARENT] = ParentName
 
 
@@ -153,9 +166,12 @@ class createWidget:
     # [widgetName, parentName , widget, childList]
     widgetNameList = []
     widgetId = 0
+    lastCreated = None
     dragType = ['move','dragEast','dragWest','dragNorth','dragSouth']
     
     def __init__(self,root,widget):
+        self.bordermode = None
+        self.stylePopupFrame = None
         self.parentX = 0
         self.parentY = 0
         self.popup = None
@@ -180,14 +196,14 @@ class createWidget:
         self.colSpan = 2
         self.rowSpan = 1
         self.start = (0,0)
-        self.gridPopupFrame = None
-        self.editPopupFrame = None
+        # self.gridPopupFrame = None
+        # self.editPopupFrame = None
         self.tkVar = "abcd"
         self.root = root
         self.widget: tk.Widget
         self.widget = widget
-        w = tk.Widget.getint(self.widget,3)
-        h = tk.Widget.getint(self.widget,5)
+        # w = tk.Widget.getint(self.widget,3)
+        # h = tk.Widget.getint(self.widget,5)
         # tk.wantobjects()
         log.debug(self.widget.widgetName)
         #######################
@@ -219,7 +235,6 @@ class createWidget:
         if pytkguivars.useGrider:
             self.widget.grid(row=self.row,column=self.col)
         else:
-            # self.widget.place(x=self.x,y=self.y,width=self.width,height=self.height)
             self.widget.place(x=self.x,y=self.y)
         
         self.widget.update()
@@ -228,8 +243,10 @@ class createWidget:
         if pytkguivars.useGrider:
             log.warning("Gridder Used TBD")
         else:
+            # The second place is needed after the 'update()'
             self.widget.place(x=self.x,y=self.y,width=self.width,height=self.height)
         log.debug("New %s WidgetId %d Width %d Height %d",self.widget.widgetName,self.widgetId,self.width,self.height)
+        createWidget.lastCreated = self
     
     def addPlace(self,placeDict):
         log.debug(placeDict)
@@ -246,56 +263,20 @@ class createWidget:
             self.height = int(height)
             self.widget.place(x=self.x,y=self.y,width=self.width,height=self.height)
     
-    def keyPress(self,event):
-        # self.widget.widgetName
-        if event.keysym == 'Down':
-            self.row += 1
-        elif event.keysym == 'Up':
-            self.row -= 1
-        elif event.keysym == 'Left':
-            self.col -= 1
-        elif event.keysym == 'Right':
-            self.col += 1
-        if self.row < 1:
-            self.row = 1
-        if self.col < 1:
-            self.col = 1
-        self.widget.grid(row=self.row,column=self.col)
-    
-    def keyUp(self,event):
-        self.row += 1
-        if self.row < 1:
-            self.row = 0
-        if self.row > 23:
-            self.row = 23
-        self.widget.grid(row=self.row,column=self.col)
-    
-    def keyDown(self,event):
-        self.row -= 1
-        if self.row < 1:
-            self.row = 0
-        if self.row > 23:
-            self.row = 23
-        self.widget.grid(row=self.row,column=self.col)
-    
     def fontChange(self,row):
-        font = tkfontchooser.askfont(self.root)
-        if font:
-            # spaces in the family name need to be escaped
-            font['family'] = font['family'].replace(' ','\ ')
-            font_str = "%(family)s %(size)i %(weight)s %(slant)s" % font
-            if font['underline']:
-                font_str += ' underline'
-                font_str += ' overstrike'
-            log.debug("Font=" + str(font_str) + " row=" + str(row))
-            guivars.stringVars[row].set(font_str)
-            #    self.widget.configure(font=font_str, text='Chosen font: ' + font_str.replace('\ ', ' '))
+        fd = FontDialog()
+        fd.show()
+        font = fd.result
+        # font = tkfontchooser.askfont(self.root)
+        guivars.stringVars[row].set(font)
     
     @staticmethod
     def changeColour(row):
-        colors = askcolor(title="Tkinter color chooser")
-        if colors[1] != '':
-            guivars.stringVars[row].set(colors[1])
+        colorDialog = ColorChooserDialog()
+        colorDialog.show()
+        colors = colorDialog.result
+        if colors[2] != '':
+            guivars.stringVars[row].set(colors[2])
         else:
             log.warning("Color Chooser did not return anything")
     
@@ -311,8 +292,9 @@ class createWidget:
         self.widget.grid(row=self.row,column=self.col,columnspan=self.colSpan)
     
     def gridMe(self):
-        self.widget.grid(row=self.row,column=self.col,ipadx=self.ipadx,ipady=self.ipady,padx=self.padx,pady=self.pady,
-                         columnspan=self.colSpan,rowspan=self.rowSpan,sticky=self.sticky)
+        self.widget.grid(row=self.row,column=self.col,ipadx=self.ipadx,ipady=self.ipady,
+                         padx=self.padx,pady=self.pady,columnspan=self.colSpan,
+                         rowspan=self.rowSpan,sticky=self.sticky)
     
     def applyGridSettings(self):
         # Apply grid popup settings
@@ -329,10 +311,10 @@ class createWidget:
         self.pady = int(kids['pady'].get())
         self.sticky = kids['sticky'].get()
     
-    def applyPlaceSettings(self):
+    def applyPlaceSettings(self,gridPopupFrame):
         # Apply grid popup settings
         log.debug("Apply place settings")
-        kids = self.gridPopupFrame.children
+        kids = gridPopupFrame.children
         log.debug(kids)
         # width = self.widget.winfo_width()
         # height = self.widget.winfo_height()
@@ -344,161 +326,84 @@ class createWidget:
         self.bordermode = kids['bordermode'].get()
         self.widget.place(x=self.x,y=self.y,width=self.width,height=self.height,anchor=self.anchor,
                           bordermode=self.bordermode)
+        self.popup.update()
     
-    def grid_popup(self):
+    def place_popup(self):
         # colour='azure'
-        popup = tk.Tk()
+        gi = self.widget.place_info()
+        if gi == {}:
+            return
+        # popup = tk.Tk()
+        popup = ttk.Window(themename="darkly")
+        popup.title("Place Widget")
+        # popup.update()
         x = popup.winfo_pointerx()
         y = popup.winfo_pointery()
         # popup.geometry('%dx%d+%d+%d' % (200, 200, x, y))
         popup.geometry(f'+{x:d}+{y:d}')
-        popup.wm_title("Edit Widget Layout")
-        colour = 'bisque'
-        style = ttk.Style(popup)
-        style.configure('TFrame',background=colour,foreground='black')
-        style.configure('TLabel',background=colour,foreground='black')
-        style.configure('TCombobox',background=colour,foreground='black')
-        style.configure('TSpinbox',background=colour,foreground='black')
-        # style.configure('TButton', background='lightgreen1', foreground='black')
-        self.gridPopupFrame = ttk.Frame(popup,borderwidth=2,relief='sunken')
-        gi = self.widget.grid_info()
-        if gi == {}:
-            return
-        self.gridPopupFrame.grid(row=self.row,column=self.col + self.colSpan,rowspan=16,columnspan=4)
-        spinVars = [Any] * 16
-        lab0 = ttk.Label(self.gridPopupFrame,text="Grid layout settings for " + self.widget.widgetName)
-        lab0.grid(row=0,column=0,columnspan=4,sticky=tk.NS)
-        log.debug(gi)
-        row = 1
-        stickyVals = [" ",tk.N,tk.S,tk.E,tk.W,tk.NS,tk.EW,tk.NSEW]
-        for x in gi:
-            if x != 'in':
-                val = gi[x]
-                spinVars[row] = val
-                lab1 = ttk.Label(self.gridPopupFrame,text=x)
-                w: Any
-                if x == 'sticky':
-                    w = ttk.Combobox(self.gridPopupFrame,values=stickyVals,width=6,name=x)
-                    w.set(val)
-                else:
-                    self.vars[row] = val
-                    w = ttk.Spinbox(self.gridPopupFrame,width=5,name=x,from_=0,to=99,increment=1)
-                    w.set(int(val))
-                log.debug("self.vals " + str(row) + " " + str(val))
-                lab1.grid(row=row,column=0,sticky=tk.NE)
-                w.grid(row=row,column=3,sticky=tk.SW)
-                row += 1
-        b1 = ttk.Button(self.gridPopupFrame,width=8,text="Close",command=popup.destroy)
-        b2 = ttk.Button(self.gridPopupFrame,width=8,text="Apply",command=self.applyGridSettings)
-        b1.grid(row=row,column=0)
-        row += 1
-        # blank Label to make the layout better
-        lab2 = ttk.Label(self.gridPopupFrame,text="   ")
-        lab2.grid(row=row,column=2)
-        b2.grid(row=row,column=3)
-        row += 1
-    
-    def place_popup(self):
-        # colour='azure'
-        popup = tk.Tk()
-        popup.update()
-        x = popup.winfo_pointerx()
-        y = popup.winfo_pointery()
-        # popup.geometry('%dx%d+%d+%d' % (200, 200, x, y))
-        popup.geometry('+%d+%d' % (x,y))
-        popup.wm_title("Edit Widget Layout")
-        colour = 'bisque'
-        style = ttk.Style(popup)
-        style.configure('TFrame',background=colour,foreground='black')
-        style.configure('TLabel',background=colour,foreground='black')
-        style.configure('TCombobox',background=colour,foreground='black')
-        style.configure('TSpinbox',background=colour,foreground='black')
-        # style.configure('TButton', background='lightgreen1', foreground='black')
-        self.gridPopupFrame = ttk.Frame(popup,borderwidth=2,relief='sunken')
+        popup.title("Edit Widget Layout")
+        gridPopupFrame = ttk.Frame(popup,borderwidth=2,relief='sunken')
         # gi = self.widget.grid_info()
-        gi = self.widget.place_info()
-        if gi == {}:
-            return
-        self.gridPopupFrame.grid(row=self.row,column=self.col + self.colSpan,rowspan=16,columnspan=4)
+        gridPopupFrame.grid(row=self.row,column=self.col + self.colSpan,rowspan=16,columnspan=4)
         spinVars = [Any] * 16
-        lab0 = ttk.Label(self.gridPopupFrame,text="Grid layout settings for " + self.widget.widgetName)
+        lab0 = ttk.Label(gridPopupFrame,text="Place settings for " + self.widget.widgetName)
         lab0.grid(row=0,column=0,columnspan=4,sticky=tk.NS)
         log.debug(gi)
         row = 1
-        stickyVals = [" ",tk.N,tk.S,tk.E,tk.W,tk.NS,tk.EW,tk.NSEW]
-        anchorVals = [tk.CENTER,tk.N,tk.NE,tk.E,tk.SE,tk.S,tk.SW,tk.W,tk.NW]
-        borderVals = [tk.INSIDE,tk.OUTSIDE]
         width = self.widget.winfo_width()
         height = self.widget.winfo_height()
         
         for x in gi:
-            if x != 'in':
+            ignoreThese = ['in','relx','rely','relwidth','relheight']
+            if x not in ignoreThese:
                 val = gi[x]
                 log.debug(str(val))
                 if val == '':
                     val = 0
                 spinVars[row] = val
-                lab1 = ttk.Label(self.gridPopupFrame,text=x)
+                lab1 = ttk.Label(gridPopupFrame,text=x)
                 w: Any
                 if x == 'sticky':
-                    w = ttk.Combobox(self.gridPopupFrame,values=stickyVals,width=6,name=x)
+                    w = ttk.Combobox(gridPopupFrame,values=stickyVals,width=6,name=x)
                     w.set(val)
                 elif x == "bordermode":
-                    w = ttk.Combobox(self.gridPopupFrame,values=borderVals,width=6,name=x)
+                    w = ttk.Combobox(gridPopupFrame,values=borderVals,width=6,name=x)
                     w.set(val)
                 elif x == "anchor":
-                    w = ttk.Combobox(self.gridPopupFrame,values=anchorVals,width=6,name=x)
+                    w = ttk.Combobox(gridPopupFrame,values=anchorVals,width=6,name=x)
                     w.set(val)
                 elif x == 'height':
-                    w = ttk.Spinbox(self.gridPopupFrame,width=5,name=x,from_=0,to=999,increment=1)
+                    w = ttk.Spinbox(gridPopupFrame,width=5,name=x,from_=0,to=999,increment=1)
                     w.set(int(height))
                 elif x == 'width':
-                    w = ttk.Spinbox(self.gridPopupFrame,width=5,name=x,from_=0,to=999,increment=1)
+                    w = ttk.Spinbox(gridPopupFrame,width=5,name=x,from_=0,to=999,increment=1)
                     w.set(int(width))
                 else:
                     self.vars[row] = val
-                    w = ttk.Spinbox(self.gridPopupFrame,width=5,name=x,from_=0,to=99,increment=1)
+                    w = ttk.Spinbox(gridPopupFrame,width=5,name=x,from_=0,to=99,increment=1)
                     w.set(int(val))
                 log.debug("self.vals " + str(row) + " " + str(val))
                 lab1.grid(row=row,column=0,sticky=tk.NE)
                 w.grid(row=row,column=3,sticky=tk.SW)
                 row += 1
-        b1 = ttk.Button(self.gridPopupFrame,width=8,text="Close",command=popup.destroy)
-        b2 = ttk.Button(self.gridPopupFrame,width=8,text="Apply",command=self.applyPlaceSettings)
-        b1.grid(row=row,column=0)
-        row += 1
+        b1 = ttk.Button(gridPopupFrame,width=8,text="Close",command=popup.destroy)
+        b2 = ttk.Button(gridPopupFrame,width=8,text="Apply",command=lambda:self.applyPlaceSettings(gridPopupFrame))
+        lab2 = ttk.Label(gridPopupFrame,text="   ")
+        # row += 1
         # blank Label to make the layout better
-        lab2 = ttk.Label(self.gridPopupFrame,text="   ")
+        b1.grid(row=row,column=0)
         lab2.grid(row=row,column=2)
         b2.grid(row=row,column=3)
+        popup.update()
     
-    def selectImage(self,row):
+    def selectImage(self):
         global testImage
-        f_types = [ ('Png Files','*.png'), ('Jpg kFiles','*.jpg') ]
+        f_types = [('Png Files','*.png'),('Jpg kFiles','*.jpg')]
         filename = filedialog.askopenfilename(filetypes=f_types)
         idx = pytkguivars.imageIndex
         pytkguivars.imagesUsed[idx] = ImageTk.PhotoImage(file=filename)
         self.widget.configure(image=pytkguivars.imagesUsed[idx])
         pytkguivars.imageIndex += 1
-    
-    def defineStyle(self):
-        log.debug('defineStyle In Progress')
-        popup = tk.Tk()
-        popup.update()
-        x = popup.winfo_pointerx()
-        y = popup.winfo_pointery()
-        # popup.geometry('%dx%d+%d+%d' % (200, 200, x, y))
-        popup.geometry('+%d+%d' % (x,y))
-        popup.wm_title("Edit TTK Widget Stype")
-        colour = 'bisque'
-        style = ttk.Style(popup)
-        style.configure('TFrame',background=colour,foreground='black')
-        style.configure('TLabel',background=colour,foreground='black')
-        style.configure('TCombobox',background=colour,foreground='black')
-        style = ttk.Style(self.root)
-        log.debug(style.element_names())
-        log.debug(style.theme_names())
-        styleVals = style.element_names()  # log.debug(styleVals)
     
     def applyEditSettings(self):
         # keys = self.widget.keys()
@@ -530,8 +435,8 @@ class createWidget:
                     child = guivars.childNameVars[row].get()
                     if child:
                         log.debug(
-                            "Configure tag=" + str(k) + " Child=" + str(child) + " Row=" + str(row) + " Value=" + str(
-                            val))
+                            "Configure tag=" + str(k) + " Child=" + str(child) + " Row=" +
+                            str(row) + " Value=" + str(val))
                         # child_widget = getattr(self.widget,child)
                         # command_str = f"child_widget.configure({{k: {val}}})"
                         # log.debug(command_str)
@@ -544,40 +449,74 @@ class createWidget:
                     else:
                         # command_str = f"self.widget.configure({{k: {val}}})"
                         # log.debug(command_str)
+                        logString = 'k %s val %s'
                         log.debug("Configure tag=" + str(k) + " Row=" + str(row) + " Value=" + str(val))
                         if (k == 'anchor' or k == 'justify') and len(val) < 1:
                             log.debug("Ignored")
+                        elif k == 'values':
+                            log.debug(logString,str(k),str(val))
+                            # self.widget.configure(values=list(val.strip()))
+                            # configure does not work for lists. change directly ...
+                            # It needs a string list like this .
+                            # self.widget['values'] = "1 2 3 4 5"
+                            newVal = val.replace('(','')
+                            val = newVal
+                            newVal = val.replace(')','')
+                            val = newVal
+                            newVal = val.replace(',',' ')
+                            val = newVal
+                            newVal = val.replace('\'','')
+                            val = newVal
+                            log.debug(logString,str(k),val)
+                            self.widget['values'] = val
+                        
+                        elif k == 'style':
+                            log.debug(logString,str(k),str(val))
+                            self.widget.configure(bootstyle=val)
                         else:
-                            # if val is not int:
-                            #    val = 0
-                            log.debug("k %s val %s",str(k),str(val))
+                            log.debug(logString,str(k),str(val))
                             try:
                                 self.widget.configure(**{k:val})
                             except Exception as e:
                                 log.error(e)
                                 log.warning("k %s val %s",str(k),str(val))
     
-    def editTtkPopup(self,popup):
+    def sizeGripRelease(self):
+        # This might be needed
+        pass
+    
+    def editTtkPopup(self):
         global string1
         global string2
         row = 0
         gridRow = 0
-        wname = self.widget.widgetName
-        w = ttk.Label(popup,text=wname,borderwidth=1,relief=tk.SOLID,justify=tk.CENTER)
-        # w = ttk.Label(popup,text=wname,borderwidth=1,justify=tk.CENTER)
-        w.grid(row=gridRow,column=1,columnspan=4,sticky=tk.SW)
+        wName = self.widget.widgetName
+        # editPopupFrame = ttkbootstrap.scrolled.ScrolledFrame(self.root, autohide=True)
+        # editPopupFrame.pack(fill=BOTH, expand=YES, padx=10, pady=10)
+        q = QueryDialog(prompt="example Prompt")
+        print(q.result)
+        
+        editPopupFrame = ttk.Frame(self.root,borderwidth=1,relief='solid')
+        editPopupFrame.place(x=500,y=10)
+        editPopupFrame.columnconfigure(0,weight=1)
+        editPopupFrame.rowconfigure(0,weight=1)
+        sg0 = ttk.Sizegrip(editPopupFrame)
+        sg0.grid(row=1,sticky=tk.SE)
+        sg0.columnconfigure(0,weight=1)
+        # editPopupFrame.resizable(True,True)
+        # sg0.bind("<ButtonRelease-1>",sizeGripRelease)
+        
+        w = ttk.Label(editPopupFrame,text='Edit ' + wName,justify=tk.CENTER,anchor=tk.CENTER)
+        w.grid(row=gridRow,column=0,columnspan=4,sticky=tk.EW)
         gridRow += 1
         keys = self.widget.keys()
         if keys == {}:
-            popup.destroy()
+            editPopupFrame.destroy()
             return
         log.debug(keys)
-        anchorVals = [tk.CENTER,tk.N,tk.NE,tk.E,tk.SE,tk.S,tk.SW,tk.W,tk.NW]
-        justifyVals = [tk.LEFT,tk.CENTER,tk.RIGHT]
-        reliefVals = [tk.FLAT,tk.GROOVE,tk.RAISED,tk.RIDGE,tk.SOLID,tk.SUNKEN]
-        compoundVals = [tk.NONE,tk.TOP,tk.BOTTOM,tk.LEFT,tk.RIGHT]
-        orientVals = [tk.VERTICAL,tk.HORIZONTAL]
         self.keys = keys
+        print('self.keys',self.keys)
+        comboWidth = 9
         for key in self.keys:
             row += 1
             gridRow += 1
@@ -591,10 +530,10 @@ class createWidget:
             else:
                 val = self.widget.cget(k)
             
-            l1 = ttk.Label(popup,text=k)
+            l1 = ttk.Label(editPopupFrame,text=k)
             # l1.grid(row=row,column=1,columnspan=5,sticky=tk.SW)
-            guivars.stringVars[row] = tk.StringVar(popup)
-            guivars.childNameVars[row] = tk.StringVar(popup)
+            guivars.stringVars[row] = tk.StringVar(self.root)
+            guivars.childNameVars[row] = tk.StringVar(self.root)
             guivars.stringVars[row].set(val)
             guivars.childNameVars[row].set(childW)
             # These are ignored for now at least
@@ -608,64 +547,87 @@ class createWidget:
             ###############################
             elif k == 'font':
                 # rowX = row
-                w = ttk.Button(popup,name=uniqueName,text="Select a Font",command=lambda row=row:self.fontChange(row))
+                w = ttk.Button(editPopupFrame,name=uniqueName,text="Select a Font",
+                               command=lambda row=row:self.fontChange(row))
                 w.grid(row=gridRow,column=3,columnspan=2,sticky=tk.SW)
             ###############################
             # spinbox integer tags
             ###############################
             elif k in ('height','columns','width','borderwidth','displaycolumns','padding'):
-                w = ttk.Spinbox(popup,width=5,name=uniqueName,from_=0,to=99,increment=1,
+                w = ttk.Spinbox(editPopupFrame,width=5,name=uniqueName,from_=0,to=299,increment=1,
                                 textvariable=guivars.stringVars[row])
                 w.grid(row=gridRow,column=3,sticky=tk.SW)
             ###############################
             # Combobox fields
             ###############################
             elif k == 'anchor':
-                w = ttk.Combobox(popup,values=anchorVals,width=6,name=uniqueName,textvariable=guivars.stringVars[row])
+                w = ttk.Combobox(editPopupFrame,values=anchorVals,width=comboWidth,name=uniqueName,
+                                 textvariable=guivars.stringVars[row])
                 w.set(val)
                 w.grid(row=gridRow,column=3,sticky=tk.SW)
             elif k == 'justify':
-                w = ttk.Combobox(popup,values=justifyVals,width=6,name=uniqueName,textvariable=guivars.stringVars[row])
+                w = ttk.Combobox(editPopupFrame,values=justifyVals,width=comboWidth,name=uniqueName,
+                                 textvariable=guivars.stringVars[row])
                 w.set(val)
                 w.grid(row=gridRow,column=3,sticky=tk.SW)
             elif k == 'relief':
-                w = ttk.Combobox(popup,values=reliefVals,width=6,name=uniqueName,textvariable=guivars.stringVars[row])
+                w = ttk.Combobox(editPopupFrame,values=reliefVals,width=comboWidth,name=uniqueName,
+                                 textvariable=guivars.stringVars[row])
                 w.set(val)
                 w.grid(row=gridRow,column=3,sticky=tk.SW)
             elif k == 'compound':
-                w = ttk.Combobox(popup,values=compoundVals,width=6,name=uniqueName,textvariable=guivars.stringVars[row])
+                w = ttk.Combobox(editPopupFrame,values=compoundVals,width=comboWidth,name=uniqueName,
+                                 textvariable=guivars.stringVars[row])
                 w.set(val)
                 w.grid(row=gridRow,column=3,sticky=tk.SW)
             elif k == 'orient':
-                w = ttk.Combobox(popup,values=orientVals,width=6,name=uniqueName,textvariable=guivars.stringVars[row])
+                w = ttk.Combobox(editPopupFrame,values=orientVals,width=comboWidth,name=uniqueName,
+                                 textvariable=guivars.stringVars[row])
                 w.set(val)
                 w.grid(row=gridRow,column=3,sticky=tk.SW)
             ###############################
-            # Style is tricky TBD
+            # Style is tricky -- using ttkbootstrap
             ###############################
             elif k == 'style':
-                w = ttk.Button(popup,name=uniqueName,text="Define/Select a Style",command=self.defineStyle)
+                style = ttk.style.Style()
+                colours = []
+                for color_label in style.colors:
+                    colours.append(color_label)
+                w = ttk.Combobox(editPopupFrame,values=colours,width=comboWidth,name=uniqueName,
+                                 textvariable=guivars.stringVars[row])
+                # python or tk change the format to 'name.wiget-type'
+                # bval = self.widget.cget('bootstyle') # This does not work
+                try:
+                    bval = self.widget.cget('style')
+                    bvalList = bval.split('.')
+                    if bvalList[0] not in colours:
+                        val = ''
+                    else:
+                        val = bvalList[0]
+                except Exception as e:
+                    log.error("Style parsing val %s got Exception %s",str(val),str(e))
+                w.set(val)
                 w.grid(row=gridRow,column=3,sticky=tk.SW)
             ###############################
-            # Image need work TBD
+            # Image need work TBD Does not get saved correctly
             ###############################
             elif k == 'image':
                 # thisRow1 = row
-                w = ttk.Button(popup,name=uniqueName,text="Select an image",
-                               command=lambda row=row:self.selectImage(row))
+                w = ttk.Button(editPopupFrame,name=uniqueName,text="Select an image",
+                               command=self.selectImage)
                 w.grid(row=gridRow,column=3,sticky=tk.SW)
             ###############################
             # Colour selection possibly a canvas with the colour
             ###############################
-            elif k == 'bg' or k == 'foreground' or k == 'background':
-                w = ttk.Button(popup,name=uniqueName,text="Select a Color",
+            elif k == 'fg' or k == 'bg' or k == 'foreground' or k == 'background':
+                w = ttk.Button(editPopupFrame,name=uniqueName,text="Select a Color",
                                command=lambda row=row:self.changeColour(row))
                 w.grid(row=gridRow,column=3,columnspan=2,sticky=tk.SW)
             ###############################
             # The Default --- use and entry widget for all other tags
             ###############################
             else:
-                w = tk.Entry(popup,name=uniqueName,textvariable=guivars.stringVars[row])
+                w = ttk.Entry(editPopupFrame,name=uniqueName,textvariable=guivars.stringVars[row])
                 w.grid(row=gridRow,column=3,sticky=tk.SW)
             
             if guivars.stringUsed[row]:
@@ -675,10 +637,14 @@ class createWidget:
         kids = self.widget.children
         if kids:
             for k in kids:
-                widgetName = k.widgetName
+                try:
+                    widgetName = k.widgetName
+                except AttributeError as e:
+                    log.warning('child widget ->%s<- got exception %s',str(k),str(e))
+                    continue
                 log.debug(widgetName)
-                l0 = ttk.Label(popup,text=widgetName,borderwidth=1,border=tk.SOLID,justify=tk.CENTER)
-                l0.grid(row=gridRow,column=1,columnspan=5,sticky=tk.SW)
+                l0 = ttk.Label(editPopupFrame,text=widgetName,borderwidth=1,border=tk.SOLID,justify=tk.CENTER)
+                l0.grid(row=gridRow,column=1,columnspan=5,sticky=tk.EW)
                 row += 1
                 gridRow += 1
                 if widgetName == 'ttk::notebook':
@@ -694,16 +660,18 @@ class createWidget:
                 else:
                     log.debug('unhandled child %s',widgetName)
         # self.labelKeys = ['text', 'background', 'foreground', 'font', 'width', 'anchor', 'textvariable']
-        b1 = ttk.Button(popup,width=8,text="Close",command=popup.destroy)
-        b2 = ttk.Button(popup,width=8,text="Apply",command=self.applyEditSettings)
+        b1 = ttk.Button(editPopupFrame,width=8,text="Close",command=editPopupFrame.destroy)
+        b2 = ttk.Button(editPopupFrame,width=8,text="Apply",command=self.applyEditSettings)
+        # b2 = ttk.Button(gridPopupFrame,width=8,text="Apply",command=lambda : self.applyPlaceSettings(gridPopupFrame))
         b1.grid(row=gridRow,column=0)
         b2.grid(row=gridRow,column=3)
         row += 1
         gridRow += 1
         # blank Label to make the layout better
-        lab2 = ttk.Label(popup,text="   ")
+        lab2 = ttk.Label(editPopupFrame,text="   ")
         lab2.grid(row=gridRow,column=2)
-        popup.mainloop()
+        # editPopupFrame.grid()
+        # editPopup.mainloop()
     
     def editTtkButton(self,root):
         keys = self.widget.keys()
@@ -711,24 +679,6 @@ class createWidget:
             root.destroy()
             return
         log.debug(keys)
-    
-    def editWidget(self,w):
-        # Build the edit widget
-        popup = tk.Tk()
-        x = popup.winfo_pointerx()
-        y = popup.winfo_pointery()
-        popup.wm_title("Edit Widget")
-        popup.geometry('+%d+%d' % (x,y))
-        colour = 'lightgreen'
-        style = ttk.Style(popup)
-        style.configure('TFrame',background=colour,foreground='black')
-        style.configure('TLabel',background=colour,foreground='black')
-        style.configure('TCombobox',background=colour,foreground='black')
-        style.configure('TSpinbox',background=colour,foreground='black')
-        style.configure('TButton',background=colour,foreground='black')
-        style.configure('TLabel',background=colour,foreground='black')
-        self.editPopupFrame = ttk.Frame(popup,borderwidth=2,relief='sunken')
-        self.editTtkPopup(popup)
     
     def findParentWidget(self):
         parent = self.widget.place_info().get('in')
@@ -780,8 +730,9 @@ class createWidget:
                     log.debug("Match Name %s fits inside %s",name0,name)
                     newX = x1 - wx1
                     newY = y1 - wy1
-                    # self.widget.place('in=',w,'x=',newX,'y=',newY)
-                    self.widget.place(in_=w,x=newX,y=newY)
+                    self.changeParentTo(w)
+                    self.widget.place(x=newX,y=newY)
+                    """
                     # w.children.append(self.widget)
                     updateWidgetNameList(self.pythonName,w)
                     # createWidget.widgetNameList.append([self.pythonName,'toolRoot',self.widget,[]])
@@ -790,40 +741,66 @@ class createWidget:
                     tk.Misc.lift(self.widget,aboveThis=None)
                     # tk.Misc.lift(self.widget,aboveThis=w)
                     self.widget.update()
+                    """
+    
+    def changeParentTo(self,newParentWidget):
+        self.widget.place(in_=newParentWidget)
+        updateWidgetNameList(self.pythonName,newParentWidget)
+        self.widget.parent = newParentWidget
+        tk.Misc.lift(self.widget,aboveThis=None)
+        self.widget.update()
     
     def clone(self):
         mainCanvas = self.root
-        widgetId = createWidget.widgetId
-        newWidgetDict = pytkguivars.saveWidgetAsDict(widgetId,self.widget)
-        widgetDef = pytkguivars.buildAWidget(widgetId,newWidgetDict)
+        # widgetId = createWidget.widgetId
+        originalName = 'Widget' + str(self.widgetId)
+        origWidgetDict = pytkguivars.saveWidgetAsDict(originalName)
+        print('origWidgetDict:',origWidgetDict)
+        useDict = origWidgetDict.get(originalName)
+        print('useDict',useDict)
+        # self.widgetId
+        widgetDef = pytkguivars.buildAWidget(self.widgetId,useDict)
+        print(widgetDef)
+        # print('widgetDef',widgetDef)
         # widgetAltName = 'Widget' + str(widgetId)
         # widgetDict = newWidgetDict.get(widgetAltName)
         widget = eval(widgetDef)
+        place = useDict.get('Place')
+        widgetParent = useDict.get('WidgetParent')
+        width = place.get('width')
+        height = place.get('height')
+        # print('place',place)
+        # print('widgetParent',widgetParent)
         # place = newWidgetDict.get('Place')
         createWidget(mainCanvas,widget)
-        widget.place(x=self.x + 16,y=self.y + 16,width=self.width,height=self.height)
+        newW = createWidget.lastCreated
+        if pytkguivars.rootWidgetName != widgetParent:
+            nameDetails = findPythonWidgetNameList(widgetParent)
+            print('widgetParent:',widgetParent)
+            print('nameDetails:',nameDetails)
+            try:
+                w = nameDetails[WIDGET]
+                newW.changeParentTo(w)
+            except Exception as e:
+                log.error("Exception %s",str(e))
+        newW.widget.place(x=self.x + 16,y=self.y + 16,width=width,height=height)
     
     def deleteWidget(self):
         deleteWidgetFromLists(self.pythonName,self.widget)
         self.widget.destroy()
-        
+    
     def makePopup(self):
         # Add Menu
-        self.popup = tk.Menu(self.root,tearoff=0)
+        self.popup = ttk.Menu(self.root,tearoff=0)
         
         # Adding Menu Items
-        mypartial = partial(self.editWidget,self.widget)
-        self.popup.add_command(label="Edit",command=mypartial)
-        # self.popup.add_command(label="Edit", command=self.editWidget)
+        self.popup.add_command(label="Edit",command=self.editTtkPopup)
         self.popup.add_command(label="Layout",command=self.place_popup)
         self.popup.add_command(label="Clone",command=self.clone)
         self.popup.add_command(label="Re-Parent",command=self.reParent)
-        # self.popup.add_command(label="Col Span +",command=self.incColSpan)
-        # self.popup.add_command(label="Col Span -",command=self.decColSpan)
         self.popup.add_command(label="Delete",command=self.deleteWidget)
-        self.popup.add_command(label="Save",command=self.saveTestxxx)
         self.popup.add_separator()
-        self.popup.add_command(label="Quit",command=self.popup.destroy)
+        self.popup.add_command(label="Close",command=self.popup.destroy)
     
     def menu_popup(self,event):
         # display the popup menu
@@ -885,7 +862,10 @@ class createWidget:
             self.dragType = 'dragNorth'
             log.debug("Drag top Side")  # log.info(event)
         # Make sure any children are on top.
-        self.widget.lift()
+        try:
+            self.widget.lift()
+        except tk.TclError as e:
+            log.warning("self.widget.lift Failed with exception %s",str(e))
         raiseChildren(self.pythonName)
     
     def leftMouseDrag(self,event):
@@ -920,47 +900,21 @@ class createWidget:
         self.dragType = ''
         newX = snapToClosest(self.x)
         newY = snapToClosest(self.y)
+        newWidth = snapToClosest(self.widget.winfo_width())
+        newHeight = snapToClosest(self.widget.winfo_height())
         self.x = newX
         self.y = newY
+        if newWidth < 16:
+            newWidth = 16
+        if newHeight < 16:
+            newHeight = 16
+        self.height = newHeight
+        self.width = newWidth
         if pytkguivars.useGrider:
             z = self.root.grid_location(self.x,self.y)
             self.row = z[1]
             self.col = z[0]
             self.widget.grid(row=self.row,column=self.col)
-            log.debug("Left Mouse Release -- col,row " + str(z))
+            log.debug("Left Mouse Release -- col,row %s %s",str(z),str(event))
         else:
-            self.widget.place(x=self.x,y=self.y)
-    
-    def saveTestxxx(self):
-        # return None
-        for w in createWidget.widgetList:
-            if w is not None:
-                place = w.place_info()
-                log.debug(place)
-                grid = w.grid_info()
-                log.debug(grid)
-                keys = w.keys()
-                log.debug(keys)
-                tags = w.bindtags()
-                log.debug(tags)
-                t = w.winfo_class()
-                log.debug(t)
-                # w.__getattribute__(string1)
-                for k in keys:
-                    log.debug(k)
-                    try:
-                        val = k.cget()
-                        if val is not None:
-                            log.debug("k %s and val %s",str(k),str(val))
-                    except Exception as e:
-                        log.error("exceptipn %s",str(e))
-                    """
-                    val = w.cget()
-                    if val == None:
-                        pass
-                    else:
-                        try:
-                            log.debug(k + " " + val)
-                        finally:
-                            log.debug("Unable to print val")
-                    """
+            self.widget.place(x=self.x,y=self.y,height=self.height,width=self.width)

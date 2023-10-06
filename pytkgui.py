@@ -5,27 +5,26 @@ import sys
 import tkinter as tk
 from collections import defaultdict
 from functools import partial
-from tkinter import ttk
 from tkinter.colorchooser import askcolor
 from typing import Any
-import copy
+
 import coloredlogs
-import sv_ttk
-from ttkthemes import ThemedTk
+import ttkbootstrap as ttk
 
 import createWidget as cw
 import pytkguivars
 
-# rootWin = tk.Tk()
-rootWin = ThemedTk()
+rootWin = ttk.Window(themename="darkly")
 mainFrame: ttk.Frame()
 rootWin.title('Python Tk GUI Builder')
 iconBar: ttk.Frame()
-mainCanvas: tk.Canvas()
+mainCanvas: ttk.Canvas()
 style: Any
 
-def printf(format, *args):
+
+def printf(format,*args):
     sys.stdout.write(format % args)
+
 
 def newLabel():
     global mainCanvas
@@ -56,13 +55,14 @@ def newLabel0():
 
 def newCanvas0():
     global mainCanvas
-    b = tk.Canvas(mainCanvas)
+    b = ttk.Canvas(mainCanvas)
     cw.createWidget(mainCanvas,b)
 
 
 def newEntry0():
     global mainCanvas
-    b = tk.Entry(mainCanvas)
+    # b = ttk.Bootstyle.update_ttk_widget_style()
+    b = ttk.ScrolledText(mainCanvas)
     cw.createWidget(mainCanvas,b)
 
 
@@ -74,7 +74,7 @@ def newEntry():
 
 def newLabScale():
     global mainCanvas
-    e = ttk.LabeledScale(mainCanvas)
+    e = ttk.ScrolledText(mainCanvas)
     cw.createWidget(mainCanvas,e)
 
 
@@ -126,13 +126,6 @@ def newNotebook():
     cw.createWidget(frame1,label1)
     label1.pack(pady=50,padx=20)
     w.add(frame1,text="Window 1")
-    """
-    label2 = ttk.Label(frame2,text="This is Window Two")
-    label2.pack(pady=50,padx=20)
-    frame1.pack(fill=tk.BOTH,expand=True)
-    frame2.pack(fill=tk.BOTH,expand=True)
-    self.widget.add(frame2,text="Window 2")
-    """
 
 
 # newFrame newLabelFrame newPanedWindow newScrollbar
@@ -177,22 +170,22 @@ def newTtkButton():
     global mainCanvas
     global xstart
     global ystart
-    
+
     mystyle = ttk.Style()
-    # style.theme_use('alt')
     mystyle.configure('TButton',background='lightblue',foreground='black')
-    # width = 20, borderwidth=1, focusthickness=3, focuscolor='none')
-    # style.map('TButton', background=[('active','red')])
     b = ttk.Button(mainCanvas,text="Button")  # style=mystyle)
     cw.createWidget(mainCanvas,b)
 
 
 def setTheme(theme: object):
-    global rootWin
     global style
     log.debug(theme)
     # style = ttk.Style(rootWin)
     style.theme_use(theme)
+
+    for color_label in style.colors:
+        color = style.colors.get(color_label)
+        print(color_label,color)
 
 
 def tree(): return defaultdict(tree)
@@ -208,7 +201,7 @@ def createCleanNameList() -> list:
     for c in cw.createWidget.widgetNameList:
         name = c[cw.NAME]
         parent = c[cw.PARENT]
-        children = c[cw.CHILDREN] 
+        children = c[cw.CHILDREN]
         cleanNameList.append([name,parent,'',children])
     return cleanNameList
 
@@ -220,6 +213,7 @@ def findWidgetsParent(widgetName) -> str:
     log.error("Failed to find a parent for %s",widgetName)
     return ''
 
+
 def saveProject():
     global mainCanvas
     widgetCount = 0
@@ -228,7 +222,7 @@ def saveProject():
     height = 0  # mainCanvas.winfo_height
     cleanList = createCleanNameList()
     projectData = {"ProjectName":'test','ProjectPath':'/tmp/test','width':width,'height':height,
-                   'theme':pytkguivars.theme, 'widgetNameList':cleanList,
+                   'theme':pytkguivars.theme,'widgetNameList':cleanList,
                    'backgroundColor':pytkguivars.backgroundColor}
     # Work out the order to create the Widgets so the parenting is correct
     sanityCheckCount = 0
@@ -236,7 +230,7 @@ def saveProject():
     while not finished:
         finished = True
         sanityCheckCount += 1
-        if  sanityCheckCount > 1000:
+        if sanityCheckCount > 1000:
             log.critical("Loop is not exiting Ahhhhh %d",sanityCheckCount)
             break
         for nameEntry in cw.createWidget.widgetNameList:
@@ -244,7 +238,7 @@ def saveProject():
                 widgetName = nameEntry[cw.NAME]
                 widgetParent = nameEntry[cw.PARENT]
                 if widgetName in createdWidgetOrder:
-                # This has already been created
+                    # This has already been created
                     continue
                 else:
                     finished = False
@@ -260,7 +254,7 @@ def saveProject():
         if widgetName == pytkguivars.rootWidgetName:
             continue
         newWidget = pytkguivars.saveWidgetAsDict(widgetName)
-        
+
         log.debug('widgetCount %d newWidget %s',widgetCount,str(newWidget))
         widgetCount += 1
         # project["widgetName"] = .widgetName
@@ -287,11 +281,11 @@ def runMe():
     if pytkguivars.projectDict == {}:
         saveProject()
     runDict = pytkguivars.projectDict
-    nWidgits = runDict.get('widgetCount')
+    nWidgets = runDict.get('widgetCount')
     largestWidth = 200
     largestHeight = 200
     # print('width',width,'height',height)
-    print('nWidgets',nWidgits)
+    print('nWidgets',nWidgets)
     print("# -------------------------")
     sys.stdout = open('/tmp/test.py','w')
     print("import tkinter as tk\nfrom tkinter import ttk\nfrom ttkthemes import ThemedTk")
@@ -313,32 +307,39 @@ def runMe():
         if wDict != {}:
             log.debug('Dictionary for %s = %s',widgetName,str(wDict))
             wType = wDict.get('WidgetName')
-            t = wType.replace('ttk::','ttk.')
+            t = pytkguivars.fixWidgetTypeName(wType)
             wType = t
-            idx = wType.find('.')
-            if idx == -1:  # Not ttk widgets
-                t = 'tk.' + wType
-                wType = t
-            for ch in alphaList:
-                t = wType.replace('.' + ch,'.' + ch.upper())
-                wType = t
-            widgetDef = widgetName + ' = ' + wType + '(' + parentName
             keyCount = widgetName + "-KeyCount"
+            widgetDef = widgetName + ' = ' + wType + '(' + parentName
             nKeys = wDict.get(keyCount)
             for a in range(nKeys):
+                useValQuotes = True
                 attribute = 'Attribute' + str(a)
                 aDict = wDict.get(attribute)
                 key = aDict.get('Key')
                 val = aDict.get('Value')
-                # Bug in tkinter?
                 if key == 'from':
+                    # Bug in tkinter -- no
+                    # 'from' is a python keyword
                     key = 'from_'
-                if val.find('<') > -1 or val.find('(') > -1:
-                    print("# key",key,"has a weird value",val)
-                else:
-                    if len(val) > 0:
-                        tmpWidgetDef = widgetDef + ', ' + key + '=\'' + val + '\' '
-                        widgetDef = tmpWidgetDef
+                if val.find('<') > -1:
+                    # Typically, this a TK object that is in < xxx > format
+                    log.warning("key %s ->%s<-has a weird value",key,val)
+                    continue
+                if val.find('(') > -1:
+                    # '(' is in lists for combo boxes
+                    # The 'values' key has this saved format. This might be a tk thing.
+                    # It needs to be converted to a list
+                    newVal = pytkguivars.fixComboValues(key,val)
+                    val = newVal
+                    useValQuotes = False
+                if len(val) > 0:
+                    # keys are not consistent ...
+                    if useValQuotes:
+                        tmpWidgetDef = widgetDef + ',' + key + '=\'' + val + '\''
+                    else:
+                        tmpWidgetDef = widgetDef + ',' + key + '=' + val
+                    widgetDef = tmpWidgetDef
             print(widgetDef + ')')
             place = wDict.get('Place')
             # print(place)
@@ -355,14 +356,14 @@ def runMe():
                     largestHeight = heightPos
             except ArithmeticError as e:
                 log.warning('ArithmeticError %s',str(e))
-            except ValueError:
+            except ValueError as e:
                 log.warning('ValueError %s',str(e))
-            
+
             anchor = place.get('anchor')
             bordermode = place.get('bordermode')
             print(
-                widgetName + ".place(" + "x=" + x + ",y=" + y + ",width=" + width + ",height=" + height + ",anchor='" + anchor + "',bordermode='" + bordermode + "')")
-    # print("rootFrame.place(x=0, y=0, width=" + str(largestWidth) + " ,height=" + str(largestHeight) +")" )
+                widgetName + ".place(" + "x=" + x + ",y=" + y + ",width=" + width + ",height=" +
+                height + ",anchor='" + anchor + "',bordermode='" + bordermode + "')")
     largestWidth += 20
     largestHeight += 20
     geom = str(largestWidth) + 'x' + str(largestHeight)
@@ -405,7 +406,7 @@ def changeParentOfTo(widgetName,parentName):
     parentList = cw.findPythonWidgetNameList(parentName)
     if widgetList == [] or parentList == []:
         log.error("Empty Lists")
-        return;
+        return
     widget = widgetList[cw.WIDGET]
     parent = parentList[cw.WIDGET]
     widget.place(in_=parent)
@@ -413,10 +414,6 @@ def changeParentOfTo(widgetName,parentName):
     widget.update()
     tk.Misc.lift(widget,parent)
     cw.updateWidgetNameList(widgetName,parent)
-    # if widgetList[cw.PARENT] != parentName:
-    #     cw.updateWidgetNameList(widgetName,parent)
-    # else:
-    #    log.info("changeParentOfTo already ok widget %s parent %s",widgetName,parentName)
 
 
 def loadProject():
@@ -426,22 +423,34 @@ def loadProject():
     f.close()
     runDict = data
     log.debug(runDict)
-    # projectData = {"ProjectName":'test','ProjectPath':'/tmp/test','width':width,'height':height,
-    #     'widgetNameList':cleanList,'backgroundColor':pytkguivars.backgroundColor}
     pytkguivars.backgroundColor = runDict.get('backgroundColor')
     widgetNameList = runDict.get('widgetNameList')
-    nWidgits = runDict.get('widgetCount')
-    for n in range(nWidgits):
+    nWidgets = runDict.get('widgetCount')
+    widgetsFound = 0
+    n = 0
+    while widgetsFound < nWidgets:
+        # for n in range(nWidgets + 4):
         widgetId = "Widget" + str(n)
         wDict = runDict.get(widgetId)
-        if wDict != {}:
-            widgetDef = pytkguivars.buildAWidget(widgetId,wDict)
-            widget = eval(widgetDef)
+        if wDict is not None:
+            widgetsFound += 1
+            widgetDef = pytkguivars.buildAWidget(n,wDict)
+            try:
+                widget = eval(widgetDef)
+            except TypeError as e:
+                log.error("%d dict %s eval() Exception %s",n,str(wDict),str(e))
+                continue
             w = cw.createWidget(mainCanvas,widget)
             place = wDict.get('Place')
             log.debug(place)
             w.addPlace(place)
-    # using widgetNameList, set the heirachy
+        n += 1
+        if  n > (nWidgets * 10):
+            log.error("Cannot locate All Widgets tried %d times expected to find %d found %d",
+                      n,nWidgets,widgetsFound)
+            break
+
+    # using widgetNameList, set the hierarchy
     # NAME 0 PARENT 1 WIDGET 2 CHILDREN 3
     for nl in widgetNameList:
         # Does this widget have a different Parent or have Children?
@@ -449,7 +458,7 @@ def loadProject():
         name = nl[cw.NAME]
         parent = nl[cw.PARENT]
         children = nl[cw.CHILDREN]
-        if len(name) > 2 :
+        if len(name) > 2:
             log.debug("name %s parent %s children %s",name,parent,children)
             for child in children:
                 log.debug("    %s has a child %s",name,child)
@@ -494,13 +503,17 @@ def buildMenu():
     global newLabel
     global mainFrame
     global style
-    menuBar = tk.Menu(rootWin)
-    style = ttk.Style(rootWin)
-    themes = style.theme_names()
+    menuBar = ttk.Menu(rootWin)
+    style = ttk.style.Style()
+    themes = []
+    for themeName in style.theme_names():
+        themes.append(themeName)
+    # style = ttk.Style(rootWin)
+    # themes = style.theme_names()
     # log.debug(themes[1])
     # themes
     rootWin.config(menu=menuBar)
-    fileMenu = tk.Menu(menuBar,tearoff=0)
+    fileMenu = ttk.Menu(menuBar,tearoff=0)
     # add menu items to the File menu
     fileMenu.add_command(label='New')
     fileMenu.add_command(label='Open',command=loadProject)
@@ -509,16 +522,16 @@ def buildMenu():
     fileMenu.add_command(label='Run',command=runMe)
     fileMenu.add_command(label='Widget Tree',command=widgetTree)
     fileMenu.add_separator()
-    
+
     fileMenu.add_command(label='Exit',command=exitApp)
-    
+
     # add a submenu
-    subMenu = tk.Menu(fileMenu,tearoff=0)
+    subMenu = ttk.Menu(fileMenu,tearoff=0)
     # subMenu.add_command(label='Keyboard Shortcuts')
     subMenu.add_command(label='Background Color',command=chooseBackground)
     subMenu.add_command(label='Themes')
     subMenu.add_command(label='Color Themes')
-    
+
     menuBar.add_cascade(label="File",menu=fileMenu,underline=0)
     # widget Menu
     widgetMenu = tk.Menu(menuBar,tearoff=1)
@@ -547,100 +560,57 @@ def buildMenu():
     ttkWidgetMenu.add_command(label='Progressbar',command=newProgressbar)
     ttkWidgetMenu.add_command(label='Seperator',command=newSeparator)
     menuBar.add_cascade(label="ttk Widgets",menu=ttkWidgetMenu,underline=0)
-    themeMenu = tk.Menu(menuBar,tearoff=0)
+    themeMenu = ttk.Menu(menuBar,tearoff=0)
     for t in themes:
         mypartial = partial(setTheme,t)
         themeMenu.add_command(label=t,command=mypartial)
-    
+
     # create the Help menu
-    helpMenu = tk.Menu(menuBar,tearoff=0)
+    helpMenu = ttk.Menu(menuBar,tearoff=0)
     # helpMenu = ttk.OptionMenu(menuBar, tearoff=0)
-    
+
     helpMenu.add_command(label='Welcome')
     helpMenu.add_command(label='About...')
-    
+
     menuBar.add_cascade(label="Theme",menu=themeMenu,underline=0)
     # add the Help menu to the menuBar
     menuBar.add_cascade(label="Help",menu=helpMenu,underline=0)
-    
+
     # add the File menu to the menuBar
     fileMenu.add_cascade(label="Preferences",menu=subMenu)
 
 
-rectSizeX = 50
-rectSizeY = 20
-rect: Any
-xstart = 0
-ystart = 0
-
-
-def leftLabelMotion(arg):
-    global mainFrame
-    global rect
-    # global moveL
-    global xstart
-    global ystart
-    
-    x_root = arg.x_root
-    y_root = arg.y_root
-    if xstart == 0:
-        xstart = x_root
-        ystart = y_root
-    else:
-        xpos = x_root - xstart
-        ypos = y_root - ystart
-        etype = 1  # arg.event
-        # moveL.place(x=xpos,y=ypos)
-        # log.debug( 'Motion --->' + str(etype) + ' ' + str(arg) + ' x_root ' + str(x_root) + ' y_root ' + str(y_root) + '<---')
-
-
-def leftButtonMotion(arg):
-    global mainFrame
-    global rect
-    global xstart
-    global ystart
-    
-    x_root = arg.x_root
-    y_root = arg.y_root
-    if xstart == 0:
-        xstart = x_root
-        ystart = y_root
-    else:
-        xpos = x_root - xstart
-        ypos = y_root - ystart
-        etype = 1  # arg.event
-        # moveB.place(x=xpos,y=ypos)
-        # log.debug('Motion --->' + str(etype) + ' ' + str(arg) + ' x_root ' + str(x_root) + ' y_root ' + str(y_root) + '<---')
-
-
 def leftMotion(arg):
-    x = arg.x
-    y = arg.y
+    # x = arg.x
+    # y = arg.y
+    pass
 
 
 def leftClick(arg):
-    global xstart
-    global ystart
-    xstart = arg.x_root
-    ystart = arg.y_root
+    # global xstart
+    # global ystart
+    # xstart = arg.x_root
+    # ystart = arg.y_root
+    pass
 
 
 def doNothing():
-    var = None
+    # Not sure what this is for . Delete later
+    pass
 
 
 def leftRelease(arg):
     global mainFrame
     global rect
     # Arg1 is an Event
-    # log.debug('Release--->' + str(arg) + '<---')
+    log.info('Release--->' + str(arg) + '<---')
     # moveB.unbind("<B1-Motion>")
 
 
 def frameMove(event):
     # log.debug(event)
     # log.debug(event.x)
-    None
+    pass
 
 
 def drawGridLines():
@@ -654,12 +624,6 @@ def drawGridLines():
     height = mainCanvas.winfo_height()
     # log.debug("width ",width," height ",height," snapTo ",pytkguivars.snapTo)
     log.debug("Width %d height %d snapTo %s",width,height,pytkguivars.snapTo)
-    for i in range(width):
-        if i % pytkguivars.snapTo == 0:
-            mainCanvas.create_line(0,i,height,i,fill="#f0d0d0")
-    for i in range(height):
-        if i % pytkguivars.snapTo == 0:
-            mainCanvas.create_line(i,0,i,width,fill="#f0d0d0")
 
 
 def sizeGripRelease(event):
@@ -678,29 +642,11 @@ def buildGrid(rows,cols):
     global mainFrame
     global mainCanvas
     # mainCanvas = ttk.Frame(mainFrame, width=40, height=100, relief="ridge", borderwidth=2 )
-    mainCanvas = tk.Canvas(mainFrame,width=40,height=100,relief=tk.SOLID,borderwidth=1,bg=pytkguivars.backgroundColor)
+    # mainCanvas = ttk.Canvas(mainFrame,width=40,height=100,relief=tk.SOLID,borderwidth=1,bg=pytkguivars.backgroundColor)
+    mainCanvas = ttk.Canvas(mainFrame,width=40,height=100,relief=tk.SOLID,borderwidth=1)
     mainCanvas.grid(row=0,column=0,columnspan=cols,rowspan=rows,padx=5,pady=5,sticky="NSEW")
     mainCanvas.bind('<Button-3>',rightMouseDown)
     drawGridLines()
-    """
-    valuesR = range(rows)
-    valuesC = range(cols)
-    for r in valuesR:
-        for c in valuesC:
-            lab = "  "
-            colour='#fafad0'
-            if r == 0 :
-                lab = str(c)
-                colour = "#d9fafb"
-            if c == 0:
-                lab = str(r)
-                colour = "#d9fafb"
-            w = tk.Label(mainCanvas, text=lab, padx=0, pady=0, bg=colour, width=3, height=1, borderwidth=1,
-                         relief=tk.SUNKEN)
-            w.grid(row=r, column=c, sticky='WENS')
-            cw.GridWidget(mainCanvas, w, r, c)
-    
-    """
     mainCanvas.bind('<Motion>',frameMove)
 
 
@@ -708,29 +654,23 @@ def buildMainGui():
     global rootWin
     global mainFrame
     global style
-    
-    # sv_ttk.SunValleyTtkTheme.load_theme(rootWin)
-    sv_ttk.use_light_theme()
-    style = ttk.Style(rootWin)
-    style.theme_use('clam')
+
     buildMenu()
-    
-    # mainFrame = ttk.Frame(rootWin, width=400, height=100, bg='lightblue')
+
     mainFrame = ttk.Frame(rootWin,width=600,height=150)
     mainFrame.grid(row=0,column=0,sticky='NWES')
-    
+
     mainFrame.columnconfigure(0,weight=1)
     mainFrame.rowconfigure(0,weight=1)
     sg0 = ttk.Sizegrip(mainFrame)
     sg0.grid(row=1,sticky=tk.SE)
     sg0.bind("<ButtonRelease-1>",sizeGripRelease)
-    
+
     rootWin.geometry('600x600')
     rootWin.resizable(True,True)
     rootWin.columnconfigure(0,weight=1)
     rootWin.rowconfigure(0,weight=1)
-    
-    # buildIconbar()
+
     buildGrid(24,24)
 
 
@@ -738,16 +678,13 @@ if __name__ == '__main__':
     logging.basicConfig()
     # logging.basicConfig(format=logFormat)
     log = logging.getLogger(name='mylogger')
-    # log.setLevel(logging.WARNING)
-    # coloredlogs.install(logger=log,fmt=logFormat)
-    # coloredlogs.install(logger=log,fmt='%(levelname)-8s | %(filename)-12s %(lineno)-4d | %(message)s')
-    # logFormat = "%(log_color)s%(levelname)-8s%(reset)s | %(log_color)s %(filename)s %(lineno)d s%(message)s %(reset)s"
     coloredlogs.install(logger=log,fmt='%(levelname)-8s| %(lineno)-4d %(filename)-20s| %(message)s')
-    
+
     coloredlogs.set_level(logging.INFO)
     # coloredlogs.set_level(logging.WARN)
     # coloredlogs.set_level(logging.DEBUG)
-    
+
     pytkguivars.initVars()
     buildMainGui()
+    style = ttk.style.Style()
     rootWin.mainloop()
