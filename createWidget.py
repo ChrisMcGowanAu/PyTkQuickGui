@@ -6,7 +6,9 @@ from tkinter import filedialog
 from typing import Any
 
 import ttkbootstrap as ttk
-from PIL import ImageTk
+# import numpy as np
+# pip3 import scikit-image
+# import skimage as ski
 from ttkbootstrap.dialogs.colorchooser import ColorChooserDialog
 from ttkbootstrap.dialogs.dialogs import FontDialog
 from ttkbootstrap.dialogs.dialogs import QueryDialog
@@ -17,7 +19,6 @@ import pytkguivars as guivars
 
 # ufrom ttkbootstrap.constants import *
 
-testImage: ImageTk
 string1: Any
 string2: Any
 string3: Any
@@ -398,12 +399,19 @@ class createWidget:
     
     def selectImage(self):
         global testImage
+        # Need to convert this to skimage (or other package. PIL has issues with github pylint)
+        log.warning("selectImage is not yet working")
+        return
+        """
         f_types = [('Png Files','*.png'),('Jpg kFiles','*.jpg')]
         filename = filedialog.askopenfilename(filetypes=f_types)
         idx = pytkguivars.imageIndex
-        pytkguivars.imagesUsed[idx] = ImageTk.PhotoImage(file=filename)
+        # imgarray = ski.io.imread(filename)
+        # pytkguivars.imagesUsed[idx] = ImageTk.PhotoImage(file=filename)
+        pytkguivars.imagesUsed[idx] = imgarray
         self.widget.configure(image=pytkguivars.imagesUsed[idx])
         pytkguivars.imageIndex += 1
+        """
     
     def applyEditSettings(self):
         # keys = self.widget.keys()
