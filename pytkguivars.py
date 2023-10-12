@@ -4,7 +4,6 @@ import tkinter as tk
 import createWidget as cw
 
 projectDict: dict
-stringVars: list[tk.StringVar]
 childNameVars: list[tk.StringVar]
 imageFileNames: list[tk.StringVar]
 stringUsed: list[bool]
@@ -19,6 +18,13 @@ ascii_lowercase = 'abcdefghijklmnopqrstuvwxyz'
 createdWidgetOrder: list
 alphaList = list(ascii_lowercase)
 
+containerWidgetsUsed = ('Frame','Labelframe','Panedwindow')
+widgetsUsed = (
+'Label','Button','Entry','Combobox','Canvas','Spinbox','Checkbutton','Radiobutton','Scale',
+'Progressbar','Meter')
+
+
+# 'Floodgauge','Progressbar')
 
 def initVars():
     global stringVars
@@ -35,7 +41,6 @@ def initVars():
     global rootWidgetName
     global createdWidgetOrder
     projectDict = {}
-    stringVars = [tk.StringVar()] * 128
     childNameVars = [tk.StringVar()] * 64
     imageFileNames = [tk.StringVar()] * 64
     imagesUsed = [tk.PhotoImage] * 64
@@ -91,12 +96,15 @@ def saveWidgetAsDict(widgetName) -> dict:
         widgetParent = widgetDetails[cw.PARENT]
         # w.update()
         log.debug('widgetName %s',w.widgetName)
-        place = w.place_info()
         # Remove 'in' from place.
         try:
+            place = w.place_info()
             del place['in']
         except KeyError as e:
-            log.warning("Key 'in' missing from place exception %s place ->%s<-",str(e),str(place))
+            log.error("Key 'in' missing from place exception %s place ->%s<-",str(e),str(place))
+        except Exception as ex:
+            log.error("Widget ->%s<- raised an exception %s",str(w),str(ex))
+            return []
         widgetDict = {'WidgetName':w.widgetName,'WidgetParent':widgetParent,'Place':place}
         keyCount = 0
         keys = w.keys()
@@ -120,7 +128,13 @@ def saveWidgetAsDict(widgetName) -> dict:
     return newWidget
 
 
-def buildAWidget(widgetId: object,wDictOrig: dict) -> object:
+def buildAWidget(widgetId: object,wDictOrig: dict) -> str:
+    """
+    generate python code to display a widget
+    :param widgetId:
+    :param wDictOrig:
+    :return: The python commands string to build this widget
+    """
     # testDict =
     widgetName = 'Widget' + str(widgetId)
     try:
@@ -185,6 +199,7 @@ def fixComboValues(key,val) -> list:
     log.debug("key %s ->%s<-converted to list",key,val)
     return val
 
+
 def fixWidgetName(wType) -> str:
     t = wType.replace('ttk::','')
     wType = t
@@ -192,7 +207,12 @@ def fixWidgetName(wType) -> str:
     return t 
 
 def fixWidgetTypeName(wType) -> str:
-    t = wType.replace('ttk::','ttk.')
+    """
+    reformat a widget name to be used in code
+    :param wType:
+    :return: the basic str
+    """
+    t = wType.replace('ttk::','tboot.')
     wType = t
     idx = wType.find('.')
     if idx == -1:  # Not ttk widgets

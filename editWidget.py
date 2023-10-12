@@ -1,15 +1,16 @@
 import logging as log
 import tkinter as tk
 import tkinter.filedialog as filedialog
-
-import ttkbootstrap as ttk
-from PIL import ImageTk
 # import urllib.request
 import webbrowser
+
+import ttkbootstrap as tboot
+from PIL import ImageTk
 from tkfontchooser import askfont
 from ttkbootstrap.dialogs.colorchooser import ColorChooserDialog
 # from ttkbootstrap.dialogs.dialogs import FontDialog
-from ttkbootstrap.widgets import Frame,Entry,LabelFrame
+from ttkbootstrap.widgets import Entry,LabelFrame
+
 import pytkguivars
 
 stickyVals = [" ",tk.N,tk.S,tk.E,tk.W,tk.NS,tk.EW,tk.NSEW]
@@ -19,34 +20,51 @@ justifyVals = [tk.LEFT,tk.CENTER,tk.RIGHT]
 reliefVals = [tk.FLAT,tk.GROOVE,tk.RAISED,tk.RIDGE,tk.SOLID,tk.SUNKEN]
 compoundVals = [tk.NONE,tk.TOP,tk.BOTTOM,tk.LEFT,tk.RIGHT]
 orientVals = [tk.VERTICAL,tk.HORIZONTAL]
-cursorVals = ['arrow','circle','tcross','cross','exchange','plus','star',
-              'clock','mouse','pirate','spider','target','trek']
-ignoredKeys=('class','format','show','default','takefocus','state','validate',
-             'validatecommand', 'xscrollcommand','invalidcommand')
+cursorVals = ['arrow','circle','tcross','cross','exchange','plus','star','clock','mouse','pirate',
+              'spider','target',
+              'trek']
+ignoredKeys = (
+    'class','format','show','default','takefocus','state','validate','validatecommand',
+    'xscrollcommand','invalidcommand','labelwidget','xscrollincrement','yscrollincrement',
+    'yscrollcommand','selectbackground','selectforeground','selectborderwidth',
+    'insertborderwidth','insertbackground','insertontime','insertofftime','highlightcolor',
+    'highlightbackground','highlightthickness')
 comboWidth = 10
 entryWidth = 12
 spinboxWidth = 9
 otherWidth = 12
 buttonWidth = 12
 
+
 class widgetEditPopup:
+    """
+    This class handles the popups for editing the widget
+    """
+    
     def __init__(self,root,widget):
         self.keys = None
         self.widget = widget
         self.root = root
         self.stringDict = {}
-        self.childNameDict = {}
-        # clickCanvas.bind('<B1-Motion>',leftMouseDrag)
-        # clickCanvas2.bind('<B1-Motion>',leftMouseDragResize)
+        self.childNameDict = {}  # clickCanvas.bind('<B1-Motion>',leftMouseDrag)  # clickCanvas2.bind('<B1-Motion>',leftMouseDragResize)
     
-    def addToChildNamesDict(self,key,val):
-        self.childNameDict.update({key + ':',val})
+    # def addToChildNamesDict(self,key,val):
+    #    self.childNameDict.update({key + ':',val})
     
     def addToStringDict(self,key,val):
+        """
+        Add a new or update an existing entry in the dictionary
+        :param key: widget key
+        :param val: value to store
+        """
         log.debug('key is ->%s<- val is ->%s<-',key,str(val))
         self.stringDict[key] = val
     
     def fontChange(self,key):
+        """
+        Choose a new font
+        :param key:
+        """
         # ttkbootstrap font dialog has issues
         font = askfont(self.root)
         # It needs a quick tidy ...
@@ -62,16 +80,26 @@ class widgetEditPopup:
             log.info("Font is %s",str(font_str))
             self.addToStringDict(key,font_str)
     
-    def popupCallback(self,key):
+    def popupCallback(self,key) -> bool:
+        """
+        This is attached to a lot of combo and other widgets. Used to set new values for
+        the widget, which are stored in a dict
+        :param key:
+        :return:
+        """
         widgetKey = key + 'Widget'
         popupWidget = self.stringDict.get(widgetKey)
-        log.warning("popupCallback widgetKey %s val %s key %s",widgetKey,popupWidget,key)
+        log.debug("popupCallback widgetKey %s val %s key %s",widgetKey,popupWidget,key)
         val = popupWidget.get()
         self.addToStringDict(key,val)
         # This is needed to keep the validatecommand going
         return True
     
     def changeColour(self,key):
+        """
+        Choose a Colour
+        :param key: Widgets key name
+        """
         colorDialog = ColorChooserDialog()
         colorDialog.show()
         colors = colorDialog.result
@@ -82,19 +110,28 @@ class widgetEditPopup:
             log.warning("Color Chooser did not return anything")
     
     def leftMouseDragResize(self,event):
+        """
+        Lower right drag box
+        :param event:
+        """
         widget = event.widget.master
         width = widget.winfo_width()
         height = widget.winfo_height()
         newHeight = height + event.y
         newWidth = width + event.x
         widget.place(height=newHeight,width=newWidth)
-        log.info("Resize height %s width %s event.x %s event.y %s x_root %s y_root %s",
-                 str(height),str(width),str(event.x),str(event.y),str(event.x_root),str(event.y_root))
+        log.debug("Resize height %s width %s event.x %s event.y %s x_root %s y_root %s",str(height),
+                  str(width),
+                  str(event.x),str(event.y),str(event.x_root),str(event.y_root))
     
     def leftMouseDrag(self,event):
+        """
+        Callback to allow a user to drag the widget
+        :param event:
+        """
         # This is a weird algorithm
         # it is a hack to get around using event.x_root and event.y_root
-        # which seems tricky. However it does work (sort of)
+        # which seems tricky. However, it does work (sort of)
         # The yellow dot/triangle on the popup is uses as a selection point
         widget = event.widget.master
         x = int(widget.place_info().get('x'))
@@ -118,9 +155,17 @@ class widgetEditPopup:
         widget.place(x=newX,y=newY)
     
     def leftMouseRelease(self,event):
-        log.info("leftMouseRelease event %s",str(event))
+        """
+        Left Mouse released
+        :param event:
+        """
+        log.info("leftMouseRelease event %s %s",str(event),self.widget)
     
     def selectImage(self,key):
+        """
+        Select an image to load into the widget
+        :param key: Name of key or attribute
+        """
         # Need to convert this to skimage (or other package. PIL has issues with github pylint)
         log.warning("selectImage is Expermental")
         # return
@@ -132,7 +177,10 @@ class widgetEditPopup:
         self.addToStringDict(filePath,filename)
         self.widget.configure(image=image)
     
-    def applyLayoutSettings(self):
+    def applyLayoutSettings(self) -> None:
+        """
+        Apply changed layout for the Widget
+        """
         logString = 'Layout %s new value %s'
         log.debug("Apply Layout settings")
         onlyThese = ['x','y','width','height']
@@ -150,8 +198,11 @@ class widgetEditPopup:
                 except Exception as e:
                     log.error(e)
                     log.warning("k %s val %s",str(p),str(newVal))
-
-    def applyEditSettings(self):
+    
+    def applyEditSettings(self) -> None:
+        """
+        Apply any changes settings for the Widget
+        """
         keys = self.widget.keys()
         logString = 'key %s new value %s'
         log.debug("Apply edit settings")
@@ -172,14 +223,14 @@ class widgetEditPopup:
                 if newVal == 'None' or newVal is None:
                     newVal = ''
                 if oldVal != newVal:
-                    log.info("Widget %s Key %s old ->%s<- new ->%s<-",self.widget,k,oldVal,newVal)
-
+                    log.debug("Widget %s Key %s old ->%s<- new ->%s<-",
+                              self.widget,k,oldVal,newVal)
+                
                 if k in ignoredKeys:
-                    continue
-                    # log.warning("Ignore %s",k)
+                    continue  # log.warning("Ignore %s",k)
                 elif k == 'values':
                     values = self.reformatValues(newVal)
-                    log.info(logString,str(k),str(values))
+                    log.debug(logString,str(k),str(values))
                     # This seems to be the way to add values
                     self.widget['values'] = newVal
                 
@@ -194,13 +245,18 @@ class widgetEditPopup:
                     # self.addToStringDict(k,val)
                     if oldVal != newVal:
                         try:
-                            log.info(logString,str(k),str(newVal))
+                            log.debug(logString,str(k),str(newVal))
                             self.widget.configure(**{k:newVal})
                         except Exception as e:
                             log.error(e)
                             log.warning("k %s val %s",str(k),str(newVal))
-   
+    
     def reformatValues(self,values) -> list:
+        """
+        This fixes the values used in combo boxes
+        :param values: list of values
+        :return: a list of the reformatted values
+        """
         # There is possibly a better way to do this
         # configure does not work for lists. change directly ...
         # It needs a string list like this .
@@ -211,15 +267,20 @@ class widgetEditPopup:
             val = newVal
             newVal = val.replace(',',' ')
             val = newVal
-            newVal= val.replace('\'','')
+            newVal = val.replace('\'','')
             return newVal
         except Exception as e:
             log.error("reformartValues %s",str(e))
             return []
-
-    def createDragPoint(self,rootFrame,dragType):
+    
+    def createDragPoint(self,rootFrame,dragType) -> None:
+        """
+        Creates a small drag able point to move the popup
+        :param rootFrame:
+        :param dragType:
+        """
         # This creates a yellow dot which can be used to drag the Frame
-        clickCanvas = ttk.Canvas(rootFrame,width=20,height=20,)
+        clickCanvas = tboot.Canvas(rootFrame,width=20,height=20,)
         clickCanvas.grid(row=0,column=0,sticky='NW')
         if dragType == 'triangle':
             points = [0,20,0,0,20,0]
@@ -229,16 +290,20 @@ class widgetEditPopup:
         clickCanvas.bind('<B1-Motion>',self.leftMouseDrag)
     
     def createLayoutPopup(self):
+        """
+        Widget layout ( x,y,width,height)
+        """
         gridRow = 0
         wName = pytkguivars.fixWidgetName(self.widget.widgetName)
         log.info("Widget %s name %s",self.widget,wName)
-        label= "Edit layout for " + wName
-        layoutPopupFrame = LabelFrame(self.root,text=label,labelanchor='n',padding=2,borderwidth=1,relief='solid')
+        label = "Edit layout for " + wName
+        layoutPopupFrame = LabelFrame(self.root,text=label,labelanchor='n',padding=2,borderwidth=1,
+                                      relief='solid')
         layoutPopupFrame.place(x=300,y=10)
-
+        
         self.createDragPoint(layoutPopupFrame,'triangle')
-
-        w = ttk.Label(layoutPopupFrame,text=' ')
+        
+        w = tboot.Label(layoutPopupFrame,text=' ')
         w.grid(row=gridRow,column=1,columnspan=3,sticky=tk.NS)
         
         place = self.widget.place_info()
@@ -248,7 +313,7 @@ class widgetEditPopup:
             if p not in onlyThese:
                 continue
             gridRow += 1
-            lab1 = ttk.Label(layoutPopupFrame,text=p)
+            lab1 = tboot.Label(layoutPopupFrame,text=p)
             ###############################
             # Spinbox fields
             ###############################
@@ -257,7 +322,7 @@ class widgetEditPopup:
             self.addToStringDict(origName,val)
             self.addToStringDict(p,val)
             uniqueName = p + str(gridRow)
-            w = ttk.Spinbox(layoutPopupFrame,width=5,name=uniqueName,from_=0,to=299,increment=1,
+            w = tboot.Spinbox(layoutPopupFrame,width=5,name=uniqueName,from_=0,to=299,increment=1,
                             validate='focusout',
                             validatecommand=lambda pp=p:self.popupCallback(pp))
             widgetKey = p + 'Widget'
@@ -267,40 +332,54 @@ class widgetEditPopup:
             w.grid(row=gridRow,column=3,sticky=tk.SW)
         # blank Label to make the layout better
         gridRow += 1
-        lab2 = ttk.Label(layoutPopupFrame,text="  ")
+        lab2 = tboot.Label(layoutPopupFrame,text="  ")
         lab2.grid(row=gridRow,column=2)
         gridRow += 1
-        b1 = ttk.Button(layoutPopupFrame,style='warning',width=5,text="Close",command=layoutPopupFrame.destroy)
-        b2 = ttk.Button(layoutPopupFrame,style='sucess',width=5,text="Apply",command=self.applyLayoutSettings)
+        b1 = tboot.Button(layoutPopupFrame,style='warning',width=5,text="Close",
+                        command=layoutPopupFrame.destroy)
+        b2 = tboot.Button(layoutPopupFrame,style='success',width=5,text="Apply",
+                        command=self.applyLayoutSettings)
         b1.grid(row=gridRow,column=0)
         b2.grid(row=gridRow,column=3)
-        
+    
     def getHelp(self):
-        wName = pytkguivars.fixWidgetName(self.widget.widgetName)
-        if wName == 'label':
-            webbrowser.open('https://docs.python.org/3/library/tkinter.ttk.html#label-options')
-        else:
-            webbrowser.open('https://docs.python.org/3/library/tkinter.ttk.html#ttk-widgets')
-        print(wName)
-    def createEditPopup(self):
+        """
+        should take a user to the documentation for the widget
+        :return: None
+        """
+        try:
+            wName = pytkguivars.fixWidgetName(self.widget.widgetName)
+            if wName == 'label':
+                webbrowser.open('https://docs.python.org/3/library/tkinter.tboot.html#label-options')
+            else:
+                webbrowser.open('https://docs.python.org/3/library/tkinter.tboot.html#ttk-widgets')
+            print(wName)
+        except Exception as e:
+            log.error("getHelp got am exception %s",str(e))
+    
+    def createEditPopup(self) -> None:
+        """
+        Popup to edit the tags/attributes for the Widget
+        """
+        
         row = 0
         gridRow = 0
         wName = pytkguivars.fixWidgetName(self.widget.widgetName)
-        log.info("Widget %s name %s",self.widget,wName)
-        label= "Edit attributes for " + wName
-        editPopupFrame = LabelFrame(self.root,text=label,labelanchor='n',padding=2,borderwidth=1,relief='solid')
+        log.debug("Widget %s name %s",self.widget,wName)
+        label = "Edit attributes for " + wName
+        editPopupFrame = LabelFrame(self.root,text=label,labelanchor='n',padding=2,borderwidth=1,
+                                    relief='solid')
         editPopupFrame.place(x=300,y=10)
         self.createDragPoint(editPopupFrame,'triangle')
-        # w = ttk.Label(editPopupFrame,text='Edit ' + wName,justify=tk.CENTER,anchor=tk.CENTER)
+        # w = tboot.Label(editPopupFrame,text='Edit ' + wName,justify=tk.CENTER,anchor=tk.CENTER)
         # w.grid(row=gridRow,column=1,columnspan=3,sticky=tk.NS)
         gridRow += 1
         keys = self.widget.keys()
         if keys == {}:
             editPopupFrame.destroy()
             return
-        log.info("Keys %s",str(keys))
+        log.debug("Keys %s",str(keys))
         self.keys = keys
-        print('self.keys',self.keys)
         labelCol = 0
         controlCol = 3
         for key in self.keys:
@@ -316,7 +395,7 @@ class widgetEditPopup:
             else:
                 val = self.widget.cget(k)
             
-            l1 = ttk.Label(editPopupFrame,text=k)
+            l1 = tboot.Label(editPopupFrame,text=k)
             uniqueName = k + str(row)
             if k in ignoredKeys:
                 continue
@@ -325,15 +404,17 @@ class widgetEditPopup:
             ###############################
             elif k == 'font':
                 self.addToStringDict(k,val)
-                w = ttk.Button(editPopupFrame,name=uniqueName,text="Select a Font",
-                               width=buttonWidth,command=lambda kk=k:self.fontChange(kk))
+                w = tboot.Button(editPopupFrame,name=uniqueName,text="Select a Font",
+                               width=buttonWidth,
+                               command=lambda kk=k:self.fontChange(kk))
                 w.grid(row=gridRow,column=controlCol,columnspan=3,sticky=tk.SW)
             ###############################
             # spinbox integer tags
             ###############################
             elif k in ('height','columns','width','borderwidth','displaycolumns','padding'):
                 self.addToStringDict(k,val)
-                w = ttk.Spinbox(editPopupFrame,width=spinboxWidth,name=uniqueName,from_=0,to=299,increment=1,
+                w = tboot.Spinbox(editPopupFrame,width=spinboxWidth,name=uniqueName,from_=0,to=299,
+                                increment=1,
                                 validate='focusout',
                                 validatecommand=lambda kk=k:self.popupCallback(kk))
                 widgetKey = k + 'Widget'
@@ -343,9 +424,9 @@ class widgetEditPopup:
             ###############################
             # Combobox fields
             ###############################
-            elif k == 'anchor':
+            elif k == 'anchor' or k == 'labelanchor':
                 self.addToStringDict(k,val)
-                w = ttk.Combobox(editPopupFrame,values=anchorVals,width=comboWidth,name=uniqueName,
+                w = tboot.Combobox(editPopupFrame,values=anchorVals,width=comboWidth,name=uniqueName,
                                  validate='focusout',
                                  validatecommand=lambda kk=k:self.popupCallback(kk))
                 widgetKey = k + 'Widget'
@@ -354,7 +435,7 @@ class widgetEditPopup:
                 w.grid(row=gridRow,column=controlCol,columnspan=3,sticky=tk.SW)
             elif k == 'justify':
                 self.addToStringDict(k,val)
-                w = ttk.Combobox(editPopupFrame,values=justifyVals,width=comboWidth,name=uniqueName,
+                w = tboot.Combobox(editPopupFrame,values=justifyVals,width=comboWidth,name=uniqueName,
                                  validate='focusout',
                                  validatecommand=lambda kk=k:self.popupCallback(kk))
                 widgetKey = k + 'Widget'
@@ -364,7 +445,7 @@ class widgetEditPopup:
             elif k == 'relief':
                 self.addToStringDict(k,val)
                 varName = self.stringDict.get(k)
-                w = ttk.Combobox(editPopupFrame,values=reliefVals,width=comboWidth,name=uniqueName,
+                w = tboot.Combobox(editPopupFrame,values=reliefVals,width=comboWidth,name=uniqueName,
                                  validate='focusout',
                                  validatecommand=lambda kk=k:self.popupCallback(kk))
                 widgetKey = k + 'Widget'
@@ -374,7 +455,8 @@ class widgetEditPopup:
             elif k == 'compound':
                 self.addToStringDict(k,val)
                 varName = self.stringDict.get(k)
-                w = ttk.Combobox(editPopupFrame,values=compoundVals,width=comboWidth,name=uniqueName,
+                w = tboot.Combobox(editPopupFrame,values=compoundVals,width=comboWidth,
+                                 name=uniqueName,
                                  validate='focusout',
                                  validatecommand=lambda kk=k:self.popupCallback(kk))
                 widgetKey = k + 'Widget'
@@ -383,7 +465,7 @@ class widgetEditPopup:
                 w.grid(row=gridRow,column=controlCol,columnspan=3,sticky=tk.SW)
             elif k == 'cursor':
                 self.addToStringDict(k,val)
-                w = ttk.Combobox(editPopupFrame,values=cursorVals,width=comboWidth,name=uniqueName,
+                w = tboot.Combobox(editPopupFrame,values=cursorVals,width=comboWidth,name=uniqueName,
                                  validate='focusout',
                                  validatecommand=lambda kk=k:self.popupCallback(kk))
                 widgetKey = k + 'Widget'
@@ -392,7 +474,7 @@ class widgetEditPopup:
                 w.grid(row=gridRow,column=controlCol,columnspan=3,sticky=tk.SW)
             elif k == 'orient':
                 self.addToStringDict(k,val)
-                w = ttk.Combobox(editPopupFrame,values=orientVals,width=comboWidth,name=uniqueName,
+                w = tboot.Combobox(editPopupFrame,values=orientVals,width=comboWidth,name=uniqueName,
                                  validate='focusout',
                                  validatecommand=lambda kk=k:self.popupCallback(kk))
                 widgetKey = k + 'Widget'
@@ -405,11 +487,11 @@ class widgetEditPopup:
             elif k == 'style':
                 self.addToStringDict(k,val)
                 # varName = self.stringDict.get(k)
-                style = ttk.style.Style()
+                style = tboot.style.Style()
                 colours = []
                 for color_label in style.colors:
                     colours.append(color_label)
-                w = ttk.Combobox(editPopupFrame,values=colours,width=comboWidth,name=uniqueName,
+                w = tboot.Combobox(editPopupFrame,values=colours,width=comboWidth,name=uniqueName,
                                  validate='focusout',
                                  validatecommand=lambda kk=k:self.popupCallback(kk))
                 widgetKey = k + 'Widget'
@@ -436,8 +518,8 @@ class widgetEditPopup:
             elif k == 'image':
                 # thisRow1 = row
                 self.addToStringDict(k,val)
-                w = ttk.Button(editPopupFrame,name=uniqueName,text="Select Image",
-                               width=buttonWidth,command=lambda kk=k:self.selectImage(kk))
+                w = tboot.Button(editPopupFrame,name=uniqueName,text="Select Image",width=buttonWidth,
+                               command=lambda kk=k:self.selectImage(kk))
                 w.grid(row=gridRow,column=controlCol,columnspan=3,sticky=tk.SW)
             ###############################
             # Colour selection possibly a canvas with the colour
@@ -445,9 +527,9 @@ class widgetEditPopup:
             elif k == 'fg' or k == 'bg' or k == 'foreground' or k == 'background':
                 self.addToStringDict(k,val)
                 varName = self.stringDict.get(k)
-                # w = ttk.Combobox(editPopupFrame,values=orientVals,width=comboWidth,name=uniqueName,
-                w = ttk.Button(editPopupFrame,name=uniqueName,text="Select Color",
-                               width=buttonWidth,command=lambda kk=k:self.changeColour(kk))
+                # w = tboot.Combobox(editPopupFrame,values=orientVals,width=comboWidth,name=uniqueName,
+                w = tboot.Button(editPopupFrame,name=uniqueName,text="Select Color",width=buttonWidth,
+                               command=lambda kk=k:self.changeColour(kk))
                 w.grid(row=gridRow,column=controlCol,columnspan=3,sticky=tk.SW)
             ###############################
             # The Default --- use and entry widget for all other tags
@@ -455,14 +537,13 @@ class widgetEditPopup:
             else:
                 self.addToStringDict(k,val)
                 # varName = self.stringDict.get(k)
-                w = Entry(editPopupFrame,name=uniqueName,width=entryWidth,
-                          validate='focusout',
+                w = Entry(editPopupFrame,name=uniqueName,width=entryWidth,validate='focusout',
                           validatecommand=lambda kk=k:self.popupCallback(kk))
                 widgetKey = k + 'Widget'
                 self.addToStringDict(widgetKey,w)
                 w.insert(tk.END,val)
                 w.grid(row=gridRow,column=controlCol,columnspan=3,sticky=tk.SW)
-
+            
             # if stringUsed[row]:
             l1.grid(row=gridRow,column=labelCol,columnspan=3,sticky=tk.E)
         
@@ -476,7 +557,8 @@ class widgetEditPopup:
                     log.warning('child widget ->%s<- got exception %s',str(k),str(e))
                     continue
                 log.debug(widgetName)
-                l0 = ttk.Label(editPopupFrame,text=widgetName,borderwidth=1,border=tk.SOLID,justify=tk.CENTER)
+                l0 = tboot.Label(editPopupFrame,text=widgetName,borderwidth=1,border=tk.SOLID,
+                               justify=tk.CENTER)
                 l0.grid(row=gridRow,column=1,columnspan=5,sticky=tk.EW)
                 row += 1
                 gridRow += 1
@@ -493,20 +575,24 @@ class widgetEditPopup:
                 else:
                     log.debug('unhandled child %s',widgetName)
         # self.labelKeys = ['text', 'background', 'foreground', 'font', 'width', 'anchor', 'textvariable']
-        b1 = ttk.Button(editPopupFrame,bootstyle='warning',width=5,text="Close",command=editPopupFrame.destroy)
-        b2 = ttk.Button(editPopupFrame,bootstyle='info',width=5,text="Help",command=self.getHelp)
-        b3 = ttk.Button(editPopupFrame,bootstyle='sucess',width=5,text="Apply",command=self.applyEditSettings)
+        b1 = tboot.Button(editPopupFrame,style='warning',width=5,text="Close",
+                        command=editPopupFrame.destroy)
+        b2 = tboot.Button(editPopupFrame,style='info',width=5,text="Help",command=self.getHelp)
+        b3 = tboot.Button(editPopupFrame,style='sucess',width=5,text="Apply",
+                        command=self.applyEditSettings)
         # blank Label to make the layout better
-        lab2 = ttk.Label(editPopupFrame,text="   ")
+        lab2 = tboot.Label(editPopupFrame,text="   ")
         lab2.grid(row=gridRow,column=2)
-        gridRow+=1
+        gridRow += 1
         b1.grid(row=gridRow,column=0,columnspan=2,sticky='EW')
         b2.grid(row=gridRow,column=2,columnspan=2,sticky='EW')
         b3.grid(row=gridRow,column=4,columnspan=2,sticky='EW')
+        """
         row += 1
         gridRow += 1
-        clickCanvas2 = ttk.Canvas(editPopupFrame,width=20,height=20,)
+        clickCanvas2 = tboot.Canvas(editPopupFrame,width=20,height=20,)
         clickCanvas2.grid(row=gridRow,column=5,sticky='SE')
         points = [20,0,0,20,20,20]
         clickCanvas2.create_polygon(points,fill='grey')
         clickCanvas2.bind('<B1-Motion>',self.leftMouseDragResize)
+        """

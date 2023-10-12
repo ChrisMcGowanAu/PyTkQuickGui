@@ -7,22 +7,23 @@ from collections import defaultdict
 from functools import partial
 from tkinter.colorchooser import askcolor
 from typing import Any
-
+from PIL import Image, ImageTk, ImageDraw
 import coloredlogs
-import ttkbootstrap as ttk
-
+import ttkbootstrap as tboot
+from ttkbootstrap.widgets import Meter
+from ttkbootstrap.constants import *
 import createWidget as cw
 import pytkguivars
 
 # This will be from a project's default
 useTheme = 'darkly'
-rootWin = ttk.Window(themename=useTheme)
+rootWin = tboot.Window(themename=useTheme)
 # rootWin.eval('tk::PlaceWindow . center')
 rootWin.eval('tk::PlaceWindow . pointer')
-mainFrame: ttk.Frame()
+mainFrame: tboot.Frame()
 rootWin.title('Python Tk GUI Builder')
-iconBar: ttk.Frame()
-mainCanvas: ttk.Canvas()
+iconBar: tboot.Frame()
+mainCanvas: tboot.Canvas()
 style: Any
 
 
@@ -32,7 +33,7 @@ def printf(format,*args):
 
 def newLabel():
     global mainCanvas
-    label = ttk.Label(mainCanvas,text="Label",borderwidth=1,relief=tk.SOLID,anchor=tk.CENTER)
+    label = tboot.Label(mainCanvas,text="Label",borderwidth=1,relief=tk.SOLID,anchor=tk.CENTER)
     cw.createWidget(mainCanvas,label)
     width = label.winfo_width()
     height = label.winfo_height()
@@ -57,76 +58,70 @@ def newLabel0():
     cw.createWidget(mainCanvas,b)
 
 
-def newCanvas0():
-    global mainCanvas
-    b = ttk.Canvas(mainCanvas)
-    cw.createWidget(mainCanvas,b)
-
-
 def newEntry0():
     global mainCanvas
-    # b = ttk.Bootstyle.update_ttk_widget_style()
-    b = ttk.ScrolledText(mainCanvas)
+    # b = tboot.Bootstyle.update_ttk_widget_style()
+    b = tboot.ScrolledText(mainCanvas)
     cw.createWidget(mainCanvas,b)
 
 
 def newEntry():
     global mainCanvas
-    e = ttk.Entry(mainCanvas,background='lightblue',width=12)
+    e = tboot.Entry(mainCanvas,background='lightblue',width=12)
     cw.createWidget(mainCanvas,e)
 
 
 def newLabScale():
     global mainCanvas
-    e = ttk.ScrolledText(mainCanvas)
+    e = tboot.ScrolledText(mainCanvas)
     cw.createWidget(mainCanvas,e)
 
 
 def newSpinbox():
     global mainCanvas
-    e = ttk.Spinbox(mainCanvas)
-    # e = ttk.LabeledScale(mainCanvas)
+    e = tboot.Spinbox(mainCanvas)
+    # e = tboot.LabeledScale(mainCanvas)
     cw.createWidget(mainCanvas,e)
 
 
 def newCombobox():
     global mainCanvas
-    w = ttk.Combobox(mainCanvas)
+    w = tboot.Combobox(mainCanvas)
     cw.createWidget(mainCanvas,w)
 
 
 def newCheckbutton():
     global mainCanvas
-    w = ttk.Checkbutton(mainCanvas)
+    w = tboot.Checkbutton(mainCanvas)
     cw.createWidget(mainCanvas,w)
 
 
 def newRadiobutton():
     global mainCanvas
-    w = ttk.Radiobutton(mainCanvas)
+    w = tboot.Radiobutton(mainCanvas)
     cw.createWidget(mainCanvas,w)
 
 
 def newTreeview():
     global mainCanvas
-    w = ttk.Treeview(mainCanvas)
+    w = tboot.Treeview(mainCanvas)
     cw.createWidget(mainCanvas,w)
 
 
 def newScale():
     global mainCanvas
-    w = ttk.Scale(mainCanvas)
+    w = tboot.Scale(mainCanvas)
     cw.createWidget(mainCanvas,w)
 
 
 def newNotebook():
     global mainCanvas
-    w = ttk.Notebook(mainCanvas,height=100,width=100)
+    w = tboot.Notebook(mainCanvas,height=100,width=100)
     cw.createWidget(mainCanvas,w)
-    frame1 = ttk.Frame(w)
+    frame1 = tboot.Frame(w)
     cw.createWidget(w,frame1)
-    # frame2 = ttk.Frame(w)
-    label1 = ttk.Label(frame1,text="This is Window One")
+    # frame2 = tboot.Frame(w)
+    label1 = tboot.Label(frame1,text="This is Window One")
     cw.createWidget(frame1,label1)
     label1.pack(pady=50,padx=20)
     w.add(frame1,text="Window 1")
@@ -135,39 +130,39 @@ def newNotebook():
 # newFrame newLabelFrame newPanedWindow newScrollbar
 def newScrollbar():
     global mainCanvas
-    w = ttk.Scrollbar(mainCanvas)
+    w = tboot.Scrollbar(mainCanvas)
     cw.createWidget(mainCanvas,w)
 
 
 def newPanedWindow():
     global mainCanvas
-    w = ttk.Panedwindow(mainCanvas,height=50,width=50)
+    w = tboot.Panedwindow(mainCanvas,height=50,width=50)
     cw.createWidget(mainCanvas,w)
 
 
 def newLabelFrame():
     global mainCanvas
-    w = ttk.Labelframe(mainCanvas,borderwidth=1,height=50,width=50,text='Labelframe')
+    w = tboot.Labelframe(mainCanvas,borderwidth=1,height=50,width=50,text='Labelframe')
     cw.createWidget(mainCanvas,w)
 
 
 def newFrame():
     global mainCanvas
     # Style is secondary so it can be seen
-    w = ttk.Frame(mainCanvas,borderwidth=1,relief=tk.SOLID,height=50,width=50)  # ,style='secondary')
+    w = tboot.Frame(mainCanvas,borderwidth=1,relief=tk.SOLID,height=50,width=50)  # ,style='secondary')
     cw.createWidget(mainCanvas,w)
 
 
 def newProgressbar():
     global mainCanvas
-    # x = ttk.Widget()
-    w = ttk.Progressbar(mainCanvas)
+    # x = tboot.Widget()
+    w = tboot.Progressbar(mainCanvas)
     cw.createWidget(mainCanvas,w)
 
 
 def newSeparator():
     global mainCanvas
-    w = ttk.Separator(mainCanvas)
+    w = tboot.Separator(mainCanvas)
     cw.createWidget(mainCanvas,w)
 
 
@@ -176,9 +171,9 @@ def newTtkButton():
     global xstart
     global ystart
 
-    mystyle = ttk.Style()
+    mystyle = tboot.Style()
     mystyle.configure('TButton',background='lightblue',foreground='black')
-    b = ttk.Button(mainCanvas,text="Button")  # style=mystyle)
+    b = tboot.Button(mainCanvas,text="Button")  # style=mystyle)
     cw.createWidget(mainCanvas,b)
 
 
@@ -186,7 +181,7 @@ def setTheme(theme: object):
     # global style
     pytkguivars.theme = theme
     log.debug(theme)
-    # style = ttk.Style(rootWin)
+    # style = tboot.Style(rootWin)
     style.theme_use(theme)
     # for color_label in style.colors:
     #     color = style.colors.get(color_label)
@@ -288,6 +283,9 @@ alphaList = ["a","b","c","d","e","f","g","h","i","d","k","l","m","n","o","p","q"
 
 
 def runMe():
+    """
+    Generate python code and do a trial run
+    """
     global alphaList
     if pytkguivars.projectDict == {}:
         saveProject()
@@ -300,14 +298,14 @@ def runMe():
     print('nWidgets',nWidgets)
     print("# -------------------------")
     sys.stdout = open('/tmp/test.py','w')
-    print("import tkinter as tk\nimport ttkbootstrap as ttk\n")
+    print("import tkinter as tk\nimport ttkbootstrap as tboot\n")
     themeName = pytkguivars.theme
     print("themeName = '" + themeName + "'\n")
-    print("rootWin = ttk.Window(themename=themeName)")
+    print("rootWin = tboot.Window(themename=themeName)")
     rootName = pytkguivars.rootWidgetName
-    print(rootName + "= ttk.Frame(rootWin, width=40, height=100, relief='ridge', borderwidth=1)")
-    # print("sv_ttk.use_light_theme()")
-    # print("style = ttk.Style(rootWin)")
+    print(rootName + "= tboot.Frame(rootWin, width=40, height=100, relief='ridge', borderwidth=1)")
+    # print("sv_tboot.use_light_theme()")
+    # print("style = tboot.Style(rootWin)")
     # print("style.theme_use('clam')\n")
     # Create widgets on the rootFrame first
     # for widgetName in pytkguivars.createdWidgetOrder:
@@ -375,7 +373,7 @@ def runMe():
                 log.warning('ArithmeticError %s',str(e))
             except ValueError as e:
                 log.warning('ValueError %s',str(e))
-
+            
             anchor = place.get('anchor')
             bordermode = place.get('bordermode')
             print(
@@ -388,7 +386,7 @@ def runMe():
     print("rootWin.resizable(True,True)")
     print("rootWin.columnconfigure(0,weight=1)")
     print("rootWin.rowconfigure(0,weight=1)")
-    print("sg0 = ttk.Sizegrip(rootWin)")
+    print("sg0 = tboot.Sizegrip(rootWin)")
     print("sg0.grid(row=1,sticky=tk.SE)")
     print(rootName + ".place(x=0, y=0, relwidth=1.0, relheight=1.0)")
     print("\nrootWin.mainloop()")
@@ -399,7 +397,10 @@ def runMe():
 
 
 def checkWidgetNameList():
-    # Check for cild entries that are left over from reparenting operations
+    """
+    Check Name LIst before exporting or using. Remove deleted objects
+    Check for child entries that are left over from re parenting operations
+    """
     # NAME 0 PARENT 1 WIDGET 2 CHILDREN 3
     for nl1 in cw.createWidget.widgetNameList:
         widgetName1 = nl1[cw.NAME]
@@ -434,8 +435,16 @@ def changeParentOfTo(widgetName,parentName):
 
 
 def loadProject():
+    """
+    Load a project from a saved file (in pickle format)
+    """
     global alphaList
-    f = open("/tmp/pytkguitest.pk1","rb")
+    fileName = '/tmp/pytkguitest.pk1'
+    try:
+        f = open(fileName,'rb')
+    except FileNotFoundError as e:
+        log.warning("File not found %s exception %s",fileName,str(e))
+        return
     data = pickle.load(f)
     f.close()
     runDict = data
@@ -454,8 +463,11 @@ def loadProject():
             widgetDef = pytkguivars.buildAWidget(n,wDict)
             try:
                 widget = eval(widgetDef)
+            except NameError as e:
+                log.error("%d dict %s eval() NameError %s",n,str(wDict),str(e))
+                continue
             except TypeError as e:
-                log.error("%d dict %s eval() Exception %s",n,str(wDict),str(e))
+                log.error('%d dict %s eval() TypeError %s',n,str(wDict),str(e))
                 continue
             w = cw.createWidget(mainCanvas,widget)
             place = wDict.get('Place')
@@ -520,17 +532,17 @@ def buildMenu():
     global newLabel
     global mainFrame
     global style
-    menuBar = ttk.Menu(rootWin)
-    style = ttk.style.Style()
+    menuBar = tboot.Menu(rootWin)
+    style = tboot.style.Style()
     themes = []
     for themeName in style.theme_names():
         themes.append(themeName)
-    # style = ttk.Style(rootWin)
+    # style = tboot.Style(rootWin)
     # themes = style.theme_names()
     # log.debug(themes[1])
     # themes
     rootWin.config(menu=menuBar)
-    fileMenu = ttk.Menu(menuBar,tearoff=0)
+    fileMenu = tboot.Menu(menuBar,tearoff=0)
     # add menu items to the File menu
     fileMenu.add_command(label='New')
     fileMenu.add_command(label='Open',command=loadProject)
@@ -543,7 +555,7 @@ def buildMenu():
     fileMenu.add_command(label='Exit',command=exitApp)
     
     # add a submenu
-    subMenu = ttk.Menu(fileMenu,tearoff=0)
+    subMenu = tboot.Menu(fileMenu,tearoff=0)
     # subMenu.add_command(label='Keyboard Shortcuts')
     subMenu.add_command(label='Background Color',command=chooseBackground)
     subMenu.add_command(label='Themes')
@@ -551,6 +563,7 @@ def buildMenu():
     
     menuBar.add_cascade(label="File",menu=fileMenu,underline=0)
     # widget Menu
+    """
     widgetMenu = tk.Menu(menuBar,tearoff=1)
     widgetMenu.add_command(label='Button',command=newButton0)
     widgetMenu.add_command(label='Label',command=newLabel0)
@@ -577,14 +590,15 @@ def buildMenu():
     ttkWidgetMenu.add_command(label='Progressbar',command=newProgressbar)
     ttkWidgetMenu.add_command(label='Seperator',command=newSeparator)
     menuBar.add_cascade(label="ttk Widgets",menu=ttkWidgetMenu,underline=0)
-    themeMenu = ttk.Menu(menuBar,tearoff=0)
+    """
+    themeMenu = tboot.Menu(menuBar,tearoff=0)
     for t in themes:
         mypartial = partial(setTheme,t)
         themeMenu.add_command(label=t,command=mypartial)
     
     # create the Help menu
-    helpMenu = ttk.Menu(menuBar,tearoff=0)
-    # helpMenu = ttk.OptionMenu(menuBar, tearoff=0)
+    helpMenu = tboot.Menu(menuBar,tearoff=0)
+    # helpMenu = tboot.OptionMenu(menuBar, tearoff=0)
     
     helpMenu.add_command(label='Welcome')
     helpMenu.add_command(label='About...')
@@ -648,19 +662,82 @@ def sizeGripRelease(event):
     drawGridLines()
 
 
-def rightMouseDown():
-    global mainCanvas
+def createWidgetPopup(event,widgetName):
+    global mainFrame
+    defaultStyle = 'info'
+    # Create a widget 'widgetName' at the current mouse pos (x,y)
+    x = event.x
+    y = event.y
+    w: Any
+    if widgetName == 'Frame':
+        w = tboot.Frame(mainFrame,cursor='cross',style=defaultStyle)
+    elif widgetName == 'Labelframe':
+        w = tboot.Labelframe(mainFrame,text=widgetName,borderwidth=1,relief=tk.SOLID,
+                           labelanchor=tk.N,cursor='cross',style=defaultStyle)
+    elif widgetName == 'Panedwindow':
+        w = tboot.Panedwindow(mainFrame,cursor='cross',style=defaultStyle)
+    elif widgetName == 'Label':
+        w = tboot.Label(mainFrame,text=widgetName,borderwidth=1,relief=tk.SOLID,
+                      anchor=tk.CENTER,cursor='cross',style=defaultStyle)
+    elif widgetName == 'Button':
+        w = tboot.Button(mainFrame,text=widgetName,cursor='cross',style=defaultStyle)
+    elif widgetName == 'Entry':
+        w = tboot.Entry(mainFrame,cursor='cross',style=defaultStyle)
+    elif widgetName == 'Combobox':
+        w = tboot.Combobox(mainFrame,cursor='cross',style=defaultStyle)
+    elif widgetName == 'Canvas':
+        w = tboot.Canvas(mainFrame,borderwidth=1,relief=tk.SOLID,cursor='cross')
+        #                 ,highlightthickness=1,highlightbackground='red')
+        # w.configure(scrollregion = w.bbox("all"))
+    elif widgetName == 'Spinbox':
+        w = tboot.Spinbox(mainFrame,cursor='cross',style=defaultStyle)
+    elif widgetName == 'Checkbutton':
+        w = tboot.Checkbutton(mainFrame,text=widgetName,cursor='cross',style=defaultStyle)
+    elif widgetName == 'Radiobutton':
+        w = tboot.Radiobutton(mainFrame,text=widgetName,cursor='cross',style=defaultStyle)
+    elif widgetName == 'Scale':
+        w = tboot.Scale(mainFrame,cursor='cross',style=defaultStyle)
+    elif widgetName == 'Progressbar':
+        w = tboot.Progressbar(mainFrame,value=50.0,cursor='cross',style=defaultStyle)
+    elif widgetName == 'Floodgauge':
+        w = tboot.Floodgauge(mainFrame,value=50.0,cursor='cross',style=defaultStyle)
+    # Meter does not work correctly
+    # elif widgetName == 'Meter':
+    #     w = tboot.Meter(mainFrame,cursor='cross',style=defaultStyle)
+    # Labeled Scale is not in ttk bootstrap
+    # elif widgetName == 'Labelscale':
+    #    w = tboot.LabeledScale(mainFrame,cursor='cross',style=defaultStyle)
+    else:
+        log.warning("Widget %s not implemented",widgetName)
+        return
+    cw.createWidget(mainFrame,w)
+    w.place(x=x,y=y,width=72,height=32)
 
-
+    
+def rightMouseDown(event):
+    # global mainCanvas
+    log.debug("rightMouseDown -- event %s",str(event))
+    popup = tboot.Menu(mainFrame,tearoff=0)
+    for wName in pytkguivars.containerWidgetsUsed:
+        popup.add_command(label=wName,command=lambda e=event,w=wName:createWidgetPopup(e,w))
+    for wName in pytkguivars.widgetsUsed:
+        popup.add_command(label=wName,command=lambda e=event,w=wName:createWidgetPopup(e,w))
+    popup.add_separator()
+    popup.add_command(label="Close",command=popup.destroy)
+    try:
+        popup.tk_popup(event.x_root,event.y_root,0)
+    finally:
+        popup.grab_release()
+    
 def buildGrid(rows,cols):
     """
     :rtype: object
     """
     global mainFrame
     global mainCanvas
-    # mainCanvas = ttk.Frame(mainFrame, width=40, height=100, relief="ridge", borderwidth=2 )
-    # mainCanvas = ttk.Canvas(mainFrame,width=40,height=100,relief=tk.SOLID,borderwidth=1,bg=pytkguivars.backgroundColor)
-    mainCanvas = ttk.Canvas(mainFrame,width=40,height=100,relief=tk.SOLID,borderwidth=1)
+    # mainCanvas = tboot.Frame(mainFrame, width=40, height=100, relief="ridge", borderwidth=2 )
+    # mainCanvas = tboot.Canvas(mainFrame,width=40,height=100,relief=tk.SOLID,borderwidth=1,bg=pytkguivars.backgroundColor)
+    mainCanvas = tboot.Canvas(mainFrame,width=40,height=100,relief=tk.SOLID,borderwidth=1)
     mainCanvas.grid(row=0,column=0,columnspan=cols,rowspan=rows,padx=5,pady=5,sticky="NSEW")
     mainCanvas.bind('<Button-3>',rightMouseDown)
     drawGridLines()
@@ -674,12 +751,12 @@ def buildMainGui():
     
     buildMenu()
     
-    mainFrame = ttk.Frame(rootWin,width=600,height=150)
+    mainFrame = tboot.Frame(rootWin,width=600,height=150)
     mainFrame.grid(row=0,column=0,sticky='NWES')
     
     mainFrame.columnconfigure(0,weight=1)
     mainFrame.rowconfigure(0,weight=1)
-    sg0 = ttk.Sizegrip(mainFrame)
+    sg0 = tboot.Sizegrip(mainFrame)
     sg0.grid(row=1,sticky=tk.SE)
     sg0.bind("<ButtonRelease-1>",sizeGripRelease)
     
@@ -704,5 +781,5 @@ if __name__ == '__main__':
     pytkguivars.theme = useTheme
     
     buildMainGui()
-    style = ttk.style.Style()
+    style = tboot.style.Style()
     rootWin.mainloop()
