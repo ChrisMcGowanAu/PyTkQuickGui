@@ -7,11 +7,10 @@ from collections import defaultdict
 from functools import partial
 from tkinter.colorchooser import askcolor
 from typing import Any
-from PIL import Image, ImageTk, ImageDraw
+
 import coloredlogs
 import ttkbootstrap as tboot
-from ttkbootstrap.widgets import Meter
-from ttkbootstrap.constants import *
+
 import createWidget as cw
 import pytkguivars
 
@@ -30,7 +29,7 @@ style: Any
 def printf(format,*args):
     sys.stdout.write(format % args)
 
-
+"""
 def newLabel():
     global mainCanvas
     label = tboot.Label(mainCanvas,text="Label",borderwidth=1,relief=tk.SOLID,anchor=tk.CENTER)
@@ -176,6 +175,7 @@ def newTtkButton():
     b = tboot.Button(mainCanvas,text="Button")  # style=mystyle)
     cw.createWidget(mainCanvas,b)
 
+"""
 
 def setTheme(theme: object):
     # global style
