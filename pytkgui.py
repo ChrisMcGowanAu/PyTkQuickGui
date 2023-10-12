@@ -14,7 +14,11 @@ import ttkbootstrap as ttk
 import createWidget as cw
 import pytkguivars
 
-rootWin = ttk.Window(themename="darkly")
+# This will be from a project's default
+useTheme = 'darkly'
+rootWin = ttk.Window(themename=useTheme)
+# rootWin.eval('tk::PlaceWindow . center')
+rootWin.eval('tk::PlaceWindow . pointer')
 mainFrame: ttk.Frame()
 rootWin.title('Python Tk GUI Builder')
 iconBar: ttk.Frame()
@@ -149,7 +153,8 @@ def newLabelFrame():
 
 def newFrame():
     global mainCanvas
-    w = ttk.Frame(mainCanvas,borderwidth=1,height=50,width=50)
+    # Style is secondary so it can be seen
+    w = ttk.Frame(mainCanvas,borderwidth=1,relief=tk.SOLID,height=50,width=50)  # ,style='secondary')
     cw.createWidget(mainCanvas,w)
 
 
@@ -178,14 +183,14 @@ def newTtkButton():
 
 
 def setTheme(theme: object):
-    global style
+    # global style
+    pytkguivars.theme = theme
     log.debug(theme)
     # style = ttk.Style(rootWin)
     style.theme_use(theme)
-
-    for color_label in style.colors:
-        color = style.colors.get(color_label)
-        print(color_label,color)
+    # for color_label in style.colors:
+    #     color = style.colors.get(color_label)
+    #     print(color_label,color)
 
 
 def tree(): return defaultdict(tree)
@@ -213,6 +218,7 @@ def findWidgetsParent(widgetName) -> str:
     log.error("Failed to find a parent for %s",widgetName)
     return ''
 
+
 def workOutWidgetCreationOrder() -> list:
     createdWidgetOrder = [pytkguivars.rootWidgetName]
     sanityCheckCount = 0
@@ -238,7 +244,9 @@ def workOutWidgetCreationOrder() -> list:
                 else:
                     finished = False
     return createdWidgetOrder
-def  saveProject():
+
+
+def saveProject():
     global mainCanvas
     widgetCount = 0
     createdWidgetOrder = [pytkguivars.rootWidgetName]
@@ -250,7 +258,7 @@ def  saveProject():
                    'backgroundColor':pytkguivars.backgroundColor}
     # Work out the order to create the Widgets so the parenting is correct
     createdWidgetOrder = workOutWidgetCreationOrder()
-    log.info('createdWidgetOrder %s',str(createdWidgetOrder))
+    log.debug('createdWidgetOrder %s',str(createdWidgetOrder))
     pytkguivars.createdWidgetOrder = createdWidgetOrder
     for widgetName in createdWidgetOrder:
         # widgetParent = findWidgetsParent(widgetName)
@@ -292,16 +300,18 @@ def runMe():
     print('nWidgets',nWidgets)
     print("# -------------------------")
     sys.stdout = open('/tmp/test.py','w')
-    print("import tkinter as tk\nfrom tkinter import ttk\nfrom ttkthemes import ThemedTk")
-    print("import sv_ttk\n")
-    print("rootWin = ThemedTk()")
+    print("import tkinter as tk\nimport ttkbootstrap as ttk\n")
+    themeName = pytkguivars.theme
+    print("themeName = '" + themeName + "'\n")
+    print("rootWin = ttk.Window(themename=themeName)")
     rootName = pytkguivars.rootWidgetName
     print(rootName + "= ttk.Frame(rootWin, width=40, height=100, relief='ridge', borderwidth=1)")
-    print("sv_ttk.use_light_theme()")
-    print("style = ttk.Style(rootWin)")
-    print("style.theme_use('clam')\n")
+    # print("sv_ttk.use_light_theme()")
+    # print("style = ttk.Style(rootWin)")
+    # print("style.theme_use('clam')\n")
     # Create widgets on the rootFrame first
-    for widgetName in pytkguivars.createdWidgetOrder:
+    # for widgetName in pytkguivars.createdWidgetOrder:
+    for widgetName in createdWidgetOrder:
         # widgetId = "Widget" + str(n)
         if widgetName == rootName:
             continue
@@ -311,7 +321,7 @@ def runMe():
             continue
         # Get the parent Name
         wDict = runDict.get(widgetName)
-        if wDict != {}:
+        if wDict is not None:
             log.debug('Dictionary for %s = %s',widgetName,str(wDict))
             wType = wDict.get('WidgetName')
             t = pytkguivars.fixWidgetTypeName(wType)
@@ -452,7 +462,7 @@ def loadProject():
             log.debug(place)
             w.addPlace(place)
         n += 1
-        if  n > (nWidgets * 10):
+        if n > (nWidgets * 10):
             log.error("Cannot locate All Widgets tried %d times expected to find %d found %d",
                       n,nWidgets,widgetsFound)
             break
@@ -476,7 +486,7 @@ def loadProject():
         else:
             log.warning("name %s parent %s children %s",name,parent,children)
             log.warning('widgetNameList %s',str(widgetNameList))
-
+    
     checkWidgetNameList()
 
 
@@ -529,16 +539,16 @@ def buildMenu():
     fileMenu.add_command(label='Run',command=runMe)
     fileMenu.add_command(label='Widget Tree',command=widgetTree)
     fileMenu.add_separator()
-
+    
     fileMenu.add_command(label='Exit',command=exitApp)
-
+    
     # add a submenu
     subMenu = ttk.Menu(fileMenu,tearoff=0)
     # subMenu.add_command(label='Keyboard Shortcuts')
     subMenu.add_command(label='Background Color',command=chooseBackground)
     subMenu.add_command(label='Themes')
     subMenu.add_command(label='Color Themes')
-
+    
     menuBar.add_cascade(label="File",menu=fileMenu,underline=0)
     # widget Menu
     widgetMenu = tk.Menu(menuBar,tearoff=1)
@@ -571,18 +581,18 @@ def buildMenu():
     for t in themes:
         mypartial = partial(setTheme,t)
         themeMenu.add_command(label=t,command=mypartial)
-
+    
     # create the Help menu
     helpMenu = ttk.Menu(menuBar,tearoff=0)
     # helpMenu = ttk.OptionMenu(menuBar, tearoff=0)
-
+    
     helpMenu.add_command(label='Welcome')
     helpMenu.add_command(label='About...')
-
+    
     menuBar.add_cascade(label="Theme",menu=themeMenu,underline=0)
     # add the Help menu to the menuBar
     menuBar.add_cascade(label="Help",menu=helpMenu,underline=0)
-
+    
     # add the File menu to the menuBar
     fileMenu.add_cascade(label="Preferences",menu=subMenu)
 
@@ -661,23 +671,23 @@ def buildMainGui():
     global rootWin
     global mainFrame
     global style
-
+    
     buildMenu()
-
+    
     mainFrame = ttk.Frame(rootWin,width=600,height=150)
     mainFrame.grid(row=0,column=0,sticky='NWES')
-
+    
     mainFrame.columnconfigure(0,weight=1)
     mainFrame.rowconfigure(0,weight=1)
     sg0 = ttk.Sizegrip(mainFrame)
     sg0.grid(row=1,sticky=tk.SE)
     sg0.bind("<ButtonRelease-1>",sizeGripRelease)
-
+    
     rootWin.geometry('600x600')
     rootWin.resizable(True,True)
     rootWin.columnconfigure(0,weight=1)
     rootWin.rowconfigure(0,weight=1)
-
+    
     buildGrid(24,24)
 
 
@@ -686,12 +696,13 @@ if __name__ == '__main__':
     # logging.basicConfig(format=logFormat)
     log = logging.getLogger(name='mylogger')
     coloredlogs.install(logger=log,fmt='%(levelname)-8s| %(lineno)-4d %(filename)-20s| %(message)s')
-
+    
     coloredlogs.set_level(logging.INFO)
     # coloredlogs.set_level(logging.WARN)
     # coloredlogs.set_level(logging.DEBUG)
-
     pytkguivars.initVars()
+    pytkguivars.theme = useTheme
+    
     buildMainGui()
     style = ttk.style.Style()
     rootWin.mainloop()

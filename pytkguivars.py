@@ -15,8 +15,9 @@ imageIndex: int
 backgroundColor: any
 theme: any
 rootWidgetName: str
+ascii_lowercase = 'abcdefghijklmnopqrstuvwxyz'
 createdWidgetOrder: list
-alphaList = ["a","b","c","d","e","f","g","h","i","d","k","l","m","n","o","p","q","r","s","t","u","v","w","x","y","z"]
+alphaList = list(ascii_lowercase)
 
 
 def initVars():
@@ -89,7 +90,7 @@ def saveWidgetAsDict(widgetName) -> dict:
         w = widgetDetails[cw.WIDGET]
         widgetParent = widgetDetails[cw.PARENT]
         # w.update()
-        log.info('widgetName %s',w.widgetName)
+        log.debug('widgetName %s',w.widgetName)
         place = w.place_info()
         # Remove 'in' from place.
         try:
@@ -139,16 +140,6 @@ def buildAWidget(widgetId: object,wDictOrig: dict) -> object:
         print('wDictOrig',wDictOrig)
         return {}
     t = fixWidgetTypeName(wType)
-    """
-    t = wType.replace('ttk::','ttk.')
-    wType = t
-    idx = wType.find('.')
-    if idx == -1:  # Not ttk widgets
-        t = 'tk.' + wType
-        wType = t
-    for ch in alphaList:
-        t = wType.replace('.' + ch,'.' + ch.upper())
-    """
     wType = t
     keyCount = widgetName + "-KeyCount"
     nKeys = wDict.get(keyCount)
@@ -183,7 +174,6 @@ def buildAWidget(widgetId: object,wDictOrig: dict) -> object:
     widgetDef = tmp
     return widgetDef
 
-
 def fixComboValues(key,val) -> list:
     # The 'values' key has this saved format. This might be a tk thing.
     # It needs to be converted to a list
@@ -195,6 +185,11 @@ def fixComboValues(key,val) -> list:
     log.debug("key %s ->%s<-converted to list",key,val)
     return val
 
+def fixWidgetName(wType) -> str:
+    t = wType.replace('ttk::','')
+    wType = t
+    t = wType.replace('tk::','')
+    return t 
 
 def fixWidgetTypeName(wType) -> str:
     t = wType.replace('ttk::','ttk.')
