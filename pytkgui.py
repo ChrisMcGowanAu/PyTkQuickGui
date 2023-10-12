@@ -24,158 +24,11 @@ rootWin.title('Python Tk GUI Builder')
 iconBar: tboot.Frame()
 mainCanvas: tboot.Canvas()
 style: Any
-
+log = logging.getLogger(name='mylogger')
 
 def printf(format,*args):
     sys.stdout.write(format % args)
 
-"""
-def newLabel():
-    global mainCanvas
-    label = tboot.Label(mainCanvas,text="Label",borderwidth=1,relief=tk.SOLID,anchor=tk.CENTER)
-    cw.createWidget(mainCanvas,label)
-    width = label.winfo_width()
-    height = label.winfo_height()
-    log.debug("width " + str(width) + " height " + str(height))
-
-
-def newButton():
-    global mainCanvas
-    b = tk.Button(mainCanvas,text="Button")
-    cw.createWidget(mainCanvas,b)
-
-
-def newButton0():
-    global mainCanvas
-    b = tk.Button(mainCanvas,text="Button")
-    cw.createWidget(mainCanvas,b)
-
-
-def newLabel0():
-    global mainCanvas
-    b = tk.Label(mainCanvas,text="Label")
-    cw.createWidget(mainCanvas,b)
-
-
-def newEntry0():
-    global mainCanvas
-    # b = tboot.Bootstyle.update_ttk_widget_style()
-    b = tboot.ScrolledText(mainCanvas)
-    cw.createWidget(mainCanvas,b)
-
-
-def newEntry():
-    global mainCanvas
-    e = tboot.Entry(mainCanvas,background='lightblue',width=12)
-    cw.createWidget(mainCanvas,e)
-
-
-def newLabScale():
-    global mainCanvas
-    e = tboot.ScrolledText(mainCanvas)
-    cw.createWidget(mainCanvas,e)
-
-
-def newSpinbox():
-    global mainCanvas
-    e = tboot.Spinbox(mainCanvas)
-    # e = tboot.LabeledScale(mainCanvas)
-    cw.createWidget(mainCanvas,e)
-
-
-def newCombobox():
-    global mainCanvas
-    w = tboot.Combobox(mainCanvas)
-    cw.createWidget(mainCanvas,w)
-
-
-def newCheckbutton():
-    global mainCanvas
-    w = tboot.Checkbutton(mainCanvas)
-    cw.createWidget(mainCanvas,w)
-
-
-def newRadiobutton():
-    global mainCanvas
-    w = tboot.Radiobutton(mainCanvas)
-    cw.createWidget(mainCanvas,w)
-
-
-def newTreeview():
-    global mainCanvas
-    w = tboot.Treeview(mainCanvas)
-    cw.createWidget(mainCanvas,w)
-
-
-def newScale():
-    global mainCanvas
-    w = tboot.Scale(mainCanvas)
-    cw.createWidget(mainCanvas,w)
-
-
-def newNotebook():
-    global mainCanvas
-    w = tboot.Notebook(mainCanvas,height=100,width=100)
-    cw.createWidget(mainCanvas,w)
-    frame1 = tboot.Frame(w)
-    cw.createWidget(w,frame1)
-    # frame2 = tboot.Frame(w)
-    label1 = tboot.Label(frame1,text="This is Window One")
-    cw.createWidget(frame1,label1)
-    label1.pack(pady=50,padx=20)
-    w.add(frame1,text="Window 1")
-
-
-# newFrame newLabelFrame newPanedWindow newScrollbar
-def newScrollbar():
-    global mainCanvas
-    w = tboot.Scrollbar(mainCanvas)
-    cw.createWidget(mainCanvas,w)
-
-
-def newPanedWindow():
-    global mainCanvas
-    w = tboot.Panedwindow(mainCanvas,height=50,width=50)
-    cw.createWidget(mainCanvas,w)
-
-
-def newLabelFrame():
-    global mainCanvas
-    w = tboot.Labelframe(mainCanvas,borderwidth=1,height=50,width=50,text='Labelframe')
-    cw.createWidget(mainCanvas,w)
-
-
-def newFrame():
-    global mainCanvas
-    # Style is secondary so it can be seen
-    w = tboot.Frame(mainCanvas,borderwidth=1,relief=tk.SOLID,height=50,width=50)  # ,style='secondary')
-    cw.createWidget(mainCanvas,w)
-
-
-def newProgressbar():
-    global mainCanvas
-    # x = tboot.Widget()
-    w = tboot.Progressbar(mainCanvas)
-    cw.createWidget(mainCanvas,w)
-
-
-def newSeparator():
-    global mainCanvas
-    w = tboot.Separator(mainCanvas)
-    cw.createWidget(mainCanvas,w)
-
-
-def newTtkButton():
-    global mainCanvas
-    global xstart
-    global ystart
-
-    mystyle = tboot.Style()
-    mystyle.configure('TButton',background='lightblue',foreground='black')
-    b = tboot.Button(mainCanvas,text="Button")  # style=mystyle)
-    cw.createWidget(mainCanvas,b)
-
-"""
 
 def setTheme(theme: object):
     # global style
@@ -771,7 +624,7 @@ def buildMainGui():
 if __name__ == '__main__':
     logging.basicConfig()
     # logging.basicConfig(format=logFormat)
-    log = logging.getLogger(name='mylogger')
+    # log = logging.getLogger(name='mylogger')
     coloredlogs.install(logger=log,fmt='%(levelname)-8s| %(lineno)-4d %(filename)-20s| %(message)s')
     
     coloredlogs.set_level(logging.INFO)
