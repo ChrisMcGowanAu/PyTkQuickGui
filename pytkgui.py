@@ -7,6 +7,7 @@ from collections import defaultdict
 from functools import partial
 from tkinter.colorchooser import askcolor
 from typing import Any
+
 # import ast
 import coloredlogs
 import ttkbootstrap as tboot
@@ -25,6 +26,7 @@ iconBar: tboot.Frame()
 mainCanvas: tboot.Canvas()
 style: Any
 log = logging.getLogger(name='mylogger')
+
 
 def printf(formats,*args):
     sys.stdout.write(formats % args)
@@ -316,13 +318,15 @@ def loadProject():
             try:
                 # widget = ast.literal_eval(widgetDef)
                 widget = eval(widgetDef)
+                log.debug('widgetDef ->%s<-',widgetDef)
             except NameError as e:
                 log.error("%d dict %s eval() NameError %s",n,str(wDict),str(e))
                 continue
             except TypeError as e:
                 log.error('%d dict %s eval() TypeError %s',n,str(wDict),str(e))
                 continue
-            w = cw.createWidget(mainCanvas,widget)
+            # w = cw.createWidget(mainCanvas,widget)
+            w = cw.createWidget(mainFrame,widget)
             place = wDict.get('Place')
             log.debug(place)
             w.addPlace(place)

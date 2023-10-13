@@ -4,6 +4,7 @@ import tkinter as tk
 from typing import Any
 
 import ttkbootstrap as tboot
+
 # import ast
 import editWidget as ew
 import pytkguivars
@@ -320,17 +321,18 @@ class createWidget:
         self.widget.update()
     
     def clone(self):
+        mainFrame = self.root
         mainCanvas = self.root
         # widgetId = createWidget.widgetId
         originalName = 'Widget' + str(self.widgetId)
         origWidgetDict = pytkguivars.saveWidgetAsDict(originalName)
-        print('origWidgetDict:',origWidgetDict)
+        log.debug('origWidgetDict: %s',origWidgetDict)
         useDict = origWidgetDict.get(originalName)
-        print('useDict',useDict)
+        log.debug('mainFrame %s mainCanvas %s useDict %s',str(mainFrame),str(mainCanvas),useDict)
         widgetDef = pytkguivars.buildAWidget(self.widgetId,useDict)
-        print(widgetDef)
+        log.debug('widgetDef %s',widgetDef)
         # widget = ast.literal_eval(widgetDef)
-        widget =eval(widgetDef)
+        widget = eval(widgetDef)
         place = useDict.get('Place')
         widgetParent = useDict.get('WidgetParent')
         width = place.get('width')
@@ -339,8 +341,8 @@ class createWidget:
         newW = createWidget.lastCreated
         if pytkguivars.rootWidgetName != widgetParent:
             nameDetails = findPythonWidgetNameList(widgetParent)
-            print('widgetParent:',widgetParent)
-            print('nameDetails:',nameDetails)
+            log.info('widgetParent: %s',widgetParent)
+            log.info('nameDetails: %s',nameDetails)
             try:
                 w = nameDetails[WIDGET]
                 newW.changeParentTo(w)

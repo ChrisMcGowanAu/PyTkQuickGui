@@ -77,7 +77,7 @@ class widgetEditPopup:
                 font_str += ' underline'
                 font_str += ' overstrike'
             
-            log.info("Font is %s",str(font_str))
+            log.debug("Font is %s",str(font_str))
             self.addToStringDict(key,font_str)
     
     def popupCallback(self,key) -> bool:
@@ -159,7 +159,7 @@ class widgetEditPopup:
         Left Mouse released
         :param event:
         """
-        log.info("leftMouseRelease event %s %s",str(event),self.widget)
+        log.debug("leftMouseRelease event %s %s",str(event),self.widget)
     
     def selectImage(self,key):
         """
@@ -191,9 +191,9 @@ class widgetEditPopup:
             if newVal == 'None' or newVal is None:
                 newVal = ''
             if oldVal != newVal:
-                log.info("Widget %s Layout %s old ->%s<- new ->%s<-",self.widget,p,oldVal,newVal)
+                log.debug("Widget %s Layout %s old ->%s<- new ->%s<-",self.widget,p,oldVal,newVal)
                 try:
-                    log.info(logString,str(p),str(newVal))
+                    log.debug(logString,str(p),str(newVal))
                     self.widget.place(**{p:newVal})
                 except tk.TclError as e:
                     log.error(e)
@@ -208,7 +208,7 @@ class widgetEditPopup:
         log.debug("Apply edit settings")
         for key in keys:
             # row += 1
-            if isinstance(key) is tuple:
+            if isinstance(key,tuple):
                 # childW = key[0]
                 k = key[1]  # child_widget = getattr(self.widget,childW)
             else:
@@ -295,7 +295,7 @@ class widgetEditPopup:
         """
         gridRow = 0
         wName = pytkguivars.fixWidgetName(self.widget.widgetName)
-        log.info("Widget %s name %s",self.widget,wName)
+        log.debug("Widget %s name %s",self.widget,wName)
         label = "Edit layout for " + wName
         layoutPopupFrame = LabelFrame(self.root,text=label,labelanchor='n',padding=2,borderwidth=1,
                                       relief='solid')
@@ -388,7 +388,7 @@ class widgetEditPopup:
             gridRow += 1
             k = key
             childW = ""
-            if isinstance(key) is tuple:
+            if isinstance(key,tuple):
                 childW = key[0]
                 k = key[1]
                 child_widget = getattr(self.widget,childW)

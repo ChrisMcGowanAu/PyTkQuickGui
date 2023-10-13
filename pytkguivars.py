@@ -156,7 +156,7 @@ def buildAWidget(widgetId: object,wDictOrig: dict) -> str:
     wType = t
     keyCount = widgetName + "-KeyCount"
     nKeys = wDict.get(keyCount)
-    widgetDef = wType + "(mainCanvas"
+    widgetDef = wType + "(mainFrame"
     for a in range(nKeys):
         attribute = 'Attribute' + str(a)
         aDict = wDict.get(attribute)
