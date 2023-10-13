@@ -27,7 +27,6 @@ widgetsUsed = (
 # 'Floodgauge','Progressbar')
 
 def initVars():
-    global stringVars
     global stringUsed
     global childNameVars
     global imageIndex
@@ -102,9 +101,9 @@ def saveWidgetAsDict(widgetName) -> dict:
             del place['in']
         except KeyError as e:
             log.error("Key 'in' missing from place exception %s place ->%s<-",str(e),str(place))
-        except Exception as ex:
+        except tk.TclError as ex:
             log.error("Widget ->%s<- raised an exception %s",str(w),str(ex))
-            return []
+            return {}
         widgetDict = {'WidgetName':w.widgetName,'WidgetParent':widgetParent,'Place':place}
         keyCount = 0
         keys = w.keys()
@@ -152,7 +151,7 @@ def buildAWidget(widgetId: object,wDictOrig: dict) -> str:
     except AttributeError as e:
         log.error("Cannot find %s Exception %s",'WidgetName',str(e))
         print('wDictOrig',wDictOrig)
-        return {}
+        return ''
     t = fixWidgetTypeName(wType)
     wType = t
     keyCount = widgetName + "-KeyCount"

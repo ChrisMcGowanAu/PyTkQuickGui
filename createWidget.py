@@ -3,8 +3,8 @@ import random
 import tkinter as tk
 from typing import Any
 
-import ttkbootstrap as tboot 
-
+import ttkbootstrap as tboot
+# import ast
 import editWidget as ew
 import pytkguivars
 
@@ -49,7 +49,7 @@ class GridWidget:
         self.widget.grid(row=self.row,column=self.col,sticky='WENS')
     
     def mouseEnter(self,event):
-        log.debug("Row " + str(self.row) + " Col " + str(self.col) + str(event))
+        log.debug("Row %s Col %s Event Event %s",str(self.row),str(self.col),str(event))
 
 
 def snapToClosest(v: int) -> int:
@@ -144,7 +144,8 @@ def raiseChildren(pythonName):
                 if childNl:
                     w = childNl[WIDGET]
                     try:
-                        w.lift()
+                        tk.Misc.lift(w,aboveThis=None)
+                        log.debug("Widget ->%s<- Lifted",w)
                     except AttributeError as e:
                         log.error("Widget ->%s<- got Exception %s",w,str(e))
                     
@@ -218,7 +219,7 @@ class createWidget:
         
         log.debug(self.widget.widgetName)
         self.pythonName = 'Widget' + str(createWidget.widgetId)
-        log.debug("Widget ID " + str(createWidget.widgetId))
+        log.debug("Widget ID %s",str(createWidget.widgetId))
         createWidget.widgetList.append(self.widget)
         createWidget.widgetNameList.append([self.pythonName,pytkguivars.rootWidgetName,self.widget,[]])
         self.widgetId = createWidget.widgetId
@@ -283,7 +284,6 @@ class createWidget:
     def reParent(self):
         name0 = self.widget.widgetName
         place = self.widget.place_info()
-        # log.debug(place)
         x1 = int(place.get('x'))
         y1 = int(place.get('y'))
         w = int(place.get('width'))
@@ -294,7 +294,6 @@ class createWidget:
             if w is not None and w != self.widget:
                 name = w.widgetName
                 place = w.place_info()
-                # log.debug(place)
                 wx1 = int(place.get('x'))
                 wy1 = int(place.get('y'))
                 try:
@@ -330,7 +329,8 @@ class createWidget:
         print('useDict',useDict)
         widgetDef = pytkguivars.buildAWidget(self.widgetId,useDict)
         print(widgetDef)
-        widget = eval(widgetDef)
+        # widget = ast.literal_eval(widgetDef)
+        widget =eval(widgetDef)
         place = useDict.get('Place')
         widgetParent = useDict.get('WidgetParent')
         width = place.get('width')
@@ -344,7 +344,7 @@ class createWidget:
             try:
                 w = nameDetails[WIDGET]
                 newW.changeParentTo(w)
-            except Exception as e:
+            except tk.TclError as e:
                 log.error("Exception %s",str(e))
         newW.widget.place(x=self.x + 16,y=self.y + 16,width=width,height=height)
     
@@ -411,7 +411,7 @@ class createWidget:
         self.y = self.widget.winfo_y()
         self.cornerY = self.y + height
         self.cornerX = self.x + width
-        log.debug("Left Mouse Down --  Width " + str(width) + " Height " + str(height))
+        log.debug("Left Mouse Down --  Width %s Height %s",str(width),str(height))
         if event.x > (width - 4):
             self.dragType = 'dragEast'
             log.debug("Drag right Side")
@@ -426,9 +426,18 @@ class createWidget:
             log.debug("Drag top Side")  # log.info(event)
         # Make sure any children are on top.
         try:
-            self.widget.lift(True)
+            parentType = self.widget.master.widgetName
+            log.debug("self.widget %s lift parent %s",str(self.widget),str(parentType))
+            if parentType == 'canvas':
+                log.debug("Trying tag_raise for %s",self.widget)
+                # This should work. but is buggy :-(
+                # self.widget.master.tag_raise(self.widget)
+                tk.Misc.lift(self.widget,aboveThis=None)
+            else:
+                log.info("Trying tk.Misc.liftc for %s",self.widget)
+                tk.Misc.lift(self.widget,aboveThis=None)
         except tk.TclError as e:
-            log.warning("self.widget.lift Failed with exception %s",str(e))
+            log.warning("self.widget lift %s Failed with exception %s",str(self.widget),str(e))
         raiseChildren(self.pythonName)
     
     def leftMouseDrag(self,event):
@@ -437,12 +446,11 @@ class createWidget:
         y = self.widget.winfo_y() + event.y - self.start[1]
         width = self.widget.winfo_width()
         height = self.widget.winfo_height()
-        """
-        try:
-            tk.Misc.lift(self.widget,aboveThis=None)
-        except Exception as e:
-            log.error("Lift exception ",e)
-        """
+        # Lift is done on mouse down and mouse up
+        # try:
+        #     tk.Misc.lift(self.widget,aboveThis=None)
+        # except Exception as e:
+        #     log.error("Lift exception ",e)
         
         if self.dragType == 'dragEast':
             width = event.x + self.parentX
@@ -458,7 +466,9 @@ class createWidget:
             self.x = x
             self.y = y
         self.widget.place(x=self.x,y=self.y,width=width,height=height)
-    
+        # RaiseChildren is done on mouse doan and mouse up
+        # raiseChildren(self.pythonName)
+
     def leftMouseRelease(self,event):
         self.dragType = ''
         newX = snapToClosest(self.x)
@@ -481,3 +491,4 @@ class createWidget:
             log.debug("Left Mouse Release -- col,row %s %s",str(z),str(event))
         else:
             self.widget.place(x=self.x,y=self.y,height=self.height,width=self.width)
+        raiseChildren(self.pythonName)

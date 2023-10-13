@@ -7,7 +7,7 @@ from collections import defaultdict
 from functools import partial
 from tkinter.colorchooser import askcolor
 from typing import Any
-
+# import ast
 import coloredlogs
 import ttkbootstrap as tboot
 
@@ -26,8 +26,8 @@ mainCanvas: tboot.Canvas()
 style: Any
 log = logging.getLogger(name='mylogger')
 
-def printf(format,*args):
-    sys.stdout.write(format % args)
+def printf(formats,*args):
+    sys.stdout.write(formats % args)
 
 
 def setTheme(theme: object):
@@ -41,7 +41,8 @@ def setTheme(theme: object):
     #     print(color_label,color)
 
 
-def tree(): return defaultdict(tree)
+def tree():
+    return defaultdict(tree)
 
 
 def Merge(dict1,dict2):
@@ -95,7 +96,6 @@ def workOutWidgetCreationOrder() -> list:
 
 
 def saveProject():
-    global mainCanvas
     widgetCount = 0
     createdWidgetOrder = [pytkguivars.rootWidgetName]
     width = 0  # mainCanvas.winfo_width
@@ -139,7 +139,7 @@ def runMe():
     """
     Generate python code and do a trial run
     """
-    global alphaList
+    # global alphaList
     if pytkguivars.projectDict == {}:
         saveProject()
     runDict = pytkguivars.projectDict
@@ -150,7 +150,7 @@ def runMe():
     createdWidgetOrder = workOutWidgetCreationOrder()
     print('nWidgets',nWidgets)
     print("# -------------------------")
-    sys.stdout = open('/tmp/test.py','w')
+    sys.stdout = open('/tmp/test.py','w',encoding="utf8")
     print("import tkinter as tk\nimport ttkbootstrap as tboot\n")
     themeName = pytkguivars.theme
     print("themeName = '" + themeName + "'\n")
@@ -291,7 +291,6 @@ def loadProject():
     """
     Load a project from a saved file (in pickle format)
     """
-    global alphaList
     fileName = '/tmp/pytkguitest.pk1'
     try:
         f = open(fileName,'rb')
@@ -315,6 +314,7 @@ def loadProject():
             widgetsFound += 1
             widgetDef = pytkguivars.buildAWidget(n,wDict)
             try:
+                # widget = ast.literal_eval(widgetDef)
                 widget = eval(widgetDef)
             except NameError as e:
                 log.error("%d dict %s eval() NameError %s",n,str(wDict),str(e))
@@ -372,7 +372,7 @@ def widgetTree():
 
 
 def chooseBackground():
-    global mainCanvas
+    # global mainCanvas
     colors = askcolor(title="Tkinter color chooser")
     if colors[1] is not None:
         mainCanvas.configure(bg=colors[1])
@@ -381,14 +381,11 @@ def chooseBackground():
 
 
 def buildMenu():
-    global rootWin
-    global newLabel
-    global mainFrame
-    global style
+    # global rootWin
     menuBar = tboot.Menu(rootWin)
-    style = tboot.style.Style()
+    mystyle = tboot.style.Style()
     themes = []
-    for themeName in style.theme_names():
+    for themeName in mystyle.theme_names():
         themes.append(themeName)
     # style = tboot.Style(rootWin)
     # themes = style.theme_names()
@@ -416,34 +413,6 @@ def buildMenu():
     
     menuBar.add_cascade(label="File",menu=fileMenu,underline=0)
     # widget Menu
-    """
-    widgetMenu = tk.Menu(menuBar,tearoff=1)
-    widgetMenu.add_command(label='Button',command=newButton0)
-    widgetMenu.add_command(label='Label',command=newLabel0)
-    widgetMenu.add_command(label='Canvas',command=newCanvas0)
-    widgetMenu.add_command(label='Entry',command=newEntry0)
-    menuBar.add_cascade(label="tk Widgets",menu=widgetMenu,underline=0)
-    ttkWidgetMenu = tk.Menu(menuBar,tearoff=1)
-    # ttkWidgetMenu.add_command(label='tk Button', command=newButton)
-    ttkWidgetMenu.add_command(label='Button',command=newTtkButton)
-    ttkWidgetMenu.add_command(label='Checkbutton',command=newCheckbutton)
-    ttkWidgetMenu.add_command(label='Entry',command=newEntry)
-    ttkWidgetMenu.add_command(label='Frame',command=newFrame)
-    ttkWidgetMenu.add_command(label='Label',command=newLabel)
-    ttkWidgetMenu.add_command(label='LabelFrame',command=newLabelFrame)
-    ttkWidgetMenu.add_command(label='PanedWindow',command=newPanedWindow)
-    ttkWidgetMenu.add_command(label='Radiobutton',command=newRadiobutton)
-    ttkWidgetMenu.add_command(label='Scale',command=newScale)
-    ttkWidgetMenu.add_command(label='Scrollbar',command=newScrollbar)
-    ttkWidgetMenu.add_command(label='Spinbox',command=newSpinbox)
-    ttkWidgetMenu.add_command(label='Notebook',command=newNotebook)
-    ttkWidgetMenu.add_command(label='Treeview',command=newTreeview)
-    ttkWidgetMenu.add_command(label='LabledScale',command=newLabScale)
-    ttkWidgetMenu.add_command(label='Combobox',command=newCombobox)
-    ttkWidgetMenu.add_command(label='Progressbar',command=newProgressbar)
-    ttkWidgetMenu.add_command(label='Seperator',command=newSeparator)
-    menuBar.add_cascade(label="ttk Widgets",menu=ttkWidgetMenu,underline=0)
-    """
     themeMenu = tboot.Menu(menuBar,tearoff=0)
     for t in themes:
         mypartial = partial(setTheme,t)
@@ -464,44 +433,12 @@ def buildMenu():
     fileMenu.add_cascade(label="Preferences",menu=subMenu)
 
 
-def leftMotion(arg):
-    # x = arg.x
-    # y = arg.y
-    pass
-
-
-def leftClick(arg):
-    # global xstart
-    # global ystart
-    # xstart = arg.x_root
-    # ystart = arg.y_root
-    pass
-
-
 def doNothing():
     # Not sure what this is for . Delete later
     pass
 
 
-def leftRelease(arg):
-    global mainFrame
-    global rect
-    # Arg1 is an Event
-    log.info('Release--->' + str(arg) + '<---')
-    # moveB.unbind("<B1-Motion>")
-
-
-def frameMove(event):
-    # log.debug(event)
-    # log.debug(event.x)
-    pass
-
-
 def drawGridLines():
-    """
-
-    """
-    global mainCanvas
     # Get dimensions ....
     mainCanvas.update()
     width = mainCanvas.winfo_width()
@@ -516,7 +453,6 @@ def sizeGripRelease(event):
 
 
 def createWidgetPopup(event,widgetName):
-    global mainFrame
     defaultStyle = 'info'
     # Create a widget 'widgetName' at the current mouse pos (x,y)
     x = event.x
@@ -586,7 +522,6 @@ def buildGrid(rows,cols):
     """
     :rtype: object
     """
-    global mainFrame
     global mainCanvas
     # mainCanvas = tboot.Frame(mainFrame, width=40, height=100, relief="ridge", borderwidth=2 )
     # mainCanvas = tboot.Canvas(mainFrame,width=40,height=100,relief=tk.SOLID,borderwidth=1,bg=pytkguivars.backgroundColor)
@@ -594,13 +529,11 @@ def buildGrid(rows,cols):
     mainCanvas.grid(row=0,column=0,columnspan=cols,rowspan=rows,padx=5,pady=5,sticky="NSEW")
     mainCanvas.bind('<Button-3>',rightMouseDown)
     drawGridLines()
-    mainCanvas.bind('<Motion>',frameMove)
+    # mainCanvas.bind('<Motion>',frameMove)
 
 
 def buildMainGui():
-    global rootWin
     global mainFrame
-    global style
     
     buildMenu()
     
