@@ -11,7 +11,8 @@ from ttkbootstrap.dialogs.colorchooser import ColorChooserDialog
 # from ttkbootstrap.dialogs.dialogs import FontDialog
 from ttkbootstrap.widgets import Entry,LabelFrame
 
-import pytkguivars
+import createWidget as cw
+import pytkguivars as myVars
 
 stickyVals = [" ",tk.N,tk.S,tk.E,tk.W,tk.NS,tk.EW,tk.NSEW]
 borderVals = [tk.INSIDE,tk.OUTSIDE]
@@ -20,15 +21,21 @@ justifyVals = [tk.LEFT,tk.CENTER,tk.RIGHT]
 reliefVals = [tk.FLAT,tk.GROOVE,tk.RAISED,tk.RIDGE,tk.SOLID,tk.SUNKEN]
 compoundVals = [tk.NONE,tk.TOP,tk.BOTTOM,tk.LEFT,tk.RIGHT]
 orientVals = [tk.VERTICAL,tk.HORIZONTAL]
+verticalValues = [' ','none','LeftSide','RightSide']
+horizontalValues = [' ','none','Top','Bottom']
+scrollbars = ['vertical_scrollbar','horizontal_scrollbar']
 cursorVals = ['arrow','circle','tcross','cross','exchange','plus','star','clock','mouse','pirate',
               'spider','target',
               'trek']
-ignoredKeys = (
+scrollVals = ('xscrollcommand','yscrollcommand')  # these are used by scrollable widgets
+ignoredKeys = scrollVals + (
     'class','format','show','default','takefocus','state','validate','validatecommand',
-    'xscrollcommand','invalidcommand','labelwidget','xscrollincrement','yscrollincrement',
-    'yscrollcommand','selectbackground','selectforeground','selectborderwidth',
+    'xscrollincrement','yscrollincrement',
+    'invalidcommand','labelwidget',
+    'selectbackground','selectforeground','selectborderwidth',
     'insertborderwidth','insertbackground','insertontime','insertofftime','highlightcolor',
     'highlightbackground','highlightthickness')
+
 comboWidth = 10
 entryWidth = 12
 spinboxWidth = 9
@@ -65,6 +72,7 @@ class widgetEditPopup:
         Choose a new font
         :param key:
         """
+        # existingFont = self.stringDict.get(key)
         # ttkbootstrap font dialog has issues
         font = askfont(self.root)
         # It needs a quick tidy ...
@@ -101,6 +109,9 @@ class widgetEditPopup:
         :param key: Widgets key name
         """
         colorDialog = ColorChooserDialog()
+        currentVal = self.stringDict.get(key)
+        if currentVal is not None:
+            colorDialog.initialcolor = currentVal
         colorDialog.show()
         colors = colorDialog.result
         if colors[2] != '':
@@ -239,6 +250,7 @@ class widgetEditPopup:
                     newVal = self.stringDict.get(k)
                     log.debug(logString,str(k),str(newVal))
                     # Don't do this .... self.widget.configure(style=newVal)
+                    # or this ... newVal = newVal + '-round'
                     self.widget.configure(bootstyle=newVal)
                 else:
                     log.debug(logString,str(k),str(newVal))
@@ -250,7 +262,56 @@ class widgetEditPopup:
                         except tk.TclError as e:
                             log.error(e)
                             log.warning("k %s val %s",str(k),str(newVal))
-    
+        wName = myVars.fixWidgetName(self.widget.widgetName)
+        # if wName in ('canvas','listbox','text','treeview'):
+        # scrollbars are very hard when using place.
+        
+        if myVars.geomManager == 'Grid' and wName('canvas','listbox','treeview'):
+            # scrollbars = ['vertical_scrollbar','horizontal_scrollbar']
+            for k in scrollbars:
+                # verticalValues = [' ','none','LeftSide','RightSide']
+                # horizontalValues = [' ','none','Top','Bottom']
+                newVal = self.stringDict.get(k)
+                log.info('scrollbar %s value %s',k,newVal)
+                if k == 'vertical_scrollbar':
+                    if newVal == 'LeftSide' or newVal == 'RightSide':
+                        sbSide = 'right'
+                        if newVal == 'LeftSide':
+                            sbSide = 'left'
+                        # sb = tboot.Scrollbar(self.widget,orient="vertical",style='info round')
+                        sb = tboot.Scrollbar(self.root,orient="vertical",style='info round')
+                        cw.createWidget(self.root,sb)
+                        cw.changeParentOfTo(sb,self.widget)
+                        self.widget.configure(yscrollcommand=sb.set)
+                        sb.config(command=self.widget.yview)
+                        sb.place_forget()
+                        sb.pack(side=sbSide,fill='y')
+                        # sb.place(relx=1, rely=0, relheight=1, anchor='ne')
+                elif k == 'horizontal_scrollbar':
+                    if newVal == 'Top' or newVal == 'Bottom':
+                        sbSide = 'top'
+                        if newVal == 'Bottom':
+                            sbSide = 'bottom'
+                        sb = tboot.Scrollbar(self.widget,orient="horizontal",style='info')
+                        cw.createWidget(self.widget,sb)
+                        cw.changeParentOfTo(sb,self.widget)
+                        self.widget.configure(xscrollcommand=sb.set)
+                        sb.config(command=self.widget.xview)
+                        sb.pack(side=sbSide,fill='x')
+                        # self.widget.configure(xscrollcommand=sb.set)
+        if myVars.geomManager == 'Grid' and wName in ('notebook'):
+            key = 'tab_count'
+            newVal = self.stringDict.get(key)
+            if newVal is None or newVal == '':
+                newVal = '0'
+            # Get the number of tabs.
+            for n in range(int(newVal)):
+                frame = tboot.Frame(self.widget,borderwidth=1,style='info')
+                cw.createWidget(self.widget,frame)
+                cw.changeParentOfTo(frame,self.widget)
+                self.widget.add(frame,text='Tab' + str(n))
+                # frame.pack(fill='both', expand=True)
+
     def reformatValues(self,values) -> list:
         """
         This fixes the values used in combo boxes
@@ -294,7 +355,7 @@ class widgetEditPopup:
         Widget layout ( x,y,width,height)
         """
         gridRow = 0
-        wName = pytkguivars.fixWidgetName(self.widget.widgetName)
+        wName = myVars.fixWidgetName(self.widget.widgetName)
         log.debug("Widget %s name %s",self.widget,wName)
         label = "Edit layout for " + wName
         layoutPopupFrame = LabelFrame(self.root,text=label,labelanchor='n',padding=2,borderwidth=1,
@@ -348,7 +409,7 @@ class widgetEditPopup:
         :return: None
         """
         try:
-            wName = pytkguivars.fixWidgetName(self.widget.widgetName)
+            wName = myVars.fixWidgetName(self.widget.widgetName)
             if wName == 'label':
                 webbrowser.open(
                     'https://docs.python.org/3/library/tkinter.tboot.html#label-options')
@@ -365,7 +426,7 @@ class widgetEditPopup:
         
         row = 0
         gridRow = 0
-        wName = pytkguivars.fixWidgetName(self.widget.widgetName)
+        wName = myVars.fixWidgetName(self.widget.widgetName)
         log.debug("Widget %s name %s",self.widget,wName)
         label = "Edit attributes for " + wName
         editPopupFrame = LabelFrame(self.root,text=label,labelanchor='n',padding=2,borderwidth=1,
@@ -493,6 +554,8 @@ class widgetEditPopup:
                 # varName = self.stringDict.get(k)
                 style = tboot.style.Style()
                 colours = []
+                # largest range , bur does not seem to work
+                # for color_label in style.colors.label_iter():
                 for color_label in style.colors:
                     colours.append(color_label)
                 w = tboot.Combobox(editPopupFrame,values=colours,width=comboWidth,name=uniqueName,
@@ -577,7 +640,49 @@ class widgetEditPopup:
                     log.debug(keys)
                 else:
                     log.debug('unhandled child %s',widgetName)
-        # self.labelKeys = ['text', 'background', 'foreground', 'font', 'width', 'anchor', 'textvariable']
+        # If a frame, add button(s) for scrollbar
+        wName = myVars.fixWidgetName(self.widget.widgetName)
+        log.debug("wName ->%s<-",wName)
+        if myVars.geomManager == 'Grid' and wName('canvas','listbox','treeview'):
+            # if wName in ('frame','labelframe','panedwindow'):
+            log.info("Creating scrollbar stuff for %s",wName)
+            for k in scrollbars:
+                gridRow += 1
+                sb = tboot.Label(editPopupFrame,text=k)
+                sb.grid(row=gridRow,column=labelCol,columnspan=3,sticky=tk.E)
+                self.addToStringDict(k,val)
+                if k == 'vertical_scrollbar':
+                    w = tboot.Combobox(editPopupFrame,values=verticalValues,width=comboWidth,
+                                       validate='focusout',
+                                       validatecommand=lambda kk=k:self.popupCallback(kk))
+                else:
+                    w = tboot.Combobox(editPopupFrame,values=horizontalValues,width=comboWidth,
+                                       validate='focusout',
+                                       validatecommand=lambda kk=k:self.popupCallback(kk))
+                widgetKey = k + 'Widget'
+                self.addToStringDict(widgetKey,w)
+                w.grid(row=gridRow,column=controlCol,columnspan=3,sticky=tk.SW)
+            gridRow += 1
+        if myVars.geomManager == 'Grid' and wName in ('notebook'):
+            gridRow += 1
+            key = 'tab_count'
+            val = self.stringDict.get(key)
+            if val is None or val == '':
+                val = '0'
+            sb = tboot.Label(editPopupFrame,text=key)
+            sb.grid(row=gridRow,column=labelCol,columnspan=3,sticky=tk.E)
+            self.addToStringDict(key,val)
+            w = tboot.Spinbox(editPopupFrame,width=spinboxWidth,name=uniqueName,from_=0,to=16,
+                              increment=1,
+                              validate='focusout',
+                              validatecommand=lambda kk=key:self.popupCallback(kk))
+            widgetKey = key + 'Widget'
+            self.addToStringDict(widgetKey,w)
+            w.grid(row=gridRow,column=controlCol,columnspan=3,sticky=tk.SW)
+            w.set(val)
+        
+        gridRow += 1
+
         b1 = tboot.Button(editPopupFrame,style='warning',width=5,text="Close",
                         command=editPopupFrame.destroy)
         b2 = tboot.Button(editPopupFrame,style='info',width=5,text="Help",command=self.getHelp)

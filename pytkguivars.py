@@ -8,7 +8,6 @@ childNameVars: list[tk.StringVar]
 imageFileNames: list[tk.StringVar]
 stringUsed: list[bool]
 imagesUsed: list[tk.PhotoImage]
-useGrider: bool
 snapTo: int
 imageIndex: int
 backgroundColor: any
@@ -19,12 +18,15 @@ createdWidgetOrder: list
 alphaList = list(ascii_lowercase)
 
 containerWidgetsUsed = ('Frame','Labelframe','Panedwindow')
-widgetsUsed = (
-'Label','Button','Entry','Combobox','Canvas','Spinbox','Checkbutton','Radiobutton','Scale',
-'Progressbar','Meter')
 
+widgetsUsed = ('Label','Button','Entry','Combobox','Notebook','Canvas','Spinbox',
+               'Checkbutton','Radiobutton','Scale','Progressbar')
 
-# 'Floodgauge','Progressbar')
+# 'Floodgauge','Progressbar','Meter')
+
+# Could be 'Place' 'Grid' or 'Pack'
+# Some objects use Grid and Pack internally, and the root Window uses Grid
+geomManager = 'Place'
 
 def initVars():
     global stringUsed
@@ -32,7 +34,6 @@ def initVars():
     global imageIndex
     global imagesUsed
     global imageFileNames
-    global useGrider
     global snapTo
     global projectDict
     global backgroundColor
@@ -45,11 +46,9 @@ def initVars():
     imagesUsed = [tk.PhotoImage] * 64
     stringUsed = [bool] * 64
     backgroundColor = 'skyBlue3'
-    # useGrider = bool
     # snapTo = int
     imageIndex = 0
     snapTo = 16
-    useGrider = False
     theme = 'default'
     rootWidgetName = 'rootWidget'
     createdWidgetOrder = []

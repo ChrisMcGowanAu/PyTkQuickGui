@@ -5,17 +5,15 @@ from typing import Any
 
 import ttkbootstrap as tboot
 
-# import ast
 import editWidget as ew
-import pytkguivars
+import pytkguivars as myVars
 
 string1: Any
 string2: Any
 string3: Any
 
-pytkguivars.useGrider = False
-pytkguivars.snapTo = 16
-pytkguivars.imageIndex = 0
+myVars.snapTo = 16
+myVars.imageIndex = 0
 
 # This is my enum type for list indicies
 NAME: int = 0
@@ -23,6 +21,7 @@ PARENT: int = 1
 WIDGET: int = 2
 CHILDREN: int = 3
 
+"""
 stickyVals = [" ",tk.N,tk.S,tk.E,tk.W,tk.NS,tk.EW,tk.NSEW]
 borderVals = [tk.INSIDE,tk.OUTSIDE]
 anchorVals = [tk.CENTER,tk.N,tk.NE,tk.E,tk.SE,tk.S,tk.SW,tk.W,tk.NW]
@@ -30,7 +29,6 @@ justifyVals = [tk.LEFT,tk.CENTER,tk.RIGHT]
 reliefVals = [tk.FLAT,tk.GROOVE,tk.RAISED,tk.RIDGE,tk.SOLID,tk.SUNKEN]
 compoundVals = [tk.NONE,tk.TOP,tk.BOTTOM,tk.LEFT,tk.RIGHT]
 orientVals = [tk.VERTICAL,tk.HORIZONTAL]
-"""
 """
 
 
@@ -55,16 +53,30 @@ class GridWidget:
 
 def snapToClosest(v: int) -> int:
     newV = int(v)
-    remV = int(v) % int(pytkguivars.snapTo)
-    if remV < pytkguivars.snapTo / 2:
+    remV = int(v) % int(myVars.snapTo)
+    if remV < myVars.snapTo / 2:
         newV -= remV
     else:
-        newV += pytkguivars.snapTo - remV
+        newV += myVars.snapTo - remV
     if newV < 0:
         newV = 0
     return newV
 
 
+def findPythonWidgetNameFromWidget(widget) -> str:
+    found = False
+    # [pythonName,parentName,widget,[children,...]])
+    # NAME: int = 0 PARENT: int = 1 WIDGET: int = 2 CHILDREN: int = 3
+    for nl in createWidget.widgetNameList:
+        # print('Name',name,'nl[0]',nl[NAME])
+        if nl[WIDGET] == widget:
+            found = True
+            return nl[NAME]
+    if not found:
+        log.error('Unable to locate widget ->%s<-',str(widget))
+        log.error('createWidget.widgetNameList %s',str(createWidget.widgetNameList))
+    return ''
+    
 def findPythonWidgetNameList(name: str) -> list:
     found = False
     # [pythonName,parentName,widget,[children,...]])
@@ -124,7 +136,7 @@ def deleteWidgetFromLists(pythonName,widget):
             deleteWidgetFromLists(c[0],c[1])
     
     parent = nl[PARENT]
-    if parent != pytkguivars.rootWidgetName:
+    if parent != myVars.rootWidgetName:
         parentNl = findPythonWidgetNameList(parent)
         # Remove pythonName from the children
         parentNl[CHILDREN].remove(pythonName)
@@ -133,6 +145,18 @@ def deleteWidgetFromLists(pythonName,widget):
     createWidget.widgetNameList.remove(nl)
 
 
+def changeParentOfTo(widget,newParentWidget):
+    widget.place(in_=newParentWidget)
+    pythonName = findPythonWidgetNameFromWidget(widget)
+    if pythonName is None:
+        return
+    updateWidgetNameList(pythonName,newParentWidget)
+    widget.parent = newParentWidget
+    # This might be the cause of the parent not clipping the child .... need more info
+    tk.Misc.lift(widget,aboveThis=None)
+    widget.update()
+    newParentWidget.update()
+    
 def raiseChildren(pythonName):
     # [pythonName,parentName,widget,[children,...]])
     # NAME: int = 0 PARENT: int = 1 WIDGET: int = 2 CHILDREN: int = 3
@@ -169,36 +193,9 @@ class createWidget:
     
     def __init__(self,root,widget):
         self.bordermode = None
-        self.stylePopupFrame = None
         self.parentX = 0
         self.parentY = 0
-        self.popup = None
-        self.cornerX = None
-        self.cornerY = None
-        # self.bordermode = None
-        self.anchor = None
-        self.height = None
-        self.relwidth = None
-        self.width = None
-        self.relx = None
-        self.rely = None
-        self.keys = None
-        self.labelKeys = None
-        self.dragType = 'move'
-        self.ipadx = 0
-        self.ipady = 0
-        self.padx = 0
-        self.pady = 0
-        self.vars = [Any] * 32
-        self.sticky = " "
-        self.colSpan = 2
-        self.rowSpan = 1
-        self.start = (0,0)
-        # self.gridPopupFrame = None
-        # self.editPopupFrame = None
-        self.tkVar = "abcd"
         self.root = root
-        self.widget: tk.Widget
         self.widget = widget
         # w = tk.Widget.getint(self.widget,3)
         # h = tk.Widget.getint(self.widget,5)
@@ -222,7 +219,7 @@ class createWidget:
         self.pythonName = 'Widget' + str(createWidget.widgetId)
         log.debug("Widget ID %s",str(createWidget.widgetId))
         createWidget.widgetList.append(self.widget)
-        createWidget.widgetNameList.append([self.pythonName,pytkguivars.rootWidgetName,self.widget,[]])
+        createWidget.widgetNameList.append([self.pythonName,myVars.rootWidgetName,self.widget,[]])
         self.widgetId = createWidget.widgetId
         createWidget.widgetId += 1
         #  K_UP, K_DOWN, K_LEFT, and K_RIGHT
@@ -230,19 +227,21 @@ class createWidget:
         self.widget.bind('<Button-1>',self.leftMouseDown)
         self.widget.bind('<B1-Motion>',self.leftMouseDrag)
         self.widget.bind("<ButtonRelease-1>",self.leftMouseRelease)
-        if pytkguivars.useGrider:
+        if myVars.geomManager == 'Grid':
             self.widget.grid(row=self.row,column=self.col)
-        else:
+        elif myVars.geomManager == 'Place':
             self.widget.place(x=self.x,y=self.y)
+        else:
+            log.error("Geometry Manager %s is TBD",myVars.geomManager)
         
         self.widget.update()
         self.width = self.widget.winfo_width()
         self.height = self.widget.winfo_height()
-        if pytkguivars.useGrider:
-            log.warning("Gridder Used TBD")
-        else:
+        if myVars.geomManager == 'Place':
             # The second place is needed after the 'update()'
             self.widget.place(x=self.x,y=self.y,width=self.width,height=self.height)
+        else :
+            log.error("Geometry Manager %s is TBD",myVars.geomManager)
         log.debug("New %s WidgetId %d Width %d Height %d",self.widget.widgetName,self.widgetId,self.width,self.height)
         createWidget.lastCreated = self
     
@@ -282,9 +281,12 @@ class createWidget:
                         return w
         return self.root
     
-    def reParent(self):
+    def reParent(self,parentWidget):
         name0 = self.widget.widgetName
         place = self.widget.place_info()
+        if parentWidget is not None:
+            changeParentOfTo(self.widget,parentWidget)
+        
         x1 = int(place.get('x'))
         y1 = int(place.get('y'))
         w = int(place.get('width'))
@@ -310,26 +312,19 @@ class createWidget:
                     log.debug("Match Name %s fits inside %s",name0,name)
                     newX = x1 - wx1
                     newY = y1 - wy1
-                    self.changeParentTo(w)
+                    changeParentOfTo(self.widget,w)
                     self.widget.place(x=newX,y=newY)
-    
-    def changeParentTo(self,newParentWidget):
-        self.widget.place(in_=newParentWidget)
-        updateWidgetNameList(self.pythonName,newParentWidget)
-        self.widget.parent = newParentWidget
-        tk.Misc.lift(self.widget,aboveThis=None)
-        self.widget.update()
     
     def clone(self):
         mainFrame = self.root
         mainCanvas = self.root
         # widgetId = createWidget.widgetId
         originalName = 'Widget' + str(self.widgetId)
-        origWidgetDict = pytkguivars.saveWidgetAsDict(originalName)
+        origWidgetDict = myVars.saveWidgetAsDict(originalName)
         log.debug('origWidgetDict: %s',origWidgetDict)
         useDict = origWidgetDict.get(originalName)
         log.debug('mainFrame %s mainCanvas %s useDict %s',str(mainFrame),str(mainCanvas),useDict)
-        widgetDef = pytkguivars.buildAWidget(self.widgetId,useDict)
+        widgetDef = myVars.buildAWidget(self.widgetId,useDict)
         log.debug('widgetDef %s',widgetDef)
         # widget = ast.literal_eval(widgetDef)
         widget = eval(widgetDef)
@@ -339,13 +334,13 @@ class createWidget:
         height = place.get('height')
         createWidget(mainCanvas,widget)
         newW = createWidget.lastCreated
-        if pytkguivars.rootWidgetName != widgetParent:
+        if myVars.rootWidgetName != widgetParent:
             nameDetails = findPythonWidgetNameList(widgetParent)
             log.info('widgetParent: %s',widgetParent)
             log.info('nameDetails: %s',nameDetails)
             try:
                 w = nameDetails[WIDGET]
-                newW.changeParentTo(w)
+                changeParentOfTo(self.widget,w)
             except tk.TclError as e:
                 log.error("Exception %s",str(e))
         newW.widget.place(x=self.x + 16,y=self.y + 16,width=width,height=height)
@@ -362,7 +357,7 @@ class createWidget:
         self.popup.add_command(label="Edit",command=self.editTtkPopup)
         self.popup.add_command(label="Layout",command=self.editPlacePopup)
         self.popup.add_command(label="Clone",command=self.clone)
-        self.popup.add_command(label="Re-Parent",command=self.reParent)
+        self.popup.add_command(label="Re-Parent",command=lambda:self.reParent(None))
         self.popup.add_command(label="Delete",command=self.deleteWidget)
         self.popup.add_separator()
         self.popup.add_command(label="Close",command=self.popup.destroy)
@@ -375,8 +370,6 @@ class createWidget:
             # Release the grab
             self.popup.grab_release()
             # self.widget.unbind("<Button-3>")
-            # self.popup.bind("<Button-3>",self.menu_popup)  # button = tboot.Button(self.popup,
-            # text="Quit", command=self.popup.destroy)  # button.pack()
     
     def rightMouseDown(self,event):
         # popup a menu for the type of object
@@ -448,11 +441,6 @@ class createWidget:
         y = self.widget.winfo_y() + event.y - self.start[1]
         width = self.widget.winfo_width()
         height = self.widget.winfo_height()
-        # Lift is done on mouse down and mouse up
-        # try:
-        #     tk.Misc.lift(self.widget,aboveThis=None)
-        # except Exception as e:
-        #     log.error("Lift exception ",e)
         
         if self.dragType == 'dragEast':
             width = event.x + self.parentX
@@ -485,12 +473,14 @@ class createWidget:
             newHeight = 16
         self.height = newHeight
         self.width = newWidth
-        if pytkguivars.useGrider:
+        if myVars.geomManager == 'Place':
+            self.widget.place(x=self.x,y=self.y,height=self.height,width=self.width)
+        elif myVars.geomManager == 'Grid':
             z = self.root.grid_location(self.x,self.y)
             self.row = z[1]
             self.col = z[0]
             self.widget.grid(row=self.row,column=self.col)
             log.debug("Left Mouse Release -- col,row %s %s",str(z),str(event))
         else:
-            self.widget.place(x=self.x,y=self.y,height=self.height,width=self.width)
+            log.error("Geometry Manager %s is TBD",myVars.geomManager)
         raiseChildren(self.pythonName)

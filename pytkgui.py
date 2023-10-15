@@ -2,23 +2,21 @@ import logging
 import os
 import pickle
 import sys
+import coloredlogs
 import tkinter as tk
+import ttkbootstrap as tboot
+import createWidget as cw
+import pytkguivars as myVars
 from collections import defaultdict
 from functools import partial
 from tkinter.colorchooser import askcolor
 from typing import Any
-
-# import ast
-import coloredlogs
-import ttkbootstrap as tboot
-
-import createWidget as cw
-import pytkguivars
+from PIL import Image
+Image.CUBIC = Image.BICUBIC
 
 # This will be from a project's default
 useTheme = 'darkly'
 rootWin = tboot.Window(themename=useTheme)
-# rootWin.eval('tk::PlaceWindow . center')
 rootWin.eval('tk::PlaceWindow . pointer')
 mainFrame: tboot.Frame()
 rootWin.title('Python Tk GUI Builder')
@@ -34,7 +32,7 @@ def printf(formats,*args):
 
 def setTheme(theme: object):
     # global style
-    pytkguivars.theme = theme
+    myVars.theme = theme
     log.debug(theme)
     # style = tboot.Style(rootWin)
     style.theme_use(theme)
@@ -71,7 +69,7 @@ def findWidgetsParent(widgetName) -> str:
 
 
 def workOutWidgetCreationOrder() -> list:
-    createdWidgetOrder = [pytkguivars.rootWidgetName]
+    createdWidgetOrder = [myVars.rootWidgetName]
     sanityCheckCount = 0
     finished = False
     while not finished:
@@ -99,22 +97,22 @@ def workOutWidgetCreationOrder() -> list:
 
 def saveProject():
     widgetCount = 0
-    createdWidgetOrder = [pytkguivars.rootWidgetName]
+    createdWidgetOrder = [myVars.rootWidgetName]
     width = 0  # mainCanvas.winfo_width
     height = 0  # mainCanvas.winfo_height
     cleanList = createCleanNameList()
     projectData = {"ProjectName":'test','ProjectPath':'/tmp/test','width':width,'height':height,
-                   'theme':pytkguivars.theme,'widgetNameList':cleanList,
-                   'backgroundColor':pytkguivars.backgroundColor}
+                   'theme':myVars.theme,'widgetNameList':cleanList,
+                   'backgroundColor':myVars.backgroundColor}
     # Work out the order to create the Widgets so the parenting is correct
     createdWidgetOrder = workOutWidgetCreationOrder()
     log.debug('createdWidgetOrder %s',str(createdWidgetOrder))
-    pytkguivars.createdWidgetOrder = createdWidgetOrder
+    myVars.createdWidgetOrder = createdWidgetOrder
     for widgetName in createdWidgetOrder:
         # widgetParent = findWidgetsParent(widgetName)
-        if widgetName == pytkguivars.rootWidgetName:
+        if widgetName == myVars.rootWidgetName:
             continue
-        newWidget = pytkguivars.saveWidgetAsDict(widgetName)
+        newWidget = myVars.saveWidgetAsDict(widgetName)
 
         log.debug('widgetCount %d newWidget %s',widgetCount,str(newWidget))
         widgetCount += 1
@@ -124,7 +122,7 @@ def saveProject():
     projectData1 = Merge(projectData,{'widgetCount':widgetCount})
     projectData = projectData1
     log.debug('projectData ->%s<-',str(projectData))
-    pytkguivars.projectDict = projectData
+    myVars.projectDict = projectData
     f = open("/tmp/pytkguitest.pk1","wb")
     try:
         pickle.dump(projectData,f)
@@ -142,9 +140,9 @@ def runMe():
     Generate python code and do a trial run
     """
     # global alphaList
-    if pytkguivars.projectDict == {}:
+    if myVars.projectDict == {}:
         saveProject()
-    runDict = pytkguivars.projectDict
+    runDict = myVars.projectDict
     nWidgets = runDict.get('widgetCount')
     largestWidth = 200
     largestHeight = 200
@@ -154,16 +152,16 @@ def runMe():
     print("# -------------------------")
     sys.stdout = open('/tmp/test.py','w',encoding="utf8")
     print("import tkinter as tk\nimport ttkbootstrap as tboot\n")
-    themeName = pytkguivars.theme
+    themeName = myVars.theme
     print("themeName = '" + themeName + "'\n")
     print("rootWin = tboot.Window(themename=themeName)")
-    rootName = pytkguivars.rootWidgetName
+    rootName = myVars.rootWidgetName
     print(rootName + "= tboot.Frame(rootWin, width=40, height=100, relief='ridge', borderwidth=1)")
     # print("sv_tboot.use_light_theme()")
     # print("style = tboot.Style(rootWin)")
     # print("style.theme_use('clam')\n")
     # Create widgets on the rootFrame first
-    # for widgetName in pytkguivars.createdWidgetOrder:
+    # for widgetName in myVars.createdWidgetOrder:
     for widgetName in createdWidgetOrder:
         # widgetId = "Widget" + str(n)
         if widgetName == rootName:
@@ -177,7 +175,7 @@ def runMe():
         if wDict is not None:
             log.debug('Dictionary for %s = %s',widgetName,str(wDict))
             wType = wDict.get('WidgetName')
-            t = pytkguivars.fixWidgetTypeName(wType)
+            t = myVars.fixWidgetTypeName(wType)
             wType = t
             keyCount = widgetName + "-KeyCount"
             widgetDef = widgetName + ' = ' + wType + '(' + parentName
@@ -200,7 +198,7 @@ def runMe():
                     # '(' is in lists for combo boxes
                     # The 'values' key has this saved format. This might be a tk thing.
                     # It needs to be converted to a list
-                    newVal = pytkguivars.fixComboValues(key,val)
+                    newVal = myVars.fixComboValues(key,val)
                     val = newVal
                     useValQuotes = False
                 if len(val) > 0:
@@ -211,29 +209,33 @@ def runMe():
                         tmpWidgetDef = widgetDef + ',' + key + '=' + val
                     widgetDef = tmpWidgetDef
             print(widgetDef + ')')
-            place = wDict.get('Place')
-            # print(place)
-            x = place.get('x')
-            y = place.get('y')
-            width = place.get('width')
-            height = place.get('height')
-            try:
-                widthPos = int(x) + int(width)
-                heightPos = int(y) + int(height)
-                if widthPos > largestWidth:
-                    largestWidth = widthPos
-                if heightPos > largestHeight:
-                    largestHeight = heightPos
-            except ArithmeticError as e:
-                log.warning('ArithmeticError %s',str(e))
-            except ValueError as e:
-                log.warning('ValueError %s',str(e))
-            
-            anchor = place.get('anchor')
-            bordermode = place.get('bordermode')
-            print(
-                widgetName + ".place(" + "x=" + x + ",y=" + y + ",width=" + width + ",height=" +
-                height + ",anchor='" + anchor + "',bordermode='" + bordermode + "')")
+            if myVars.geomManager == 'Place':
+                place = wDict.get('Place')
+                x = place.get('x')
+                y = place.get('y')
+                width = place.get('width')
+                height = place.get('height')
+                try:
+                    widthPos = int(x) + int(width)
+                    heightPos = int(y) + int(height)
+                    if widthPos > largestWidth:
+                        largestWidth = widthPos
+                    if heightPos > largestHeight:
+                        largestHeight = heightPos
+                except ArithmeticError as e:
+                    log.warning('ArithmeticError %s',str(e))
+                except ValueError as e:
+                    log.warning('ValueError %s',str(e))
+                
+                anchor = place.get('anchor')
+                bordermode = place.get('bordermode')
+                print(
+                    widgetName + ".place(" + "x=" + x + ",y=" + y + ",width=" + width + ",height=" +
+                    height + ",anchor='" + anchor + "',bordermode='" + bordermode + "')")
+            # if myVars.geomManager == 'Grid':
+            # if myVars.geomManager == 'Pack':
+            else:
+                log.error("Geometry Manager %s is TBD",myVars.geomManager)
     largestWidth += 20
     largestHeight += 20
     geom = str(largestWidth) + 'x' + str(largestHeight)
@@ -282,9 +284,15 @@ def changeParentOfTo(widgetName,parentName):
         return
     widget = widgetList[cw.WIDGET]
     parent = parentList[cw.WIDGET]
-    widget.place(in_=parent)
-    widget.parent = parent
-    widget.update()
+    
+    if myVars.geomManager == 'Place':
+        widget.place(in_=parent)
+        widget.parent = parent
+        widget.update()
+    # if myVars.geomManager == 'Grid':
+    # if myVars.geomManager == 'Pack':
+    else:
+        log.error("Geometry Manager %s is TBD",myVars.geomManager)
     tk.Misc.lift(widget,parent)
     cw.updateWidgetNameList(widgetName,parent)
 
@@ -303,7 +311,7 @@ def loadProject():
     f.close()
     runDict = data
     log.debug(runDict)
-    pytkguivars.backgroundColor = runDict.get('backgroundColor')
+    myVars.backgroundColor = runDict.get('backgroundColor')
     widgetNameList = runDict.get('widgetNameList')
     nWidgets = runDict.get('widgetCount')
     widgetsFound = 0
@@ -314,7 +322,7 @@ def loadProject():
         wDict = runDict.get(widgetId)
         if wDict is not None:
             widgetsFound += 1
-            widgetDef = pytkguivars.buildAWidget(n,wDict)
+            widgetDef = myVars.buildAWidget(n,wDict)
             try:
                 # widget = ast.literal_eval(widgetDef)
                 widget = eval(widgetDef)
@@ -327,9 +335,15 @@ def loadProject():
                 continue
             # w = cw.createWidget(mainCanvas,widget)
             w = cw.createWidget(mainFrame,widget)
-            place = wDict.get('Place')
-            log.debug(place)
-            w.addPlace(place)
+            
+            if myVars.geomManager == 'Place':
+                place = wDict.get('Place')
+                log.debug(place)
+                w.addPlace(place)
+            # if myVars.geomManager == 'Grid':
+            # if myVars.geomManager == 'Pack':
+            else:
+                log.error("Geometry Manager %s is TBD",myVars.geomManager)
         n += 1
         if n > (nWidgets * 10):
             log.error("Cannot locate All Widgets tried %d times expected to find %d found %d",
@@ -349,7 +363,7 @@ def loadProject():
             for child in children:
                 log.debug("    %s has a child %s",name,child)
                 changeParentOfTo(child,name)
-            if parent != pytkguivars.rootWidgetName:
+            if parent != myVars.rootWidgetName:
                 log.debug("%s is the parent of %s",parent,name)
                 changeParentOfTo(name,parent)
         else:
@@ -381,7 +395,7 @@ def chooseBackground():
     if colors[1] is not None:
         mainCanvas.configure(bg=colors[1])
         mainCanvas.update()
-        pytkguivars.backgroundColor = colors[1]
+        myVars.backgroundColor = colors[1]
 
 
 def buildMenu():
@@ -447,8 +461,8 @@ def drawGridLines():
     mainCanvas.update()
     width = mainCanvas.winfo_width()
     height = mainCanvas.winfo_height()
-    # log.debug("width ",width," height ",height," snapTo ",pytkguivars.snapTo)
-    log.debug("Width %d height %d snapTo %s",width,height,pytkguivars.snapTo)
+    # log.debug("width ",width," height ",height," snapTo ",myVars.snapTo)
+    log.debug("Width %d height %d snapTo %s",width,height,myVars.snapTo)
 
 
 def sizeGripRelease(event):
@@ -478,6 +492,8 @@ def createWidgetPopup(event,widgetName):
         w = tboot.Entry(mainFrame,cursor='cross',style=defaultStyle)
     elif widgetName == 'Combobox':
         w = tboot.Combobox(mainFrame,cursor='cross',style=defaultStyle)
+    elif widgetName == 'Notebook':
+        w = tboot.Notebook(mainFrame,cursor='cross',style=defaultStyle)
     elif widgetName == 'Canvas':
         w = tboot.Canvas(mainFrame,borderwidth=1,relief=tk.SOLID,cursor='cross')
         #                 ,highlightthickness=1,highlightbackground='red')
@@ -495,8 +511,11 @@ def createWidgetPopup(event,widgetName):
     elif widgetName == 'Floodgauge':
         w = tboot.Floodgauge(mainFrame,value=50.0,cursor='cross',style=defaultStyle)
     # Meter does not work correctly
-    # elif widgetName == 'Meter':
-    #     w = tboot.Meter(mainFrame,cursor='cross',style=defaultStyle)
+    elif widgetName == 'Meter':
+        # Meter dows not have a parent ....
+        w = tboot.Meter(metersize=180, padding=5, amountused=25, metertype="semi",
+                subtext="miles per hour", interactive=True)
+        # w.configure(subtext="Read the Docs!")
     # Labeled Scale is not in ttk bootstrap
     # elif widgetName == 'Labelscale':
     #    w = tboot.LabeledScale(mainFrame,cursor='cross',style=defaultStyle)
@@ -504,16 +523,22 @@ def createWidgetPopup(event,widgetName):
         log.warning("Widget %s not implemented",widgetName)
         return
     cw.createWidget(mainFrame,w)
-    w.place(x=x,y=y,width=72,height=32)
+    
+    if myVars.geomManager == 'Place':
+        w.place(x=x,y=y,width=72,height=32)
+    # elif myVars.geomManager == 'Grid':
+    # elif myVars.geomManager == 'Pack':
+    else:
+        log.error("Geometry Manager %s is TBD",myVars.geomManager)
 
     
 def rightMouseDown(event):
     # global mainCanvas
     log.debug("rightMouseDown -- event %s",str(event))
     popup = tboot.Menu(mainFrame,tearoff=0)
-    for wName in pytkguivars.containerWidgetsUsed:
+    for wName in myVars.containerWidgetsUsed:
         popup.add_command(label=wName,command=lambda e=event,w=wName:createWidgetPopup(e,w))
-    for wName in pytkguivars.widgetsUsed:
+    for wName in myVars.widgetsUsed:
         popup.add_command(label=wName,command=lambda e=event,w=wName:createWidgetPopup(e,w))
     popup.add_separator()
     popup.add_command(label="Close",command=popup.destroy)
@@ -528,7 +553,7 @@ def buildGrid(rows,cols):
     """
     global mainCanvas
     # mainCanvas = tboot.Frame(mainFrame, width=40, height=100, relief="ridge", borderwidth=2 )
-    # mainCanvas = tboot.Canvas(mainFrame,width=40,height=100,relief=tk.SOLID,borderwidth=1,bg=pytkguivars.backgroundColor)
+    # mainCanvas = tboot.Canvas(mainFrame,width=40,height=100,relief=tk.SOLID,borderwidth=1,bg=myVars.backgroundColor)
     mainCanvas = tboot.Canvas(mainFrame,width=40,height=100,relief=tk.SOLID,borderwidth=1)
     mainCanvas.grid(row=0,column=0,columnspan=cols,rowspan=rows,padx=5,pady=5,sticky="NSEW")
     mainCanvas.bind('<Button-3>',rightMouseDown)
@@ -567,8 +592,8 @@ if __name__ == '__main__':
     coloredlogs.set_level(logging.INFO)
     # coloredlogs.set_level(logging.WARN)
     # coloredlogs.set_level(logging.DEBUG)
-    pytkguivars.initVars()
-    pytkguivars.theme = useTheme
+    myVars.initVars()
+    myVars.theme = useTheme
     
     buildMainGui()
     style = tboot.style.Style()
