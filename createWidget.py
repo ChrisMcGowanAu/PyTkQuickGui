@@ -195,16 +195,17 @@ class createWidget:
         self.bordermode = None
         self.parentX = 0
         self.parentY = 0
+        self.cornerX = 0
+        self.cornerY = 0
         self.root = root
         self.widget = widget
-        # w = tk.Widget.getint(self.widget,3)
-        # h = tk.Widget.getint(self.widget,5)
-        # tk.wantobjects()
+        self.popup = Any
+        self.start = Any
         log.debug(self.widget.widgetName)
         #######################
         # Notebook is a funny case, just 'raw' it does not display
-        if self.widget.widgetName == 'ttk::notebook':
-            log.warning('Notebook is not yet done correctly')
+        # if self.widget.widgetName == 'ttk::notebook':
+        #    log.warning('Notebook is not yet done correctly')
         self.x = random.randint(50,50)
         self.y = random.randint(50,50)
         # log.debug(random.randint(3, 9))
@@ -240,7 +241,7 @@ class createWidget:
         if myVars.geomManager == 'Place':
             # The second place is needed after the 'update()'
             self.widget.place(x=self.x,y=self.y,width=self.width,height=self.height)
-        else :
+        else:
             log.error("Geometry Manager %s is TBD",myVars.geomManager)
         log.debug("New %s WidgetId %d Width %d Height %d",self.widget.widgetName,self.widgetId,self.width,self.height)
         createWidget.lastCreated = self

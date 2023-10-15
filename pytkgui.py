@@ -2,17 +2,21 @@ import logging
 import os
 import pickle
 import sys
-import coloredlogs
 import tkinter as tk
-import ttkbootstrap as tboot
-import createWidget as cw
-import pytkguivars as myVars
 from collections import defaultdict
 from functools import partial
 from tkinter.colorchooser import askcolor
 from typing import Any
-from PIL import Image
-Image.CUBIC = Image.BICUBIC
+
+import coloredlogs
+import ttkbootstrap as tboot
+
+import createWidget as cw
+import pytkguivars as myVars
+
+# This fixed a bug in ttkbootstrap
+# from PIL import Image
+# Image.CUBIC = Image.BICUBIC
 
 # This will be from a project's default
 useTheme = 'darkly'
@@ -513,8 +517,8 @@ def createWidgetPopup(event,widgetName):
     # Meter does not work correctly
     elif widgetName == 'Meter':
         # Meter dows not have a parent ....
-        w = tboot.Meter(metersize=180, padding=5, amountused=25, metertype="semi",
-                subtext="miles per hour", interactive=True)
+        w = tboot.Meter(metersize=180,padding=5,amountused=25,metertype="semi",
+                        subtext="miles per hour",interactive=True)
         # w.configure(subtext="Read the Docs!")
     # Labeled Scale is not in ttk bootstrap
     # elif widgetName == 'Labelscale':
