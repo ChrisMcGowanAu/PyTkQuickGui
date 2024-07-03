@@ -706,7 +706,7 @@ class widgetEditPopup:
 
                 for color_label in style.colors:
                     colours.append(color_label)
-                    if altList != []:
+                    if altList:
                         for alt in altList:
                             colours.append(color_label + "." + alt)
                 w = tboot.Combobox(
