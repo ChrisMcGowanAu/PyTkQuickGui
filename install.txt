@@ -1,0 +1,49 @@
+##############################
+# On Linux Debian
+##############################
+sudo apt install python3-full
+# This next step is necessary on debian 12
+sudo mv /usr/lib/python3.11/EXTERNALLY-MANAGED /usr/lib/python3.11/EXTERNALLY-MANAGED.old
+pip install --user tkfontchooser
+pip install --user coloredlogs
+pip install --user ttkbootstrap
+
+
+##############################
+# On Mint and Ubuntu
+# I believe other 'apt' based distros, the install for should be the same. 
+# I will update this file if 
+##############################
+sudo apt install python3-full
+pip install tkfontchooser
+pip install coloredlogs
+pip install ttkbootstrap
+
+
+For other Linux releases, use you local package manager in a similiar way
+
+
+#################################
+# Windows 10 (and 11 ?)
+#################################
+Install python3 for windows 
+https://python.org/downloads/windows
+# then from a terminal ( preferably a git-bash one ) 
+pip install tkfontchooser
+pip install coloredlogs
+pip install ttkbootstrap
+
+It seems to work OK for Windows, will need to do more testing later
+
+#################################
+# Mac's
+#################################
+Sorry I have not tried it. But it should be easy? 
+
+
+#################################
+# To Run from a terminal
+#################################
+python3 pytkgui.py
+or
+python pytkgui.py
