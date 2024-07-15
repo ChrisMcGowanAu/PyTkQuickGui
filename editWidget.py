@@ -158,21 +158,31 @@ class widgetEditPopup:
         :param event:
         """
         widget = event.widget.master
+        x = int(widget.place_info().get("x"))
+        y = int(widget.place_info().get("y"))
+        moveX = event.x
+        moveY = event.y
         width = widget.winfo_width()
         height = widget.winfo_height()
+
         newHeight = height + event.y
         newWidth = width + event.x
-        widget.place(height=newHeight, width=newWidth)
-        log.debug(
+        # widget.place(height=newHeight, width=newWidth)
+        log.info(
             "Resize height %s width %s event.x %s \
-                  event.y %s x_root %s y_root %s",
+                  event.y %s x_root %s y_root %s x %s y %s",
             str(height),
             str(width),
             str(event.x),
             str(event.y),
             str(event.x_root),
             str(event.y_root),
+            str(x),
+            str(y),
         )
+        newX = x + moveX
+        newY = y + moveY
+        widget.place(x=newX, y=newY)
 
     def leftMouseDrag(self, event):
         """
@@ -188,7 +198,7 @@ class widgetEditPopup:
         y = int(widget.place_info().get("y"))
         moveX = event.x
         moveY = event.y
-        threshold = 12
+        threshold = 8 
         if abs(event.x) > threshold:
             if event.x > 0:
                 moveX = threshold
@@ -200,6 +210,8 @@ class widgetEditPopup:
             else:
                 moveY = -1 * threshold
 
+        log.debug("x %s event.x %s moveX %s",x,event.x,moveX) 
+        log.debug("y %s event.y %s moveY %s",y,event.y,moveY) 
         newX = x + moveX
         newY = y + moveY
         widget.place(x=newX, y=newY)

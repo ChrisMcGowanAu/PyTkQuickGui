@@ -12,9 +12,10 @@ import coloredlogs
 import ttkbootstrap as tboot
 # import tkfilebrowser as tkfb
 # from tkfilebrowser import askopendirname
-
+from ttkbootstrap.dialogs.dialogs import Messagebox
 import createWidget as cw
 import pytkguivars as myVars
+import re
 
 # This fixed a bug in ttkbootstrap
 # from PIL import Image
@@ -538,7 +539,7 @@ def loadProject():
                  myVars.projectPath, myVars.projectName)
     else:
         log.warning("No project selected Try Again")
-        tk.messagebox.showerror("No Project Selected", "The Directory Selection box is not intuitive.\nDouble click on project name\nTry Again or create a new Project")
+        Messagebox.show_error(title="No Project Selected", message="The Directory Selection box is not intuitive.\nDouble click on project name\nTry Again or create a new Project")
         return
 
     projFileName = myVars.projectName + ".pk1"
@@ -649,7 +650,26 @@ def chooseBackground():
         mainCanvas.configure(bg=colors[1])
         mainCanvas.update()
         myVars.backgroundColor = colors[1]
+def welcome():
+    about = '''PyTkGui:
+        Chris McGowan 2024.
+        A tool to build a simple TkInter GUI.
+	This tool uses ttkbootstrap widgets.
+	A website - youtube - pdf TBD.'''
+    # remove leading whitespace from each line
+    about2 = re.sub("\n\s*", "\n", about) 
+    Messagebox.show_info(message=about2,title="Welcome");
 
+def helpMe():
+    about = '''Basic Actions: 
+        Right click on the background to get a list of Widgets.
+        A selected Widget will place itself where the mouse is.
+        Left click hold and drag to move Widgets around.
+        Left click and drag close to the inside edge of Widgets to resize.
+        Right Click on Widgets to choose Edit and Layout windows.'''
+    # remove leading whitespace from each line
+    about2 = re.sub("\n\s*", "\n", about) 
+    Messagebox.show_info(message=about2,title="Help");
 
 def buildMenu():
     # global rootWin
@@ -701,10 +721,9 @@ def buildMenu():
                           command=setDefaultStyleFont)
     # create the Help menu
     helpMenu = tboot.Menu(menuBar, tearoff=0)
-    # helpMenu = tboot.OptionMenu(menuBar, tearoff=0)
 
-    helpMenu.add_command(label="Welcome")
-    helpMenu.add_command(label="About...")
+    helpMenu.add_command(label="Welcome",command=welcome)
+    helpMenu.add_command(label="Help",command=helpMe)
 
     menuBar.add_cascade(label="Theme", menu=themeMenu, underline=0)
     # add the Help menu to the menuBar

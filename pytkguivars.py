@@ -287,3 +287,43 @@ def fixWidgetTypeName(wType) -> str:
         t = wType.replace("." + ch, "." + ch.upper())
         wType = t
     return wType
+
+# sigh .. chat gpt wrote this bit ... it kinda sucks
+import tkinter as tk
+from tkinter import scrolledtext
+
+class AutoResizePopup(tk.Toplevel):
+    def __init__(self, master=None, text=""):
+        super().__init__(master)
+        self.title("Help")
+        
+        # Create a ScrolledText widget
+        self.text_widget = scrolledtext.ScrolledText(self, wrap=tk.WORD)
+        # Insert the provided text
+        self.text_widget.insert(tk.END, text)
+        
+        # self.text_widget.pack(fill=tk.BOTH, expand=False)
+        self.text_widget.pack()
+        
+        # Make the Text widget read-only
+        self.text_widget.configure(state='disabled')
+        
+        # Create a close button
+        self.close_button = tk.Button(self, text="Close", command=self.close)
+        self.close_button.pack(pady=5)
+        
+        # Automatically resize the window to fit the text
+        self.update_idletasks()
+        # self.geometry(f"{self.text_widget.winfo_width()}x{self.text_widget.winfo_height() + 40}")
+        
+    def close(self):
+        self.destroy()
+
+def samplePopup(rootw):
+    sample_text = (
+        "This is a sample text for the popup window. "
+        "The window should automatically resize to fit the content. "
+        "You can add more text here to see how it adjusts." )
+    popup = AutoResizePopup(rootw, text=sample_text)
+
+

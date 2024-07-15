@@ -196,10 +196,13 @@ class createWidget:
         self.parentY = 0
         self.cornerX = 0
         self.cornerY = 0
+        self.lastX = 0
+        self.lastY = 0
         self.root = root
         self.widget = widget
         self.popup = Any
-        self.start = Any
+        self.startX = 0 
+        self.startY = 0 
         log.debug(self.widget.widgetName)
         #######################
         # Notebook is a funny case,  just 'raw' it does not display
@@ -276,8 +279,15 @@ class createWidget:
         popup = ew.widgetEditPopup(self.root, self.widget)
         popup.createEditPopup()
 
-    def findParentWidget(self):
-        parent = self.widget.place_info().get("in")
+    def findParentObject(self,parent):
+        for w in createWidget.widgetList:
+            if w is not None and w != self.widget:
+                if w.widget == parent:
+                    return w
+        return None
+        
+    def findParentWidget(self,widget):
+        parent = widget.place_info().get("in")
         log.debug("Parent %s self.root %s", str(parent), str(self.root))
         if self.root == parent:
             return parent
@@ -398,46 +408,78 @@ class createWidget:
         self.makePopup()
         self.menuPopup(event)
 
-    def leftMouseDown(self, event):
-        self.start = (event.x, event.y)
-        self.dragType = ""
-        parent = self.findParentWidget()
-        if parent != self.root:
-            # log.debug(parent, self.root)
-            px = parent.place_info().get("x")
-            py = parent.place_info().get("y")
-            # log.debug(px, py)
-            # log.debug("Before", self.start)
-            self.parentX = int(px)
-            self.parentY = int(py)
-            self.start = (
-                event.x + int(px),
-                event.y + int(py),
-            )  # log.debug("After", self.start)
+    def leftMouseInfo(self, widget, event):
+        # Dump out widget geometry info and 
+        # recurse up the parent tree
+        if str(widget) == "None":
+            return
+        log.info("-----------------")
+        log.info("Widget Info -->%s<--",widget)
+        width = widget.winfo_width()
+        height = widget.winfo_height()
+        rootx = widget.winfo_rootx()
+        rooty = widget.winfo_rooty()
+        placex = widget.place_info().get("x")
+        placey = widget.place_info().get("y")
+        p = widget.place_info().get("in")
+        x = widget.winfo_x()
+        y = widget.winfo_y()
+        g = widget.winfo_geometry()
+        p0 = widget.winfo_parent()
+        ptrx = widget.winfo_pointerx();
+        ptry = widget.winfo_pointery();
+        log.info("event x,y %s,%s",event.x,event.y)
+        log.info("pointer x,y %s,%s",ptrx,ptry)
+        log.info("root x,y %s,%s",rootx,rooty)
+        log.info("pos x,y %s,%s width %s height %s",x,y,width,height)
+        log.info("place x,y %s %s",placex,placey)
+        # log.info("geometry %s",str(g))
+        log.info("widget %s parent %s",str(widget),str(p))
+        if(p != "."):
+            self.leftMouseInfo(p,event)
 
-        x = self.widget.winfo_x() + event.x - self.start[0]
-        y = self.widget.winfo_y() + event.y - self.start[1]
+    def leftMouseDown(self, event):
+        # Call this if needed -- leave in for idiots like me
+        # self.leftMouseInfo(self.widget,event)
+        self.startX = event.x
+        self.startY = event.y
+        self.dragType = ""
+        self.parentX = int(0)
+        self.parentY = int(0)
+
+        self.startX = event.x + self.parentX 
+        self.startY = event.y + self.parentY 
+
+        x = self.widget.winfo_x() + event.x - self.startX
+        y = self.widget.winfo_y() + event.y - self.startY
         self.x = x
         self.y = y
 
         # Is the stuff above all crap?
         width = self.widget.winfo_width()
         height = self.widget.winfo_height()
+        # This should be a configuration param
+        jiffyW = 8
+        jiffyH = 8
+        if width < (jiffyW * 4):
+            jiffyW = width/4
+        if height < (jiffyH * 4):
+            jiffyH = height/4
         self.x = self.widget.winfo_x()
         self.y = self.widget.winfo_y()
         self.cornerY = self.y + height
         self.cornerX = self.x + width
-        log.debug("Left Mouse Down --  Width %s Height %s", str(width), str(height))
-        if event.x > (width - 4):
+        log.debug("Left Mouse Down --  self.x %s self.y %s Width %s Height %s", str(self.x) , str(self.y), str(width), str(height))
+        if event.x > (width - jiffyW):
             self.dragType = "dragEast"
             log.debug("Drag right Side")
-        elif event.x < 4:
+        elif event.x < jiffyW:
             self.dragType = "dragWest"
             log.debug("Drag left Side")
-        if event.y > (height - 4):
+        if event.y > (height - jiffyH):
             self.dragType = "dragSouth"
             log.debug("Drag bottom Side")
-        elif event.y < 5:
+        elif event.y < jiffyH:
             self.dragType = "dragNorth"
             log.debug("Drag top Side")  # log.info(event)
         # Make sure any children are on top.
@@ -459,30 +501,48 @@ class createWidget:
                 "self.widget lift %s Failed with exception %s", str(self.widget), str(e)
             )
         raiseChildren(self.pythonName)
+        log.debug("Left Mouse Down --  self.x %s self.y %s Width %s Height %s self.dragType %s", str(self.x) , str(self.y), str(width), str(height),self.dragType)
+        self.lastX = self.x
+        self.lastY = self.y
 
     def leftMouseDrag(self, event):
-        # log.debug(event)
-        x = self.widget.winfo_x() + event.x - self.start[0]
-        y = self.widget.winfo_y() + event.y - self.start[1]
+        x0 = self.widget.winfo_x() - self.startX;
+        y0 = self.widget.winfo_y() - self.startY;
+        x = x0 + event.x  
+        y = y0 + event.y 
         width = self.widget.winfo_width()
         height = self.widget.winfo_height()
 
+        deltaX = x - self.lastX
+        deltaY = y - self.lastY
+        placex = self.widget.place_info().get("x")
+        placey = self.widget.place_info().get("y")
+        # Doing this correctly has done my head in. I think it now works ok
         if self.dragType == "dragEast":
-            width = event.x + self.parentX
+            width = width + deltaX
+            self.x = placex
+            self.y = placey
         elif self.dragType == "dragSouth":
-            height = event.y + self.parentY
+            height = height + deltaY 
+            self.x = placex
+            self.y = placey
         elif self.dragType == "dragWest":
-            self.x = x
-            width = self.cornerX - self.x
+            width = width - deltaX
+            self.x = int(placex) + int(deltaX)
+            self.y = placey
         elif self.dragType == "dragNorth":
-            self.y = y
-            height = self.cornerY - self.y
+            height = height - deltaY 
+            self.x = placex
+            self.y = int(placey) + int(deltaY)
         else:
-            self.x = x
-            self.y = y
+            self.x = int(placex) + int(deltaX) 
+            self.y = int(placey) + int(deltaY) 
+	
+
         self.widget.place(x=self.x, y=self.y, width=width, height=height)
-        # RaiseChildren is done on mouse doan and mouse up
-        # raiseChildren(self.pythonName)
+        log.debug("self.dragType %s x = %s y = %s self.x %s y=self.y %s width %s height %s self.startX %s self.startY %s",self.dragType,x,y,self.x,self.y,width,height,self.startX,self.startY)
+        self.lastX = x
+        self.lastY = y
 
     def leftMouseRelease(self, event):
         self.dragType = ""
