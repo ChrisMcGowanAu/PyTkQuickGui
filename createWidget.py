@@ -198,7 +198,6 @@ class createWidget:
     widgetId = 0
     lastCreated = None
     dragType = ["move", "dragEast", "dragWest", "dragNorth", "dragSouth"]
-    baseRoot = any
 
     def __init__(self, root, widget):
         self.bordermode = None

@@ -2,6 +2,7 @@ import logging
 import os
 import pickle
 import sys
+import re
 import tkinter as tk
 from collections import defaultdict
 from functools import partial
@@ -15,7 +16,6 @@ import ttkbootstrap as tboot
 from ttkbootstrap.dialogs.dialogs import Messagebox
 import createWidget as cw
 import pytkguivars as myVars
-#import re
 
 # This fixed a bug in ttkbootstrap
 # from PIL import Image
@@ -643,7 +643,7 @@ def loadLastProject():
     # sys.stdout.close()
     # sys.stdout = sys.__stdout__
     try:
-        f = open(fileName, "r")
+        f = open(fileName, "r", encoding="utf8")
     except FileNotFoundError as e:
         log.warning("File not found %s exception %s", fileName, str(e))
         return
