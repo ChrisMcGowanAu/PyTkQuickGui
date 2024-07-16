@@ -165,8 +165,8 @@ class widgetEditPopup:
         width = widget.winfo_width()
         height = widget.winfo_height()
 
-        newHeight = height + event.y
-        newWidth = width + event.x
+        # newHeight = height + event.y
+        # newWidth = width + event.x
         # widget.place(height=newHeight, width=newWidth)
         log.info(
             "Resize height %s width %s event.x %s \

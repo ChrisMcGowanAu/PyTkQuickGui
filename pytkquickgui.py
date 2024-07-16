@@ -15,7 +15,7 @@ import ttkbootstrap as tboot
 from ttkbootstrap.dialogs.dialogs import Messagebox
 import createWidget as cw
 import pytkguivars as myVars
-import re
+#import re
 
 # This fixed a bug in ttkbootstrap
 # from PIL import Image
@@ -144,7 +144,7 @@ def saveProject():
         log.error("Exception TypeError %s", str(e))
         log.warning("Error in Project Data \n%s", str(projectData))
     f.close()
-    myVars.lastProjectSaved = myVars.projectFileName;
+    myVars.lastProjectSaved = myVars.projectFileName
     myVars.projectSaved = True
     # Store the last project saved 
     # Store myVars.projectName in configPath
@@ -647,7 +647,7 @@ def loadLastProject():
     except FileNotFoundError as e:
         log.warning("File not found %s exception %s", fileName, str(e))
         return
-    project = f.read();    
+    project = f.read()    
     f.close()
     loadProject(project)
 
@@ -687,7 +687,7 @@ def welcome():
 	A website - youtube - pdf TBD.'''
     # remove leading whitespace from each line
     about2 = re.sub("\n\s*", "\n", about) 
-    Messagebox.show_info(message=about2,title="Welcome");
+    Messagebox.show_info(message=about2,title="Welcome")
 
 def helpMe():
     about = '''Basic Actions: 
@@ -698,7 +698,7 @@ def helpMe():
         Right Click on Widgets to choose Edit and Layout windows.'''
     # remove leading whitespace from each line
     about2 = re.sub("\n\s*", "\n", about) 
-    Messagebox.show_info(message=about2,title="Help");
+    Messagebox.show_info(message=about2,title="Help")
 
 def buildMenu():
     # global rootWin

@@ -439,10 +439,10 @@ class createWidget:
         p = widget.place_info().get("in")
         x = widget.winfo_x()
         y = widget.winfo_y()
-        g = widget.winfo_geometry()
-        p0 = widget.winfo_parent()
-        ptrx = widget.winfo_pointerx();
-        ptry = widget.winfo_pointery();
+        # g = widget.winfo_geometry()
+        # p0 = widget.winfo_parent()
+        ptrx = widget.winfo_pointerx()
+        ptry = widget.winfo_pointery()
         log.info("event x,y %s,%s",event.x,event.y)
         log.info("pointer x,y %s,%s",ptrx,ptry)
         log.info("root x,y %s,%s",rootx,rooty)
@@ -450,7 +450,7 @@ class createWidget:
         log.info("place x,y %s %s",placex,placey)
         # log.info("geometry %s",str(g))
         log.info("widget %s parent %s",str(widget),str(p))
-        if(p != "."):
+        if p != ".":
             self.leftMouseInfo(p,event)
 
     def leftMouseDown(self, event):
@@ -521,8 +521,8 @@ class createWidget:
         self.lastY = self.y
 
     def leftMouseDrag(self, event):
-        x0 = self.widget.winfo_x() - self.startX;
-        y0 = self.widget.winfo_y() - self.startY;
+        x0 = self.widget.winfo_x() - self.startX
+        y0 = self.widget.winfo_y() - self.startY
         x = x0 + event.x  
         y = y0 + event.y 
         width = self.widget.winfo_width()
