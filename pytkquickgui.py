@@ -23,7 +23,7 @@ import re
 
 # This will be from a project's default
 useTheme = "cyborg"
-rootWin = tboot.Window(themename=useTheme)
+rootWin = tboot.Window(themename=useTheme,iconphoto="snake.png")
 rootWin.eval("tk::PlaceWindow . pointer")
 mainFrame = tboot.Frame()
 rootWin.title("Python Tk GUI Builder")
@@ -144,7 +144,16 @@ def saveProject():
         log.error("Exception TypeError %s", str(e))
         log.warning("Error in Project Data \n%s", str(projectData))
     f.close()
-
+    myVars.lastProjectSaved = myVars.projectFileName;
+    myVars.projectSaved = True
+    # Store the last project saved 
+    # Store myVars.projectName in configPath
+    configPath = getConfigPath()
+    name = configPath + "/" + myVars.lastProjectFile
+    sys.stdout = open(name, "w", encoding="utf8")
+    print(myVars.projectName)
+    sys.stdout.close()
+    sys.stdout = sys.__stdout__
 
 def buildPython() -> str:
     """
@@ -152,8 +161,8 @@ def buildPython() -> str:
     """
     functions = []
     tkvars = []
-    if myVars.projectDict == {}:
-        saveProject()
+    # if myVars.projectDict == {}:
+    saveProject()
     runDict = myVars.projectDict
     nWidgets = runDict.get("widgetCount")
     largestWidth = 200
@@ -521,16 +530,18 @@ def selectDir(name):
     printf("Name %s", name)
 
 
-def loadProject():
+def loadProject(project):
     """
     Load a project from a saved file (in pickle format)
     """
     configPath = getConfigPath()
-    log.info("config Path =>%s<=", configPath)
-    folder = tk.filedialog.askdirectory(
-        mustexist=True, initialdir=configPath, title="Select Project Directory"
-    )
-
+    folder = configPath + '/' + project.strip()
+    folder.strip()
+    if len(project) < 2:
+        log.info("config Path =>%s<=", configPath)
+        folder = tk.filedialog.askdirectory(
+            mustexist=True, initialdir=configPath, title="Select Project Directory"
+        )
     log.info("Load Project ->%s<-", folder)
     if folder != configPath:
         myVars.projectName = os.path.basename(folder)
@@ -624,6 +635,24 @@ def loadProject():
 
     checkWidgetNameList()
 
+def loadLastProject():
+    configPath = getConfigPath()
+    fileName = configPath + "/" + myVars.lastProjectFile
+    # sys.stdout = open(name, "w", encoding="utf8")
+    # print(myVars.projectName + "'\n")
+    # sys.stdout.close()
+    # sys.stdout = sys.__stdout__
+    try:
+        f = open(fileName, "r")
+    except FileNotFoundError as e:
+        log.warning("File not found %s exception %s", fileName, str(e))
+        return
+    project = f.read();    
+    f.close()
+    loadProject(project)
+
+def loadProjectWrapper():
+    loadProject("")
 
 def exitApp():
     rootWin.destroy()
@@ -686,7 +715,8 @@ def buildMenu():
     fileMenu = tboot.Menu(menuBar, tearoff=0)
     # add menu items to the File menu
     fileMenu.add_command(label="New Project", command=newProject)
-    fileMenu.add_command(label="Open Project", command=loadProject)
+    fileMenu.add_command(label="Open last Project", command=loadLastProject)
+    fileMenu.add_command(label="Open Project", command=loadProjectWrapper)
     fileMenu.add_command(label="Close Project", command=closeProject)
     fileMenu.add_command(label="Save Project", command=saveProject)
     fileMenu.add_command(label="Trial Run", command=runMe)
@@ -895,6 +925,7 @@ def buildMainGui():
 
     mainFrame = tboot.Frame(rootWin, width=600, height=150)
     mainFrame.grid(row=0, column=0, sticky="NWES")
+    cw.createWidget.baseRoot = mainFrame
 
     mainFrame.columnconfigure(0, weight=1)
     mainFrame.rowconfigure(0, weight=1)
@@ -924,6 +955,7 @@ if __name__ == "__main__":
     # coloredlogs.set_level(logging.DEBUG)
     myVars.initVars()
     myVars.theme = useTheme
+    log.info("mainFrame %s %s",mainFrame, str(mainFrame))
 
     buildMainGui()
     myVars.style = tboot.Style()

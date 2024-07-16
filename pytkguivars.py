@@ -9,6 +9,7 @@ projectDict: dict
 childNameVars: list[tk.StringVar]
 imageFileNames: list[tk.StringVar]
 stringUsed: list[bool]
+imageTest: any
 imagesUsed: list[tk.PhotoImage]
 snapTo: int
 imageIndex: int
@@ -25,6 +26,9 @@ projectName: str = "tmp"
 projectPath: str = "/tmp/tmp"
 projectPath: str = "/tmp/tmp"
 projectFileName: str = "/tmp/tmp.pk1"
+lastProjectFile: str = "lastProject.txt"
+lastProjectSaved: str = ""
+projectSaved: bool = False
 widgetsUsed = (
     "Label",
     "Button",
@@ -69,7 +73,7 @@ def initVars():
     projectDict = {}
     childNameVars = [tk.StringVar()] * 64
     imageFileNames = [tk.StringVar()] * 64
-    # imagesUsed = [tk.PhotoImage]
+    imagesUsed = [tk.PhotoImage]
     # stringUsed = [bool]
     backgroundColor = "skyBlue3"
     # snapTo = int

@@ -233,12 +233,14 @@ class widgetEditPopup:
         # return
         f_types = [("Png Files", "*.png"), ("Jpg kFiles", "*.jpg")]
         filename = filedialog.askopenfilename(filetypes=f_types)
-        image = ImageTk.PhotoImage(file=filename)
+        myVars.imageTest = ImageTk.PhotoImage(file=filename)
+        imageTk = myVars.imageTest
+        log.info("image %s",str(imageTk))
         filePath = key + "filename"
-        self.addToStringDict(key, image)
+        self.addToStringDict(key, imageTk)
         self.addToStringDict(filePath, filename)
-        self.widget.configure(image=image)
-
+        self.widget.configure(image=imageTk)
+        myVars.imagesUsed.add(imageTk) 
     def applyLayoutSettings(self) -> None:
         """
         Apply changed layout for the Widget
@@ -300,6 +302,10 @@ class widgetEditPopup:
                     )
                 if k in ignoredKeys:
                     continue  # log.warning("Ignore %s", k)
+                elif k == "image":
+                    newVal = self.stringDict.get(k)
+                    log.info(logString, str(k), str(newVal))
+                    # self.widget.configure(image=newVal)
                 elif k == "values":
                     values = self.reformatValues(newVal)
                     log.debug(logString, str(k), str(values))
@@ -317,7 +323,7 @@ class widgetEditPopup:
                     # self.addToStringDict(k, val)
                     if oldVal != newVal:
                         try:
-                            log.debug(logString, str(k), str(newVal))
+                            log.info(logString, str(k), str(newVal))
                             self.widget.configure(**{k: newVal})
                         except tk.TclError as e:
                             log.error(e)

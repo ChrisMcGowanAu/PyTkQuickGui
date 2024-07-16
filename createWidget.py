@@ -93,6 +93,15 @@ def reparentWidget(pythonName, w):
     # [pythonName, parentName, widget, [children, ...]])
     # NAME: int = 0 PARENT: int = 1 WIDGET: int = 2 CHILDREN: int = 3
     nl = findPythonWidgetNameList(pythonName)
+    log.info("w %s baseRoot %s",w,createWidget.baseRoot)
+    if str(w) == str(createWidget.baseRoot):
+        nl[PARENT] = myVars.rootWidgetName
+        # TBD remove pythonName out of ant childen
+        for nl1 in createWidget.widgetNameList:
+            log.info("nl1 %s",nl1)
+            if pythonName in nl1[CHILDREN]:
+                nl1[CHILDREN].remove(pythonName)
+        return        
     if nl != []:
         # Replace the parent
         ParentName = ""
@@ -189,6 +198,7 @@ class createWidget:
     widgetId = 0
     lastCreated = None
     dragType = ["move", "dragEast", "dragWest", "dragNorth", "dragSouth"]
+    baseRoot = any
 
     def __init__(self, root, widget):
         self.bordermode = None
@@ -256,6 +266,9 @@ class createWidget:
         )
         createWidget.lastCreated = self
 
+    def setRoot(self, root):
+        baseRoot = root
+
     def addPlace(self, placeDict):
         log.debug(placeDict)
         self.x = int(placeDict.get("x"))
@@ -304,7 +317,9 @@ class createWidget:
         place = self.widget.place_info()
         if parentWidget is not None:
             changeParentOfTo(self.widget, parentWidget)
-
+        else:
+            changeParentOfTo(self.widget, self.root)
+            parentWidget = self.root 
         x1 = int(place.get("x"))
         y1 = int(place.get("y"))
         w = int(place.get("width"))
