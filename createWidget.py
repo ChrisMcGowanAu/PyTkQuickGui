@@ -196,6 +196,7 @@ class createWidget:
     # [widgetName,  parentName ,  widget,  childList]
     widgetNameList = []
     widgetId = 0
+    baseRoot = any
     lastCreated = None
     dragType = ["move", "dragEast", "dragWest", "dragNorth", "dragSouth"]
 
@@ -209,7 +210,7 @@ class createWidget:
         self.lastY = 0
         self.root = root
         self.widget = widget
-        self.popup = Any
+        self.popup = any
         self.startX = 0 
         self.startY = 0 
         log.debug(self.widget.widgetName)
@@ -266,7 +267,7 @@ class createWidget:
         createWidget.lastCreated = self
 
     def setRoot(self, root):
-        baseRoot = root
+        createWidget.baseRoot = root
 
     def addPlace(self, placeDict):
         log.debug(placeDict)
