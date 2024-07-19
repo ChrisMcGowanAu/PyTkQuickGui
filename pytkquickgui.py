@@ -81,7 +81,7 @@ def workOutWidgetCreationOrder() -> list:
     while not finished:
         finished = True
         sanityCheckCount += 1
-        if sanityCheckCount > 1000:
+        if sanityCheckCount > 10000:
             log.critical("Loop is not exiting Ahhhhh %d", sanityCheckCount)
             break
         for nameEntry in cw.createWidget.widgetNameList:
@@ -100,6 +100,15 @@ def workOutWidgetCreationOrder() -> list:
                     finished = False
     return createdWidgetOrder
 
+def createCleanImageList() -> []:
+    cleanFilenames: [] = []
+    for f in myVars.widgetImageFilenames:
+        c = [f[myVars.WIDGET],f[myVars.KEY] ,f[myVars.FILENAME],None]
+        cleanFilenames.append(c)
+    log.debug("widgetImageFilenames %s",str(myVars.widgetImageFilenames))
+    log.debug("cleanFilenames %s",str(cleanFilenames))
+    return cleanFilenames
+
 
 def saveProject():
     widgetCount = 0
@@ -115,6 +124,7 @@ def saveProject():
         "theme": myVars.theme,
         "widgetNameList": cleanList,
         "backgroundColor": myVars.backgroundColor,
+        "imageFileNames" : createCleanImageList(),
     }
     # Work out the order to create the Widgets so the parenting is correct
     createdWidgetOrder = workOutWidgetCreationOrder()
@@ -136,7 +146,7 @@ def saveProject():
     log.debug("projectData ->%s<-", str(projectData))
     myVars.projectDict = projectData
     fileName = myVars.projectFileName
-    log.info("projectFileName ->%s<-", fileName)
+    log.debug("projectFileName ->%s<-", fileName)
     f = open(fileName, "wb")
     try:
         pickle.dump(projectData, f)
@@ -144,6 +154,7 @@ def saveProject():
         log.error("Exception TypeError %s", str(e))
         log.warning("Error in Project Data \n%s", str(projectData))
     f.close()
+    log.debug("projectData %s",projectData)
     myVars.lastProjectSaved = myVars.projectFileName
     myVars.projectSaved = True
     # Store the last project saved 
@@ -207,6 +218,10 @@ def buildPython() -> str:
                 aDict = wDict.get(attribute)
                 key = aDict.get("Key")
                 val = aDict.get("Value")
+                if key == "image":
+                    if val > "":
+                        val = str(widgetName) + str(key)
+
                 if key == "command":
                     if val > "":
                         log.info("command ->%s<-",val)
@@ -220,10 +235,14 @@ def buildPython() -> str:
                         log.info("variable ->%s<-",val)
                         tkvars.append(val)
 
+    print("")
     print("####### TK variables #######")
-    # print(tkvars)
+    for f in myVars.widgetImageFilenames:
+        name = str(f[myVars.WIDGET]) + str(f[myVars.KEY])
+        print(name + " = tk.PhotoImage(file='" + f[myVars.FILENAME] + "')" )
     for v in tkvars:
         print(v + " = tk.StringVar(rootWin,'0.0')")
+    print("")
     print("####### Functions #######")
     for f in functions:
         print("")
@@ -249,7 +268,7 @@ def buildPython() -> str:
             keyCount = widgetName + "-KeyCount"
             widgetDef = widgetName + " = " + wType + "(" + parentName
             nKeys = wDict.get(keyCount)
-            specialKeys = ["command","textvariable","variable"]
+            specialKeys = ["command","textvariable","variable","image"]
             for a in range(nKeys):
                 useValQuotes = True
                 attribute = "Attribute" + str(a)
@@ -280,6 +299,8 @@ def buildPython() -> str:
                     if useValQuotes:
                         tmpWidgetDef = widgetDef + ", " + key + "='" + val + "'"
                     else:
+                        if key == "image":
+                            val = str(widgetName) + key 
                         tmpWidgetDef = widgetDef + ", " + key + "=" + val
                     widgetDef = tmpWidgetDef
             print(widgetDef + ")")
@@ -570,6 +591,7 @@ def loadProject(project):
     myVars.backgroundColor = runDict.get("backgroundColor")
     widgetNameList = runDict.get("widgetNameList")
     nWidgets = runDict.get("widgetCount")
+    myVars.widgetImageFilenames = runDict.get("imageFileNames")  
     widgetsFound = 0
     n = 0
     while widgetsFound < nWidgets:
@@ -581,8 +603,9 @@ def loadProject(project):
             widgetDef = myVars.buildAWidget(n, wDict)
             try:
                 # widget = ast.literal_eval(widgetDef)
+                log.info("widgetDef ->%s<-", widgetDef)
+                # imageName = str(widgetId) + "image"
                 widget = eval(widgetDef)
-                log.debug("widgetDef ->%s<-", widgetDef)
             except NameError as e:
                 log.error("%d dict %s eval() NameError %s",
                           n, str(wDict), str(e))
@@ -670,6 +693,9 @@ def widgetTree():
         )
     for nl in cw.createWidget.widgetNameList:
         print("WidgetNameList", nl)
+
+    for il in myVars.widgetImageFilenames:
+        print("widgetImageFilename %s",il)
 
 
 def chooseBackground():

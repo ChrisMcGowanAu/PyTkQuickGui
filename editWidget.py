@@ -80,10 +80,11 @@ class widgetEditPopup:
     This class handles the popups for editing the widget
     """
 
-    def __init__(self, root, widget):
+    def __init__(self, root, widget, widgetName):
         self.keys = None
         self.specialKeys = None
         self.widget = widget
+        self.widgetName = widgetName
         self.root = root
         self.stringDict = {}
         # clickCanvas.bind('<B1-Motion>', leftMouseDrag)  # clickCanvas2.bind('<B1-Motion>', leftMouseDragResize)
@@ -222,13 +223,13 @@ class widgetEditPopup:
         :param event:
         """
         log.debug("leftMouseRelease event %s %s", str(event), self.widget)
-
+    
     def selectImage(self, key):
         """
         Select an image to load into the widget
         :param key: Name of key or attribute
         """
-        # Need to convert this to skimage (or other package. PIL has issues with github pylint)
+        # Need to convert this file to image (or other package. PIL has issues with github pylint)
         log.warning("selectImage is Expermental")
         # return
         f_types = [("Png Files", "*.png"), ("Jpg kFiles", "*.jpg")]
@@ -240,7 +241,21 @@ class widgetEditPopup:
         self.addToStringDict(key, imageTk)
         self.addToStringDict(filePath, filename)
         self.widget.configure(image=imageTk)
-        myVars.imagesUsed.add(imageTk) 
+        # [ 0 WIDGET 1 KEY 2 FILENAME 3 PHOTOIMAGE]
+        # Check to see if it is new
+        found = False
+        for f in myVars.widgetImageFilenames:
+            if f[myVars.WIDGET] == self.widgetName:
+                if [myVars.KEY] == key:
+                    f[myVars.FILENAME] = filename
+                    f[myVars.PHOTOIMAGE] = myVars.imageTest
+                    found = True
+        if found is False: 
+            f = [self.widgetName,key,filename,myVars.imageTest]
+            log.debug("Adding f %s",str(f))
+            myVars.widgetImageFilenames.append(f)
+
+
     def applyLayoutSettings(self) -> None:
         """
         Apply changed layout for the Widget
@@ -546,7 +561,7 @@ class widgetEditPopup:
         labelCol = 0
         controlCol = 3
         val: str = ""
-	# Some widgets will need extra 'keys'
+    # Some widgets will need extra 'keys'
         if wName == "notebook":
             # self.specialKeys("Tabs")
             log.warning("TBD -- Adding Tabs for notebook")
@@ -828,13 +843,13 @@ class widgetEditPopup:
                 gridRow += 1
                 if widgetName == "ttk::notebook":
                     log.info(widgetName)
-		    # Need a Tabs button
+                    # Need a Tabs button
                     keys.append(tuple(("Tabs", "Tabs")))
                 elif widgetName == "ttk::labelframe":
                     keys1 = self.widget.label.keys()
                     for k1 in keys1:
                         keys.append(tuple(("label", k1)))
-                    keys2 = self.widget.scale.keys()
+                        keys2 = self.widget.scale.keys()
                     for k2 in keys2:
                         keys.append(tuple(("scale", k2)))
                     log.debug(keys)

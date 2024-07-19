@@ -285,11 +285,11 @@ class createWidget:
             self.widget.place(x=self.x, y=self.y, width=self.width, height=self.height)
 
     def editPlacePopup(self):
-        popup = ew.widgetEditPopup(self.root, self.widget)
+        popup = ew.widgetEditPopup(self.root, self.widget, self.pythonName)
         popup.createLayoutPopup()
 
     def editTtkPopup(self):
-        popup = ew.widgetEditPopup(self.root, self.widget)
+        popup = ew.widgetEditPopup(self.root, self.widget, self.pythonName)
         popup.createEditPopup()
 
     def findParentObject(self,parent):

@@ -8,9 +8,17 @@ import createWidget as cw
 projectDict: dict
 childNameVars: list[tk.StringVar]
 imageFileNames: list[tk.StringVar]
-stringUsed: list[bool]
 imageTest: any
 imagesUsed: list[tk.PhotoImage]
+# [ 0 WIDGET 1 KEY 2 FILENAME 3 PHOTOIMAGE]
+# The PHOTOIMAGE is not saved as it is unique to an instance.
+# It will get generated on load project
+WIDGET: int = 0
+KEY: int = 1
+FILENAME: int = 2
+PHOTOIMAGE: int = 3
+
+widgetImageFilenames: []
 snapTo: int
 imageIndex: int
 backgroundColor: str
@@ -59,7 +67,6 @@ def sprintf(buf: str, fmt, *args) -> str:
 
 
 def initVars():
-    global stringUsed
     global childNameVars
     global imageIndex
     global imagesUsed
@@ -70,11 +77,11 @@ def initVars():
     global theme
     global rootWidgetName
     global createdWidgetOrder
+    global widgetImageFilenames
     projectDict = {}
     childNameVars = [tk.StringVar()] * 64
     imageFileNames = [tk.StringVar()] * 64
     imagesUsed = [tk.PhotoImage]
-    # stringUsed = [bool]
     backgroundColor = "skyBlue3"
     # snapTo = int
     imageIndex = 0
@@ -82,6 +89,7 @@ def initVars():
     theme = "default"
     rootWidgetName = "rootWidget"
     createdWidgetOrder = []
+    widgetImageFilenames = []
 
 
 # Common Procs
@@ -166,6 +174,10 @@ def saveWidgetAsDict(widgetName) -> dict:
                 log.debug("Key->%s<-", key)
                 if key != "in":
                     value = w[key]
+                    if key == "image":
+                        if value:
+                            # The value is w.widgetName + key
+                            value = widgetName + key
                     log.debug("Value->%s<-", str(value))
                     attrId = "Attribute" + str(keyCount)
                     # Ignore empty values
@@ -223,7 +235,23 @@ def buildAWidget(widgetId: object, wDictOrig: dict) -> str:
         key = aDict["Key"]
         val = aDict["Value"]
         useValQuotes = True
-        # Looks like a bug in tkinter scale objects ..
+        if key == "image":
+            if val:
+                # The problem here is the ID is for the original widget.
+                # Create widget keeps the count. Use the next one that will get created
+                # As this is a clone, find the original amd make a new entry 
+                newWidgetName = "Widget" + str(cw.createWidget.widgetId)
+                for f in widgetImageFilenames:
+                    if f[WIDGET] == widgetName:
+                        if f[KEY] == key:
+                            filename = f[FILENAME]
+                            newImage = tk.PhotoImage(file=filename)
+                            n = [newWidgetName,key,filename,newImage]
+                            widgetImageFilenames.append(n)
+                            log.info("New image for newWidgetName %s %s",newWidgetName,n)
+                            break
+                val = "myVars.getPhotoImage('" + newWidgetName + "','" + key + "')"
+        # like 'to' 'from' needs to have an underscore
         if key == "from":
             key = "from_"
         # j(' is in lists for combo boxes
@@ -233,11 +261,13 @@ def buildAWidget(widgetId: object, wDictOrig: dict) -> str:
                 key, val, aDict,)
             # Typically, this a TK object that is in < xxx > format
             continue
-        if val.find("(") > -1:
+        if key != 'image' and val.find("(") > -1:
             # The 'values' key has this saved format. This might be a tk thing.
             # It needs to be converted to a list
             newVal = fixComboValues(key, val)
             val = newVal
+            useValQuotes = False
+        if key == 'image':
             useValQuotes = False
         if len(val) > 0:
             tmpWidgetDef: str = ""
@@ -292,42 +322,14 @@ def fixWidgetTypeName(wType) -> str:
         wType = t
     return wType
 
-# sigh .. chat gpt wrote this bit ... it kinda sucks
-# import tkinter as tk
-# from tkinter import scrolledtext
-# 
-# class AutoResizePopup(tk.Toplevel):
-#     def __init__(self, master=None, text=""):
-#         super().__init__(master)
-#         self.title("Help")
-#         
-#         # Create a ScrolledText widget
-#         self.text_widget = scrolledtext.ScrolledText(self, wrap=tk.WORD)
-#         # Insert the provided text
-#         self.text_widget.insert(tk.END, text)
-#         
-#         # self.text_widget.pack(fill=tk.BOTH, expand=False)
-#         self.text_widget.pack()
-#         
-#         # Make the Text widget read-only
-#         self.text_widget.configure(state='disabled')
-#         
-#         # Create a close button
-#         self.close_button = tk.Button(self, text="Close", command=self.close)
-#         self.close_button.pack(pady=5)
-#         
-#         # Automatically resize the window to fit the text
-#         self.update_idletasks()
-#         # self.geometry(f"{self.text_widget.winfo_width()}x{self.text_widget.winfo_height() + 40}")
-#         
-#     def close(self):
-#         self.destroy()
-# 
-# def samplePopup(rootw):
-#     sample_text = (
-#         "This is a sample text for the popup window. "
-#         "The window should automatically resize to fit the content. "
-#         "You can add more text here to see how it adjusts." )
-#     popup = AutoResizePopup(rootw, text=sample_text)
-# 
-# 
+def getPhotoImage(widgetName,key) -> tk.PhotoImage: 
+    # the 'image=' part of tkinter widget parameters is tricky to save and restore.
+    # The imageName and path to file is in myVars.widgetImageFilenames
+    for w in widgetImageFilenames:
+        if widgetName == w[WIDGET]:
+            if key == w[KEY]:
+                log.info("getPhotoImage %s",str(w))
+                fileName = w[FILENAME]
+                w[PHOTOIMAGE] = tk.PhotoImage(file=fileName)
+                return w[PHOTOIMAGE]
+
