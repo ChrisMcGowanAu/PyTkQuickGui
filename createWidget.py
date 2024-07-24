@@ -83,20 +83,17 @@ def findPythonWidgetNameList(name: str) -> list:
             return nl
     if not found:
         log.error("Unable to locate pythonName ->%s<-", name)
-        log.error("createWidget.widgetNameList %s", str(createWidget.widgetNameList))
+        # log.error("createWidget.widgetNameList %s", str(createWidget.widgetNameList))
     return []
 
 
 def reparentWidget(pythonName, w):
-    # createWidget.widgetNameList.append([self.pythonName,
-    #      'toolRoot', self.widget, []])
-    # [pythonName, parentName, widget, [children, ...]])
     # NAME: int = 0 PARENT: int = 1 WIDGET: int = 2 CHILDREN: int = 3
     nl = findPythonWidgetNameList(pythonName)
-    log.info("w %s baseRoot %s",w,createWidget.baseRoot)
+    log.debug("w %s baseRoot %s",w,createWidget.baseRoot)
     if str(w) == str(createWidget.baseRoot):
         nl[PARENT] = myVars.rootWidgetName
-        # TBD remove pythonName out of ant childen
+        # remove pythonName out of any childen
         for nl1 in createWidget.widgetNameList:
             log.info("nl1 %s",nl1)
             if pythonName in nl1[CHILDREN]:
@@ -117,9 +114,7 @@ def reparentWidget(pythonName, w):
                 break
         if not found:
             log.error("Unable to locate widget ->%s<-", str(w))
-            log.error(
-                "createWidget.widgetNameList %s", str(createWidget.widgetNameList)
-            )
+            # log.error("createWidget.widgetNameList %s", str(createWidget.widgetNameList))
         else:
             nl[PARENT] = ParentName
 
@@ -187,10 +182,19 @@ def raiseChildren(pythonName):
     else:
         log.warning("Failed to find %s", pythonName)
 
+# def findCreateWidgetObject(pythonName) -> createWidget:
+def findCreateWidgetObject(pythonName):
+    for obj in createWidget.widgetObjectList:
+        if obj.pythonName == pythonName:
+            return obj
+    return None
+
 
 class createWidget:
     # This just a list of widgets in the order they are created
     widgetList = []
+    # A list of created objects
+    widgetObjectList = []
     # Widget Name list will have child lists in the form
     # This just a list of widgets in the order they are created
     # [widgetName,  parentName ,  widget,  childList]
@@ -265,6 +269,7 @@ class createWidget:
             self.height,
         )
         createWidget.lastCreated = self
+        createWidget.widgetObjectList.append(self)
 
     def setRoot(self, root):
         createWidget.baseRoot = root
@@ -348,7 +353,7 @@ class createWidget:
                     changeParentOfTo(self.widget, w)
                     self.widget.place(x=newX, y=newY)
 
-    def clone(self):
+    def clone(self,offsetx,offsety):
         mainFrame = self.root
         mainCanvas = self.root
         # widgetId = createWidget.widgetId
@@ -386,8 +391,28 @@ class createWidget:
                 changeParentOfTo(self.widget, w)
             except tk.TclError as e:
                 log.error("Exception %s", str(e))
-        newW.widget.place(x=self.x + 16, y=self.y + 16, width=width, height=height)
+        newW.widget.place(x=self.x + offsetx, y=self.y + offsety, width=width, height=height)
+        return newW
 
+    def deepClone(self):
+        newW = self.clone(0,32) # The main widget
+        # clonedParent = "Widget" + str(self.widgetId)
+        # NAME: int = 0 PARENT: int = 1 WIDGET: int = 2 CHILDREN: int = 3
+        for w in createWidget.widgetNameList:
+            log.info("w %s self %s",str(w[NAME]),str(self.pythonName))
+            if  self.pythonName == w[NAME]:
+                children = w[CHILDREN] 
+                for c in children:
+                    log.info("child %s",str(c))
+                    if c:
+                        obj = findCreateWidgetObject(c)
+                        if obj is not None:
+                            newObj = obj.clone(0,0)
+                            changeParentOfTo(newObj.widget, newW.widget)
+
+
+        # Like cone bt create clild widgets of self
+        
     def deleteWidget(self):
         deleteWidgetFromLists(self.pythonName, self.widget)
         self.widget.destroy()
@@ -400,6 +425,7 @@ class createWidget:
         self.popup.add_command(label="Edit", command=self.editTtkPopup)
         self.popup.add_command(label="Layout", command=self.editPlacePopup)
         self.popup.add_command(label="Clone", command=self.clone)
+        self.popup.add_command(label="DeepClone", command=self.deepClone)
         self.popup.add_command(label="Re-Parent", command=lambda: self.reParent(None))
         self.popup.add_command(label="Delete", command=self.deleteWidget)
         self.popup.add_separator()
@@ -584,3 +610,4 @@ class createWidget:
         else:
             log.error("Geometry Manager %s is TBD", myVars.geomManager)
         raiseChildren(self.pythonName)
+

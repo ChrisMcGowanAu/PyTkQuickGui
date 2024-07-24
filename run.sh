@@ -1,1 +1,1 @@
-python pytkquickgui.py
+python pytkquickgui.py $*

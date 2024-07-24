@@ -1,5 +1,6 @@
 import logging
 import os
+import os.path
 import pickle
 import sys
 import re
@@ -14,6 +15,9 @@ import ttkbootstrap as tboot
 # import tkfilebrowser as tkfb
 # from tkfilebrowser import askopendirname
 from ttkbootstrap.dialogs.dialogs import Messagebox
+from ttkbootstrap.dialogs.dialogs import Querybox
+# FontDialog does not work correctly.
+# from ttkbootstrap.dialogs.dialogs import FontDialog
 import createWidget as cw
 import pytkguivars as myVars
 
@@ -102,6 +106,8 @@ def workOutWidgetCreationOrder() -> list:
 
 def createCleanImageList() -> []:
     cleanFilenames: [] = []
+    if myVars.widgetImageFilenames is None:
+        return cleanFilenames
     for f in myVars.widgetImageFilenames:
         c = [f[myVars.WIDGET],f[myVars.KEY] ,f[myVars.FILENAME],None]
         cleanFilenames.append(c)
@@ -109,6 +115,25 @@ def createCleanImageList() -> []:
     log.debug("cleanFilenames %s",str(cleanFilenames))
     return cleanFilenames
 
+def saveProjectFile(fileName,projectData):
+    ftails = [5,4,3,2,1]
+    for t in ftails:
+        testNameA = str(fileName) + str(".save") + str(t)
+        if os.path.isfile(testNameA):
+            testNameB = fileName + ".save" + str(t+1)
+            os.rename(testNameA, testNameB)
+
+    if os.path.isfile(fileName):
+        testNameA = fileName + ".save" + str(1)
+        os.rename(fileName, testNameA)
+
+    f = open(fileName, "wb")
+    try:
+        pickle.dump(projectData, f)
+    except TypeError as e:
+        log.error("Exception TypeError %s", str(e))
+        log.warning("Error in Project Data \n%s", str(projectData))
+    f.close()
 
 def saveProject():
     widgetCount = 0
@@ -147,13 +172,7 @@ def saveProject():
     myVars.projectDict = projectData
     fileName = myVars.projectFileName
     log.debug("projectFileName ->%s<-", fileName)
-    f = open(fileName, "wb")
-    try:
-        pickle.dump(projectData, f)
-    except TypeError as e:
-        log.error("Exception TypeError %s", str(e))
-        log.warning("Error in Project Data \n%s", str(projectData))
-    f.close()
+    saveProjectFile(fileName,projectData)
     log.debug("projectData %s",projectData)
     myVars.lastProjectSaved = myVars.projectFileName
     myVars.projectSaved = True
@@ -165,6 +184,7 @@ def saveProject():
     print(myVars.projectName)
     sys.stdout.close()
     sys.stdout = sys.__stdout__
+    mainFrame.config(text=myVars.projectName)
 
 def buildPython() -> str:
     """
@@ -476,10 +496,17 @@ def setDefaultLabelFont():
 def setDefaultFont(which):
     font: dict
     font = tkfc.askfont(mainFrame, text="Font To Use")
-    # font = askfont(mainFrame,text='Font To Use')
-    # It needs a quick tidy ...
-    log.debug("font=%s", str(font))
+
+    # This does not work correctly
+    # using the standard askfont
+    # fd = FontDialog()
+    # fd.show()
+    # log.info("font %s",fd.result)
+    # font = fd.result 
+    # log.debug("font=%s", str(font))
+
     font_str = myVars.checkFontDict(font)
+    font_str = font
     log.debug("font_str=%s", font_str)
     if font_str != "":
         if which == "style":
@@ -518,10 +545,13 @@ def setDefaultFont(which):
 def newProject():
     configPath = getConfigPath()
     printf("configPath %s\n", configPath)
-    name = tk.simpledialog.askstring("New Project name", "Name")
+    # name = tk.simpledialog.askstring("New Project name", "Name")
+    # name = QueryDialog.show("New Project name", prompt="Name")
+    name = Querybox.get_string("New Project name")
     printf("configPath %s %s\n", configPath, name)
     os.mkdir(configPath + "/" + name)
-
+    myVars.projectName = name 
+    mainFrame.config(text=myVars.projectName)   
 
 def getConfigPath() -> str:
     # printf("New Project\n")
@@ -577,21 +607,39 @@ def loadProject(project):
     projFileName = myVars.projectName + ".pk1"
     fileName = os.path.join(myVars.projectPath, projFileName)
     myVars.projectFileName = fileName
+    mainFrame.config(text=myVars.projectName)
+    data = any 
+    runDict = data
+    nWidgets = 0
+    closeFile = True
+    widgetNameList = []
+    deleteWidgetData()
     try:
         f = open(fileName, "rb")
     except FileNotFoundError as e:
         log.warning("File not found %s exception %s", fileName, str(e))
-        return
-    # Clear the current data.
-    deleteWidgetData()
-    data = pickle.load(f)
-    f.close()
-    runDict = data
-    log.debug(runDict)
-    myVars.backgroundColor = runDict.get("backgroundColor")
-    widgetNameList = runDict.get("widgetNameList")
-    nWidgets = runDict.get("widgetCount")
-    myVars.widgetImageFilenames = runDict.get("imageFileNames")  
+        os.mknod(fileName)
+        closeFile = False
+    if closeFile:
+        try:
+            data = pickle.load(f)
+            f.close()
+        except EOFError as e:
+            log.warning("pickle error (empty file?) %s exception %s",fileName,str(e))
+        except UnicodeDecodeError as e:
+            log.warning("pickle error (empty file?) %s exception %s",fileName,str(e))
+
+    try: 
+        runDict = data
+        log.debug(runDict)
+        myVars.backgroundColor = runDict.get("backgroundColor")
+        widgetNameList = runDict.get("widgetNameList")
+        nWidgets = runDict.get("widgetCount")
+        myVars.widgetImageFilenames = runDict.get("imageFileNames")  
+    
+    except AttributeError as e:
+        log.info("AttributeError in project file.")
+
     widgetsFound = 0
     n = 0
     while widgetsFound < nWidgets:
@@ -657,6 +705,7 @@ def loadProject(project):
             log.warning("widgetNameList %s", str(widgetNameList))
 
     checkWidgetNameList()
+    mainFrame.config(text=myVars.projectName)
 
 def loadLastProject():
     configPath = getConfigPath()
@@ -669,15 +718,22 @@ def loadLastProject():
         f = open(fileName, "r", encoding="utf8")
     except FileNotFoundError as e:
         log.warning("File not found %s exception %s", fileName, str(e))
+        f = open(fileName, "x", encoding="utf8")
         return
     project = f.read()    
     f.close()
     loadProject(project)
+    mainFrame.config(text=myVars.projectName)
 
 def loadProjectWrapper():
     loadProject("")
 
 def exitApp():
+    mb = Messagebox.yesnocancel("Save project before exiting ?","Save Project")
+    if mb == "Cancel":
+        return
+    elif mb == "Yes":
+        saveProject()
     rootWin.destroy()
 
 
@@ -949,7 +1005,12 @@ def buildMainGui():
 
     buildMenu()
 
-    mainFrame = tboot.Frame(rootWin, width=600, height=150)
+    # topFrame = tboot.Frame(rootWin, width=600, height=15)
+    # topFrame = tboot.Frame(rootWin)
+    # topFrame.grid(row=0, column=0, sticky="N")
+    # topLabel = tboot.Label(topFrame, text="TBD");
+    # topLabel.grid(row=0, column=0, sticky="W")
+    mainFrame = tboot.Labelframe(rootWin, width=600, height=150, labelanchor=tk.N,text="No Project Selected")
     mainFrame.grid(row=0, column=0, sticky="NWES")
     cw.createWidget.baseRoot = mainFrame
 
@@ -975,10 +1036,18 @@ if __name__ == "__main__":
     coloredlogs.install(
         logger=log, fmt="%(levelname)-8s| %(lineno)-4d %(filename)-20s| %(message)s"
     )
+    arg1 = "warn"
+    try:
+        arg1 = sys.argv[1]
+    except IndexError:
+        arg1 = "warn"
 
-    coloredlogs.set_level(logging.INFO)
-    # coloredlogs.set_level(logging.WARN)
-    # coloredlogs.set_level(logging.DEBUG)
+    if arg1 == 'info':
+        coloredlogs.set_level(logging.INFO)
+    elif arg1 == 'debug':
+        coloredlogs.set_level(logging.DEBUG)
+    else:	
+        coloredlogs.set_level(logging.WARN)
     myVars.initVars()
     myVars.theme = useTheme
     log.info("mainFrame %s %s",mainFrame, str(mainFrame))

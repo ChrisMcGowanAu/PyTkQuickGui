@@ -241,6 +241,8 @@ def buildAWidget(widgetId: object, wDictOrig: dict) -> str:
                 # Create widget keeps the count. Use the next one that will get created
                 # As this is a clone, find the original amd make a new entry 
                 newWidgetName = "Widget" + str(cw.createWidget.widgetId)
+                if widgetImageFilenames is None:
+                    continue
                 for f in widgetImageFilenames:
                     if f[WIDGET] == widgetName:
                         if f[KEY] == key:

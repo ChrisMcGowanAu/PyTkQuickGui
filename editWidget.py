@@ -145,10 +145,8 @@ class widgetEditPopup:
         if currentVal is not None:
             colorDialog.initialcolor = currentVal
         colorDialog.show()
-        colors = colorDialog._result
-        # colors = colorDialog.result
+        colors = colorDialog.result
         if colors[2] != "":
-            # self.stringDict[row].set(colors[2])
             self.addToStringDict(key, colors[2])
         else:
             log.warning("Color Chooser did not return anything")
@@ -230,7 +228,7 @@ class widgetEditPopup:
         :param key: Name of key or attribute
         """
         # Need to convert this file to image (or other package. PIL has issues with github pylint)
-        log.warning("selectImage is Expermental")
+        # log.warning("selectImage is Expermental")
         # return
         f_types = [("Png Files", "*.png"), ("Jpg kFiles", "*.jpg")]
         filename = filedialog.askopenfilename(filetypes=f_types)
@@ -244,6 +242,7 @@ class widgetEditPopup:
         # [ 0 WIDGET 1 KEY 2 FILENAME 3 PHOTOIMAGE]
         # Check to see if it is new
         found = False
+        # if myVars.widgetImageFilenames is None:
         for f in myVars.widgetImageFilenames:
             if f[myVars.WIDGET] == self.widgetName:
                 if [myVars.KEY] == key:
