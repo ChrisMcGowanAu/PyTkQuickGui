@@ -12,7 +12,7 @@ pip install --user ttkbootstrap
 ##############################
 # On Mint and Ubuntu
 # I believe other 'apt' based distros, the install for should be the same. 
-# I will update this file if 
+# I will update this file if I find other cases 
 ##############################
 sudo apt install python3-full
 pip install tkfontchooser
@@ -20,7 +20,7 @@ pip install coloredlogs
 pip install ttkbootstrap
 
 
-For other Linux releases, use you local package manager in a similiar way
+For other Linux releases, use you local package manager in a similiar way, install the latest python3 and using pip ( pr pip3 ) install tkfontchooser, coloredlogs and ttkbootstrap 
 
 
 #################################
@@ -38,7 +38,7 @@ It seems to work OK for Windows, will need to do more testing later
 #################################
 # Mac's
 #################################
-Sorry I have not tried it. But it should be easy? 
+Sorry I have not tried it. I was able to install and run it, but a 3 button mouse is needed and something seems to swap buttons 2 and 3, If this is a Mac thing then code would be added to cope with Mac quirks. I will get my hands on a Mac to experiment soon.
 
 
 #################################

@@ -1,1 +1,2 @@
-python pytkquickgui.py $*
+
+python3 pytkquickgui.py $*

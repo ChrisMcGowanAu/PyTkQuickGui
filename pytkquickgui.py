@@ -20,7 +20,7 @@ from ttkbootstrap.dialogs.dialogs import Querybox
 # from ttkbootstrap.dialogs.dialogs import FontDialog
 import createWidget as cw
 import pytkguivars as myVars
-
+import cdefs as C
 # This fixed a bug in ttkbootstrap
 # from PIL import Image
 # Image.CUBIC = Image.BICUBIC
@@ -34,10 +34,6 @@ rootWin.title("Python Tk GUI Builder")
 iconBar = tboot.Frame()
 mainCanvas = tboot.Canvas()
 log = logging.getLogger(name="mylogger")
-
-
-def printf(formats, *args):
-    sys.stdout.write(formats % args)
 
 
 def setTheme(theme: object):
@@ -55,9 +51,39 @@ def tree():
     return defaultdict(tree)
 
 
-def Merge(dict1, dict2):
+def Merge(dict1, dict2) -> dict:
     res = {**dict1, **dict2}
     return res
+
+
+def createFileName(sa,sb,sc) -> str:
+    fileName = ""
+    if sa is None:
+        s1 = ""
+    else:
+        s1 = sa.strip()
+    if sc is None:
+        s3 = ""
+    else:
+        s3 = sc.strip()
+    if sb is None:
+        fileName = s1 + "/" + s3
+    else:
+        s2 = sb.rstrip()
+        fileName = s1 + "/" + s2 + "/" + s3
+    # For the weirdness of Windows, does nothing in Mac,Linux,Unix
+    os.path.normcase(fileName)
+    return fileName
+
+
+def openFile(fileName,mode):
+    f: any
+    try:
+        f = open(fileName, mode, encoding="utf8")
+    except FileNotFoundError as e:
+        log.warning("File not found %s exception %s", fileName, str(e))
+        f = open(fileName, "x", encoding="utf8")
+    return f
 
 
 def createCleanNameList() -> list:
@@ -115,19 +141,20 @@ def createCleanImageList() -> []:
     log.debug("cleanFilenames %s",str(cleanFilenames))
     return cleanFilenames
 
-def saveProjectFile(fileName,projectData):
+def saveProjectFile(fileName,fileType,projectData):
     ftails = [5,4,3,2,1]
+    completeFileName = fileName + fileType
     for t in ftails:
-        testNameA = str(fileName) + str(".save") + str(t)
+        testNameA = str(fileName) + str("-save") + str(t) + fileType
         if os.path.isfile(testNameA):
-            testNameB = fileName + ".save" + str(t+1)
+            testNameB = fileName + "-save" + str(t+1) + fileType
             os.rename(testNameA, testNameB)
 
-    if os.path.isfile(fileName):
-        testNameA = fileName + ".save" + str(1)
-        os.rename(fileName, testNameA)
+    if os.path.isfile(completeFileName):
+        testNameA = fileName + "-save" + str(1) + fileType
+        os.rename(completeFileName, testNameA)
 
-    f = open(fileName, "wb")
+    f = open(completeFileName, "wb")
     try:
         pickle.dump(projectData, f)
     except TypeError as e:
@@ -172,14 +199,14 @@ def saveProject():
     myVars.projectDict = projectData
     fileName = myVars.projectFileName
     log.debug("projectFileName ->%s<-", fileName)
-    saveProjectFile(fileName,projectData)
+    saveProjectFile(fileName,myVars.fileType,projectData)
     log.debug("projectData %s",projectData)
     myVars.lastProjectSaved = myVars.projectFileName
     myVars.projectSaved = True
-    # Store the last project saved 
+    # Store the last project saved
     # Store myVars.projectName in configPath
     configPath = getConfigPath()
-    name = configPath + "/" + myVars.lastProjectFile
+    name = createFileName(configPath,None,myVars.lastProjectFile)
     sys.stdout = open(name, "w", encoding="utf8")
     print(myVars.projectName)
     sys.stdout.close()
@@ -320,7 +347,7 @@ def buildPython() -> str:
                         tmpWidgetDef = widgetDef + ", " + key + "='" + val + "'"
                     else:
                         if key == "image":
-                            val = str(widgetName) + key 
+                            val = str(widgetName) + key
                         tmpWidgetDef = widgetDef + ", " + key + "=" + val
                     widgetDef = tmpWidgetDef
             print(widgetDef + ")")
@@ -391,29 +418,35 @@ def runMe():
     os.system(cmd)
 
 def generatePython():
+    # configPath = getConfigPath()
     fileName = buildPython()
-    newFile = tk.filedialog.asksaveasfilename(defaultextension="*.py")
-    # file_writer = open(newFile,mode="w")
-    # file_writer.write(fileName)
-    # file_writer.close()
-    log.info("Saved file ->%s<-",newFile)
-    cmd = "cp " + fileName + " " + newFile 
+    home = os.environ["HOME"]
+    initialFile = myVars.projectName + ".py"
+    newFile = tk.filedialog.asksaveasfilename(initialdir=home,
+                                              initialfile=initialFile,
+                                              filetypes=[("Python file","*.py")],
+                                              defaultextension="py")
+    # Note: get the directory name for the samed file and add this to the .config
+    myVars.saveDirName = os.path.dirname(newFile)
+    log.info("save dir %s saved file = %s",myVars.saveDirName,newFile)
+    cmd = "cp " + fileName + " " + newFile
     os.system(cmd)
 
 
 def deleteWidgetData():
-    log.warning("Removing all existing Widgets")
+    log.info("Removing all existing Widgets")
     for w in cw.createWidget.widgetList:
         w.destroy()
     cw.createWidget.widgetNameList = []
     cw.createWidget.widgetList = []
     cw.createWidget.widgetId = 0
     cw.createWidget.lastCreated = None
+    myVars.widgetImageFilenames = []
 
 
 def checkWidgetNameList():
     """
-    Check Name LIst before exporting or using. Remove deleted objects
+    Check Name List before exporting or using. Remove deleted objects
     Check for child entries that are left over from re parenting operations
     """
     # NAME 0 PARENT 1 WIDGET 2 CHILDREN 3
@@ -460,7 +493,7 @@ def setLabelBorderWidth(width):
     for w in cw.createWidget.widgetList:
         if w is not None:
             name = w.widgetName
-            printf("Name %s widget %s", name, w)
+            C.printf("Name %s widget %s", name, w)
             if name == "ttk::label":
                 w.configure(borderwidth=width)
 
@@ -477,11 +510,11 @@ def setThemeColor():
     for w in cw.createWidget.widgetList:
         if w is not None:
             name = w.widgetName
-            printf("Name %s widget %s", name, w)
+            C.printf("Name %s widget %s", name, w)
             # if name == 'ttk::label':
             try:
                 w.configure(bootstyle="primary")
-            except Exception as e:
+            except ValueError as e:
                 log.error("%s raised exceptopn %s", w, e)
 
 
@@ -502,7 +535,7 @@ def setDefaultFont(which):
     # fd = FontDialog()
     # fd.show()
     # log.info("font %s",fd.result)
-    # font = fd.result 
+    # font = fd.result
     # log.debug("font=%s", str(font))
 
     font_str = myVars.checkFontDict(font)
@@ -515,13 +548,13 @@ def setDefaultFont(which):
                 objType = "T" + w
                 # need to check if 'font' is valid for the widget typeG
                 # themes = myVars.style.theme_names()
-                # printf("Themes for %s == %s\n",objType,themes)
+                # C.printf("Themes for %s == %s\n",objType,themes)
                 if objType != "TCanvas":
                     myVars.style.configure(objType, font=font_str)
                     names = myVars.style.element_names()
-                    # printf("Names for %s == %s\n",objType,names)
+                    # C.printf("Names for %s == %s\n",objType,names)
                     for e in names:
-                        printf("objType %s Name: %s\n", objType, e)
+                        C.printf("objType %s Name: %s\n", objType, e)
                         myVars.style.configure(e, font=font_str)
                         myVars.style.configure(e, textfont=font_str)
                 # Look for child widgets for label.style
@@ -538,23 +571,20 @@ def setDefaultFont(which):
                     if "font" in keys:
                         try:
                             w.configure(font=font_str)
-                        except Exception as e:
+                        except ValueError as e:
                             log.error("%s raised exceptopn %s", w, e)
 
 
 def newProject():
     configPath = getConfigPath()
-    printf("configPath %s\n", configPath)
-    # name = tk.simpledialog.askstring("New Project name", "Name")
-    # name = QueryDialog.show("New Project name", prompt="Name")
+    C.printf("configPath %s\n", configPath)
     name = Querybox.get_string("New Project name")
-    printf("configPath %s %s\n", configPath, name)
+    C.printf("configPath %s %s\n", configPath, name)
     os.mkdir(configPath + "/" + name)
-    myVars.projectName = name 
-    mainFrame.config(text=myVars.projectName)   
+    myVars.projectName = name
+    mainFrame.config(text=myVars.projectName)
 
 def getConfigPath() -> str:
-    # printf("New Project\n")
     if "APPDATA" in os.environ:
         confighome = os.environ["APPDATA"]
     elif "XDG_CONFIG_HOME" in os.environ:
@@ -574,69 +604,97 @@ def getConfigPath() -> str:
 
 def closeProject():
     configPath = getConfigPath()
-    printf("Close Project %s ", configPath)
+    C.printf("Close Project %s ", configPath)
 
 
 def selectDir(name):
-    printf("Name %s", name)
+    C.printf("Name %s", name)
 
 
-def loadProject(project):
+# open an older saved file
+def openBackupFile():
+    configPath = getConfigPath()
+    # Open the config path dir and search for 'tileType'
+    filePath = tk.filedialog.askopenfilename(
+        title="Select a backup project File",
+        initialdir=configPath,
+        filetypes=[("PyTkQuickGui pickle files", myVars.fileType), ("All files", "*.*")])
+
+    if filePath:
+        # Work out the probable project name
+        projectPath = os.path.dirname(filePath)
+        projectName = os.path.basename(projectPath)
+        log.debug("Selected File: %s \nProjectPath %s \nProject %s",filePath,projectPath,projectName)
+        loadProject(projectName,filePath)
+
+def loadProject(project,altFileName):
     """
     Load a project from a saved file (in pickle format)
     """
     configPath = getConfigPath()
-    folder = configPath + '/' + project.strip()
-    folder.strip()
-    if len(project) < 2:
-        log.info("config Path =>%s<=", configPath)
-        folder = tk.filedialog.askdirectory(
-            mustexist=True, initialdir=configPath, title="Select Project Directory"
-        )
-    log.info("Load Project ->%s<-", folder)
-    if folder != configPath:
+    folder = createFileName(configPath,None,project)
+    fileName = ""
+    fullFileName = ""
+    if altFileName is None:
+        # folder = configPath + '/' + project.strip()
+        log.info("folder ->%s<-",folder)
+        if project is None:
+            log.info("config Path =>%s<=", configPath)
+            folder = tk.filedialog.askdirectory(
+                mustexist=True, initialdir=configPath, title="Select Project Directory"
+            )
+        log.info("Load Project ->%s<-", folder)
+        if folder != configPath:
+            myVars.projectName = os.path.basename(folder)
+            myVars.projectPath = folder
+            log.info("Load Project ->%s<- ->%s<-",
+                     myVars.projectPath, myVars.projectName)
+        else:
+            log.warning("No project selected Try Again")
+            Messagebox.show_error(title="No Project Selected", message="The Directory Selection box is not intuitive.\nDouble click on project name\nTry Again or create a new Project")
+            return
+        # projFileName = myVars.projectName + ".pk1"
+        projFileName = myVars.projectName
+        fileName = os.path.join(myVars.projectPath, projFileName)
+        myVars.projectFileName = fileName
+        fullFileName = fileName + myVars.fileType
+    else : # loading a backup fileName
+        projFileName = project
+        fileName = altFileName
         myVars.projectName = os.path.basename(folder)
         myVars.projectPath = folder
-        log.info("Load Project ->%s<- ->%s<-",
-                 myVars.projectPath, myVars.projectName)
-    else:
-        log.warning("No project selected Try Again")
-        Messagebox.show_error(title="No Project Selected", message="The Directory Selection box is not intuitive.\nDouble click on project name\nTry Again or create a new Project")
-        return
+        fullFileName = fileName
 
-    projFileName = myVars.projectName + ".pk1"
-    fileName = os.path.join(myVars.projectPath, projFileName)
-    myVars.projectFileName = fileName
     mainFrame.config(text=myVars.projectName)
-    data = any 
+    data = any
     runDict = data
     nWidgets = 0
     closeFile = True
     widgetNameList = []
     deleteWidgetData()
     try:
-        f = open(fileName, "rb")
+        f = open(fullFileName, "rb")
     except FileNotFoundError as e:
-        log.warning("File not found %s exception %s", fileName, str(e))
-        os.mknod(fileName)
+        log.warning("File not found -->%s<-- exception %s", fullFileName, str(e))
+        os.mknod(fullFileName)
         closeFile = False
     if closeFile:
         try:
             data = pickle.load(f)
             f.close()
         except EOFError as e:
-            log.warning("pickle error (empty file?) %s exception %s",fileName,str(e))
+            log.warning("pickle error (empty file?) %s exception %s",fullFileName,str(e))
         except UnicodeDecodeError as e:
-            log.warning("pickle error (empty file?) %s exception %s",fileName,str(e))
+            log.warning("pickle error (empty file?) %s exception %s",fullFileName,str(e))
 
-    try: 
+    try:
         runDict = data
         log.debug(runDict)
         myVars.backgroundColor = runDict.get("backgroundColor")
         widgetNameList = runDict.get("widgetNameList")
         nWidgets = runDict.get("widgetCount")
-        myVars.widgetImageFilenames = runDict.get("imageFileNames")  
-    
+        myVars.widgetImageFilenames = runDict.get("imageFileNames")
+
     except AttributeError as e:
         log.info("AttributeError in project file.")
 
@@ -709,24 +767,16 @@ def loadProject(project):
 
 def loadLastProject():
     configPath = getConfigPath()
-    fileName = configPath + "/" + myVars.lastProjectFile
-    # sys.stdout = open(name, "w", encoding="utf8")
-    # print(myVars.projectName + "'\n")
-    # sys.stdout.close()
-    # sys.stdout = sys.__stdout__
-    try:
-        f = open(fileName, "r", encoding="utf8")
-    except FileNotFoundError as e:
-        log.warning("File not found %s exception %s", fileName, str(e))
-        f = open(fileName, "x", encoding="utf8")
-        return
-    project = f.read()    
+    fileName = createFileName(configPath,None,myVars.lastProjectFile)
+    # f = C.fopen(fileName,"r")
+    f = openFile(fileName,"r")
+    project = f.read()
     f.close()
-    loadProject(project)
+    loadProject(project,None)
     mainFrame.config(text=myVars.projectName)
 
 def loadProjectWrapper():
-    loadProject("")
+    loadProject(None,None)
 
 def exitApp():
     mb = Messagebox.yesnocancel("Save project before exiting ?","Save Project")
@@ -768,18 +818,18 @@ def welcome():
 	This tool uses ttkbootstrap widgets.
 	A website - youtube - pdf TBD.'''
     # remove leading whitespace from each line
-    about2 = re.sub("\n\s*", "\n", about) 
+    about2 = re.sub("\n\s*", "\n", about)
     Messagebox.show_info(message=about2,title="Welcome")
 
 def helpMe():
-    about = '''Basic Actions: 
+    about = '''Basic Actions:
         Right click on the background to get a list of Widgets.
         A selected Widget will place itself where the mouse is.
         Left click hold and drag to move Widgets around.
         Left click and drag close to the inside edge of Widgets to resize.
         Right Click on Widgets to choose Edit and Layout windows.'''
     # remove leading whitespace from each line
-    about2 = re.sub("\n\s*", "\n", about) 
+    about2 = re.sub("\n\s*", "\n", about)
     Messagebox.show_info(message=about2,title="Help")
 
 def buildMenu():
@@ -803,7 +853,6 @@ def buildMenu():
     fileMenu.add_command(label="Save Project", command=saveProject)
     fileMenu.add_command(label="Trial Run", command=runMe)
     fileMenu.add_command(label="Generate Python", command=generatePython)
-    fileMenu.add_command(label="Widget Tree", command=widgetTree)
     fileMenu.add_separator()
 
     fileMenu.add_command(label="Exit", command=exitApp)
@@ -831,6 +880,8 @@ def buildMenu():
                           command=setDefaultLabelFont)
     toolsMenu.add_command(label="Set default style font",
                           command=setDefaultStyleFont)
+    toolsMenu.add_command(label="Open backup file", command=openBackupFile)
+    toolsMenu.add_command(label="Widget Tree", command=widgetTree)
     # create the Help menu
     helpMenu = tboot.Menu(menuBar, tearoff=0)
 
@@ -1036,7 +1087,8 @@ if __name__ == "__main__":
     coloredlogs.install(
         logger=log, fmt="%(levelname)-8s| %(lineno)-4d %(filename)-20s| %(message)s"
     )
-    arg1 = "warn"
+    # arg1 = "warn"
+    arg1 = "info"
     try:
         arg1 = sys.argv[1]
     except IndexError:
@@ -1046,7 +1098,7 @@ if __name__ == "__main__":
         coloredlogs.set_level(logging.INFO)
     elif arg1 == 'debug':
         coloredlogs.set_level(logging.DEBUG)
-    else:	
+    else:
         coloredlogs.set_level(logging.WARN)
     myVars.initVars()
     myVars.theme = useTheme

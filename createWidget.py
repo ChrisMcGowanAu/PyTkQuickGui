@@ -98,7 +98,7 @@ def reparentWidget(pythonName, w):
             log.info("nl1 %s",nl1)
             if pythonName in nl1[CHILDREN]:
                 nl1[CHILDREN].remove(pythonName)
-        return        
+        return
     if nl != []:
         # Replace the parent
         ParentName = ""
@@ -215,8 +215,8 @@ class createWidget:
         self.root = root
         self.widget = widget
         self.popup = any
-        self.startX = 0 
-        self.startY = 0 
+        self.startX = 0
+        self.startY = 0
         log.debug(self.widget.widgetName)
         #######################
         # Notebook is a funny case,  just 'raw' it does not display
@@ -303,7 +303,7 @@ class createWidget:
                 if w.widget == parent:
                     return w
         return None
-        
+
     def findParentWidget(self,widget):
         parent = widget.place_info().get("in")
         log.debug("Parent %s self.root %s", str(parent), str(self.root))
@@ -324,7 +324,7 @@ class createWidget:
             changeParentOfTo(self.widget, parentWidget)
         else:
             changeParentOfTo(self.widget, self.root)
-            parentWidget = self.root 
+            parentWidget = self.root
         x1 = int(place.get("x"))
         y1 = int(place.get("y"))
         w = int(place.get("width"))
@@ -388,8 +388,10 @@ class createWidget:
             log.info("nameDetails: %s", nameDetails)
             try:
                 w = nameDetails[WIDGET]
+                # w = nameDetails[NAME]
                 changeParentOfTo(self.widget, w)
             except tk.TclError as e:
+                log.error("self.widget ->%s<- w ->%s<-",self.widget, w)
                 log.error("Exception %s", str(e))
         newW.widget.place(x=self.x + offsetx, y=self.y + offsety, width=width, height=height)
         return newW
@@ -401,7 +403,7 @@ class createWidget:
         for w in createWidget.widgetNameList:
             log.info("w %s self %s",str(w[NAME]),str(self.pythonName))
             if  self.pythonName == w[NAME]:
-                children = w[CHILDREN] 
+                children = w[CHILDREN]
                 for c in children:
                     log.info("child %s",str(c))
                     if c:
@@ -412,7 +414,7 @@ class createWidget:
 
 
         # Like cone bt create clild widgets of self
-        
+
     def deleteWidget(self):
         deleteWidgetFromLists(self.pythonName, self.widget)
         self.widget.destroy()
@@ -450,7 +452,7 @@ class createWidget:
         self.menuPopup(event)
 
     def leftMouseInfo(self, widget, event):
-        # Dump out widget geometry info and 
+        # Dump out widget geometry info and
         # recurse up the parent tree
         if str(widget) == "None":
             return
@@ -488,8 +490,8 @@ class createWidget:
         self.parentX = int(0)
         self.parentY = int(0)
 
-        self.startX = event.x + self.parentX 
-        self.startY = event.y + self.parentY 
+        self.startX = event.x + self.parentX
+        self.startY = event.y + self.parentY
 
         x = self.widget.winfo_x() + event.x - self.startX
         y = self.widget.winfo_y() + event.y - self.startY
@@ -549,8 +551,8 @@ class createWidget:
     def leftMouseDrag(self, event):
         x0 = self.widget.winfo_x() - self.startX
         y0 = self.widget.winfo_y() - self.startY
-        x = x0 + event.x  
-        y = y0 + event.y 
+        x = x0 + event.x
+        y = y0 + event.y
         width = self.widget.winfo_width()
         height = self.widget.winfo_height()
 
@@ -564,7 +566,7 @@ class createWidget:
             self.x = placex
             self.y = placey
         elif self.dragType == "dragSouth":
-            height = height + deltaY 
+            height = height + deltaY
             self.x = placex
             self.y = placey
         elif self.dragType == "dragWest":
@@ -572,13 +574,13 @@ class createWidget:
             self.x = int(placex) + int(deltaX)
             self.y = placey
         elif self.dragType == "dragNorth":
-            height = height - deltaY 
+            height = height - deltaY
             self.x = placex
             self.y = int(placey) + int(deltaY)
         else:
-            self.x = int(placex) + int(deltaX) 
-            self.y = int(placey) + int(deltaY) 
-	
+            self.x = int(placex) + int(deltaX)
+            self.y = int(placey) + int(deltaY)
+
 
         self.widget.place(x=self.x, y=self.y, width=width, height=height)
         log.debug("self.dragType %s x = %s y = %s self.x %s y=self.y %s width %s height %s self.startX %s self.startY %s",self.dragType,x,y,self.x,self.y,width,height,self.startX,self.startY)

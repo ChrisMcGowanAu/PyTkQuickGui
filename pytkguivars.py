@@ -1,7 +1,10 @@
+import os
+import os.path
 import logging as log
 import tkinter as tk
 import ttkbootstrap as tboot
 import createWidget as cw
+# import cdefs as C
 # import io
 # from io import StringIO
 
@@ -32,8 +35,10 @@ programName: str = "pytkgui"
 containerWidgetsUsed = ("Frame", "Labelframe", "Panedwindow")
 projectName: str = "tmp"
 projectPath: str = "/tmp/tmp"
-projectPath: str = "/tmp/tmp"
-projectFileName: str = "/tmp/tmp.pk1"
+saveDirName: str = "/tmp"
+# This can be used if a project is not opened
+projectFileName: str = "/tmp/pytkquickgui"
+fileType:str = ".pk1"
 lastProjectFile: str = "lastProject.txt"
 lastProjectSaved: str = ""
 projectSaved: bool = False
@@ -58,12 +63,12 @@ widgetsUsed = (
 geomManager = "Place"
 
 
-def sprintf(buf: str, fmt, *args) -> str:
-    tmpStr: str = ""
-    tmpStr.format(fmt % args)
-    # buf.write(fmt % args)
-    buf = tmpStr
-    return buf
+#def sprintf(buf: str, fmt, *args) -> str:
+#    tmpStr: str = ""
+#    tmpStr.format(fmt % args)
+#    # buf.write(fmt % args)
+#    buf = tmpStr
+#    return buf
 
 
 def initVars():
@@ -239,7 +244,7 @@ def buildAWidget(widgetId: object, wDictOrig: dict) -> str:
             if val:
                 # The problem here is the ID is for the original widget.
                 # Create widget keeps the count. Use the next one that will get created
-                # As this is a clone, find the original amd make a new entry 
+                # As this is a clone, find the original amd make a new entry
                 newWidgetName = "Widget" + str(cw.createWidget.widgetId)
                 if widgetImageFilenames is None:
                     continue
@@ -247,11 +252,12 @@ def buildAWidget(widgetId: object, wDictOrig: dict) -> str:
                     if f[WIDGET] == widgetName:
                         if f[KEY] == key:
                             filename = f[FILENAME]
-                            newImage = tk.PhotoImage(file=filename)
-                            n = [newWidgetName,key,filename,newImage]
-                            widgetImageFilenames.append(n)
-                            log.info("New image for newWidgetName %s %s",newWidgetName,n)
-                            break
+                            if os.path.isfile(filename) :
+                                newImage = tk.PhotoImage(file=filename)
+                                n = [newWidgetName,key,filename,newImage]
+                                widgetImageFilenames.append(n)
+                                log.info("New image for newWidgetName %s %s",newWidgetName,n)
+                                break
                 val = "myVars.getPhotoImage('" + newWidgetName + "','" + key + "')"
         # like 'to' 'from' needs to have an underscore
         if key == "from":
@@ -275,14 +281,11 @@ def buildAWidget(widgetId: object, wDictOrig: dict) -> str:
             tmpWidgetDef: str = ""
             if useValQuotes:
                 tmpWidgetDef = f"{widgetDef},{key}='{val}'"
-                # tmpWidgetDef = widgetDef + ',' + key + '=\'' + val + '\''
-                # tmpWidgetDef = sprintf("%s,%s='%s'",widgetDef,key,val)
+                # tmpWidgetDef = C.sprintf(widgetDef,"%s,%s='%s'",widgetDef,key,val)
             else:
                 tmpWidgetDef = f"{widgetDef},{key}={val}"
-                # tmpWidgetDef = widgetDef + ',' + key + '=' + val
-                # tmpWidgetDef = sprintf("%s,%s=%s",widgetDef,key,val)
+                # tmpWidgetDef = C.sprintf(widgetDef,"%s,%s=%s",widgetDef,key,val)
             widgetDef = tmpWidgetDef
-    # tmp = sprintf("%s%c)",widgetDef,')')
     tmp = widgetDef + ")"
     widgetDef = tmp
     return widgetDef
@@ -324,14 +327,24 @@ def fixWidgetTypeName(wType) -> str:
         wType = t
     return wType
 
-def getPhotoImage(widgetName,key) -> tk.PhotoImage: 
+def getPhotoImage(widgetName,key) -> tk.PhotoImage:
     # the 'image=' part of tkinter widget parameters is tricky to save and restore.
     # The imageName and path to file is in myVars.widgetImageFilenames
+    count = -1
     for w in widgetImageFilenames:
+        count += 1
         if widgetName == w[WIDGET]:
             if key == w[KEY]:
                 log.info("getPhotoImage %s",str(w))
                 fileName = w[FILENAME]
-                w[PHOTOIMAGE] = tk.PhotoImage(file=fileName)
-                return w[PHOTOIMAGE]
+                try:
+                    if os.path.isfile(fileName):
+                        newImage = tk.PhotoImage(file=fileName)
+                        n = [widgetName,key,fileName,newImage]
+                        widgetImageFilenames[count] = n
+                        return  newImage
+                except IndexError:
+                    log.error("IndexError in %s",str(w))
+                    return None
+    return None
 
