@@ -813,23 +813,29 @@ def chooseBackground():
         myVars.backgroundColor = colors[1]
 def welcome():
     about = '''PyTkGui:
-        Chris McGowan 2024.
-        A tool to build a simple TkInter GUI.
+    Chris McGowan 2024.
+    A tool to build a simple TkInter GUI.
 	This tool uses ttkbootstrap widgets.
 	A website - youtube - pdf TBD.'''
+    
     # remove leading whitespace from each line
-    about2 = re.sub("\n\s*", "\n", about)
+    # this does not work on python 3.12
+    # about2 = re.sub("\n\s*", "\n", about)
+    about2 = about
     Messagebox.show_info(message=about2,title="Welcome")
 
 def helpMe():
     about = '''Basic Actions:
-        Right click on the background to get a list of Widgets.
-        A selected Widget will place itself where the mouse is.
-        Left click hold and drag to move Widgets around.
-        Left click and drag close to the inside edge of Widgets to resize.
-        Right Click on Widgets to choose Edit and Layout windows.'''
+    Right click on the background to get a list of Widgets.
+    A selected Widget will place itself where the mouse is.
+    Left click hold and drag to move Widgets around.
+    Left click and drag close to the inside edge of Widgets to resize.
+    Right Click on Widgets to choose Edit and Layout windows.'''
+
     # remove leading whitespace from each line
-    about2 = re.sub("\n\s*", "\n", about)
+    # this does not work on python 3.12
+    # about2 = re.sub("\n\s*", "\n", about)
+    about2 = about
     Messagebox.show_info(message=about2,title="Help")
 
 def buildMenu():
