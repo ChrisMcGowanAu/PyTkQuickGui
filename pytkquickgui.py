@@ -142,6 +142,9 @@ def createCleanImageList() -> []:
     return cleanFilenames
 
 def saveProjectFile(fileName,fileType,projectData):
+    if projectData is []:
+        log.error("projectData is empty. Not saving")
+        return
     ftails = [5,4,3,2,1]
     completeFileName = fileName + fileType
     for t in ftails:
@@ -269,7 +272,7 @@ def buildPython() -> str:
                     if val > "":
                         val = str(widgetName) + str(key)
 
-                if key == "command":
+                if key == "command" or key == "postcommand":
                     if val > "":
                         log.info("command ->%s<-",val)
                         functions.append(val)
@@ -315,7 +318,7 @@ def buildPython() -> str:
             keyCount = widgetName + "-KeyCount"
             widgetDef = widgetName + " = " + wType + "(" + parentName
             nKeys = wDict.get(keyCount)
-            specialKeys = ["command","textvariable","variable","image"]
+            specialKeys = ["postcommand","command","textvariable","variable","image"]
             for a in range(nKeys):
                 useValQuotes = True
                 attribute = "Attribute" + str(a)
@@ -672,6 +675,7 @@ def loadProject(project,altFileName):
     closeFile = True
     widgetNameList = []
     deleteWidgetData()
+    f : Any
     try:
         f = open(fullFileName, "rb")
     except FileNotFoundError as e:

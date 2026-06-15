@@ -4,6 +4,7 @@ import tkinter.filedialog as filedialog
 
 # import urllib.request
 import webbrowser
+from typing import List, Any
 
 import ttkbootstrap as tboot
 from PIL import ImageTk
@@ -395,26 +396,28 @@ class widgetEditPopup:
                 self.widget.add(frame, text="Tab" + str(n))
                 # frame.pack(fill='both',  expand=True)
 
-    def reformatValues(self, values) -> list:
+    def reformatValues(self, values) -> str | list[Any]:
         """
         This fixes the values used in combo boxes
         :param values: list of values
         :return: a list of the reformatted values
         """
+        v = str(values)
+        log.info('Values ' + v)
         # There is possibly a better way to do this
         # configure does not work for lists. change directly ...
         # It needs a string list like this .
         # self.widget['values'] = "1 2 3 4 5"
         try:
-            val = values.replace("(", "")
+            val = v.replace("(", "")
             newVal = val.replace(")", "")
             val = newVal
             newVal = val.replace(", ", " ")
             val = newVal
-            newVal = val.replace("'", "")
+            newVal: str = val.replace("'", "")
             return newVal
         except tk.TclError as e:
-            log.error("reformartValues %s", str(e))
+            log.error("reformartValues values=%s exception %s",str(values), str(e))
             return []
 
     def createDragPoint(self, rootFrame, dragType) -> None:
@@ -846,9 +849,9 @@ class widgetEditPopup:
                     keys.append(tuple(("Tabs", "Tabs")))
                 elif widgetName == "ttk::labelframe":
                     keys1 = self.widget.label.keys()
+                    keys2 = self.widget.scale.keys()
                     for k1 in keys1:
                         keys.append(tuple(("label", k1)))
-                        keys2 = self.widget.scale.keys()
                     for k2 in keys2:
                         keys.append(tuple(("scale", k2)))
                     log.debug(keys)

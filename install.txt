@@ -1,34 +1,16 @@
 ##############################
 # On Linux Debian bookworm based distros -- Ubuntu 24.04, Mint 22 etc
 ##############################
-sudo apt install python3-full
-# This next step is necessary on debian 12 (bookworm) 
-# No idea why they changed the way this worked ...sigh... 
-sudo mv /usr/lib/python3.11/EXTERNALLY-MANAGED /usr/lib/python3.11/EXTERNALLY-MANAGED.old
-or/and
-sudo mv /usr/lib/python3.12/EXTERNALLY-MANAGED /usr/lib/python3.12/EXTERNALLY-MANAGED.old
+sudo apt update
+sudo apt install python3 python3-venv python3-pip git
 
-pip install --user tkfontchooser
-pip install --user coloredlogs
-pip install --user ttkbootstrap
-python3 -m pip install --upgrade pip
-python3 -m pip install --upgrade Pillow
-
-
-##############################
-# On Mint and Ubuntu
-# I believe other 'apt' based distros, the install for should be the same. 
-# I will update this file if I find other cases 
-##############################
-sudo apt install python3-full
-pip install tkfontchooser
-pip install coloredlogs
-pip install ttkbootstrap
-python3 -m pip install --upgrade pip
-python3 -m pip install --upgrade Pillow
-
-
-For other Linux releases, use you local package manager in a similiar way, install the latest python3 and using pip ( pr pip3 ) install tkfontchooser, coloredlogs and ttkbootstrap 
+## 2. Clone the repository
+cd /opt # or where you want to install it.
+git clone git@github.com:ChrisMcGowanAu/PyTkQuickGui.git
+cd /opt/PyTkQuickGui
+python3 -m venv venv
+venv/bin/pip install --upgrade pip
+venv/bin/pip install -r requirements.txt
 
 
 #################################
@@ -55,3 +37,6 @@ Sorry I have not tried it. I was able to install and run it, but a 3 button mous
 python3 pytkgui.py
 or
 python pytkgui.py
+
+or just ./run,sh
+

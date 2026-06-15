@@ -1,0 +1,8 @@
+logging
+ttkbootstrap
+tkfontchooser
+coloredlogs
+ttkbootstrap
+pip
+Pillow
+

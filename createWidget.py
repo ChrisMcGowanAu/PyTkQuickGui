@@ -58,13 +58,12 @@ def snapToClosest(v: int) -> int:
 
 
 def findPythonWidgetNameFromWidget(widget) -> str:
-    found = False
+    found: bool = False
     # [pythonName, parentName, widget, [children, ...]])
     # NAME: int = 0 PARENT: int = 1 WIDGET: int = 2 CHILDREN: int = 3
     for nl in createWidget.widgetNameList:
         # print('Name', name, 'nl[0]', nl[NAME])
         if nl[WIDGET] == widget:
-            found = True
             return nl[NAME]
     if not found:
         log.error("Unable to locate widget ->%s<-", str(widget))
@@ -99,7 +98,7 @@ def reparentWidget(pythonName, w):
             if pythonName in nl1[CHILDREN]:
                 nl1[CHILDREN].remove(pythonName)
         return
-    if nl != []:
+    if nl:
         # Replace the parent
         ParentName = ""
         found = False
@@ -391,7 +390,7 @@ class createWidget:
                 # w = nameDetails[NAME]
                 changeParentOfTo(self.widget, w)
             except tk.TclError as e:
-                log.error("self.widget ->%s<- w ->%s<-",self.widget, w)
+                log.error("self.widget ->%s<- nameDetails ->%s<-",self.widget, str(nameDetails[WIDGET]))
                 log.error("Exception %s", str(e))
         newW.widget.place(x=self.x + offsetx, y=self.y + offsety, width=width, height=height)
         return newW

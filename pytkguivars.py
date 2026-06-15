@@ -2,6 +2,8 @@ import os
 import os.path
 import logging as log
 import tkinter as tk
+from tkinter import PhotoImage
+
 import ttkbootstrap as tboot
 import createWidget as cw
 # import cdefs as C
@@ -327,7 +329,7 @@ def fixWidgetTypeName(wType) -> str:
         wType = t
     return wType
 
-def getPhotoImage(widgetName,key) -> tk.PhotoImage:
+def getPhotoImage(widgetName,key) -> PhotoImage | None:
     # the 'image=' part of tkinter widget parameters is tricky to save and restore.
     # The imageName and path to file is in myVars.widgetImageFilenames
     count = -1
