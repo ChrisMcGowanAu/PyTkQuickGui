@@ -387,8 +387,7 @@ class createWidget:
             log.info("nameDetails: %s", nameDetails)
             try:
                 w = nameDetails[WIDGET]
-                # w = nameDetails[NAME]
-                changeParentOfTo(self.widget, w)
+                changeParentOfTo(newW.widget, w)
             except tk.TclError as e:
                 log.error("self.widget ->%s<- nameDetails ->%s<-",self.widget, str(nameDetails[WIDGET]))
                 log.error("Exception %s", str(e))
@@ -425,7 +424,7 @@ class createWidget:
         # Adding Menu Items
         self.popup.add_command(label="Edit", command=self.editTtkPopup)
         self.popup.add_command(label="Layout", command=self.editPlacePopup)
-        self.popup.add_command(label="Clone", command=self.clone)
+        self.popup.add_command(label="Clone", command=lambda: self.clone(0,0))
         self.popup.add_command(label="DeepClone", command=self.deepClone)
         self.popup.add_command(label="Re-Parent", command=lambda: self.reParent(None))
         self.popup.add_command(label="Delete", command=self.deleteWidget)

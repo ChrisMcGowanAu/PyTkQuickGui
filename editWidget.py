@@ -12,7 +12,7 @@ from tkfontchooser import askfont
 from ttkbootstrap.dialogs.colorchooser import ColorChooserDialog
 
 # from ttkbootstrap.dialogs.dialogs import FontDialog
-from ttkbootstrap.widgets import Entry, LabelFrame
+from ttkbootstrap import Entry, Labelframe
 
 import createWidget as cw
 import pytkguivars as myVars
@@ -198,7 +198,7 @@ class widgetEditPopup:
         y = int(widget.place_info().get("y"))
         moveX = event.x
         moveY = event.y
-        threshold = 8 
+        threshold = 8
         if abs(event.x) > threshold:
             if event.x > 0:
                 moveX = threshold
@@ -210,8 +210,8 @@ class widgetEditPopup:
             else:
                 moveY = -1 * threshold
 
-        log.debug("x %s event.x %s moveX %s",x,event.x,moveX) 
-        log.debug("y %s event.y %s moveY %s",y,event.y,moveY) 
+        log.debug("x %s event.x %s moveX %s",x,event.x,moveX)
+        log.debug("y %s event.y %s moveY %s",y,event.y,moveY)
         newX = x + moveX
         newY = y + moveY
         widget.place(x=newX, y=newY)
@@ -222,7 +222,7 @@ class widgetEditPopup:
         :param event:
         """
         log.debug("leftMouseRelease event %s %s", str(event), self.widget)
-    
+
     def selectImage(self, key):
         """
         Select an image to load into the widget
@@ -246,11 +246,11 @@ class widgetEditPopup:
         # if myVars.widgetImageFilenames is None:
         for f in myVars.widgetImageFilenames:
             if f[myVars.WIDGET] == self.widgetName:
-                if [myVars.KEY] == key:
+                if f[myVars.KEY] == key:
                     f[myVars.FILENAME] = filename
                     f[myVars.PHOTOIMAGE] = myVars.imageTest
                     found = True
-        if found is False: 
+        if found is False:
             f = [self.widgetName,key,filename,myVars.imageTest]
             log.debug("Adding f %s",str(f))
             myVars.widgetImageFilenames.append(f)
@@ -325,7 +325,7 @@ class widgetEditPopup:
                     values = self.reformatValues(newVal)
                     log.debug(logString, str(k), str(values))
                     # This seems to be the way to add values
-                    self.widget["values"] = newVal
+                    self.widget["values"] = values
                 elif k == "style" or k == "bootstyle":
                     log.debug(logString, str(k), str(oldVal))
                     newVal = self.stringDict.get(k)
@@ -448,7 +448,7 @@ class widgetEditPopup:
         wName = myVars.fixWidgetName(self.widget.widgetName)
         log.debug("Widget %s name %s", self.widget, wName)
         label = "Edit layout for " + wName
-        layoutPopupFrame = LabelFrame(
+        layoutPopupFrame = Labelframe(
             self.root,
             text=label,
             labelanchor="n",
@@ -541,7 +541,7 @@ class widgetEditPopup:
         wName = myVars.fixWidgetName(self.widget.widgetName)
         log.debug("Widget %s name %s", self.widget, wName)
         label = "Edit attributes for " + wName
-        editPopupFrame = LabelFrame(
+        editPopupFrame = Labelframe(
             self.root,
             text=label,
             labelanchor="n",
@@ -825,7 +825,8 @@ class widgetEditPopup:
         # Some widgets have 'children'
         kids = self.widget.children
         if kids:
-            for k in kids:
+            # for k in kids:
+            for k in kids.values():
                 try:
                     widgetName = k.widgetName
                 except AttributeError as e:
@@ -928,7 +929,7 @@ class widgetEditPopup:
         )
         b3 = tboot.Button(
             editPopupFrame,
-            style="sucess",
+            style="success",
             width=5,
             text="Apply",
             command=self.applyEditSettings,

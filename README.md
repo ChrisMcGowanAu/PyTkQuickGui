@@ -1,5 +1,5 @@
 # PyTkQuickGui
-# A tool to quickly layout tkinter/tkbootstrap widgets via select, drag, resize, and edit tools.
+# A tool to quickly layout tkinter/ttkbootstrap widgets via select, drag, resize, and edit tools.
 
 This project aims to automate the often tedious process of laying out and configuring tkinter widgets to create a Python application using tkinter. The need for this tool arises from my experience in building test tools and small to medium-sized Python and TclTk tools.
 

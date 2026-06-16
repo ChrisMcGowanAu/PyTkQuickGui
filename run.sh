@@ -1,2 +1,1 @@
-
-python3 pytkquickgui.py $*
+venv/bin/python pytkquickgui.py

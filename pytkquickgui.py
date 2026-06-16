@@ -14,8 +14,8 @@ import coloredlogs
 import ttkbootstrap as tboot
 # import tkfilebrowser as tkfb
 # from tkfilebrowser import askopendirname
-from ttkbootstrap.dialogs.dialogs import Messagebox
-from ttkbootstrap.dialogs.dialogs import Querybox
+from ttkbootstrap.dialogs import Messagebox
+from ttkbootstrap.dialogs import Querybox
 # FontDialog does not work correctly.
 # from ttkbootstrap.dialogs.dialogs import FontDialog
 import createWidget as cw
@@ -142,7 +142,7 @@ def createCleanImageList() -> []:
     return cleanFilenames
 
 def saveProjectFile(fileName,fileType,projectData):
-    if projectData is []:
+    if not projectData:
         log.error("projectData is empty. Not saving")
         return
     ftails = [5,4,3,2,1]
@@ -442,6 +442,7 @@ def deleteWidgetData():
         w.destroy()
     cw.createWidget.widgetNameList = []
     cw.createWidget.widgetList = []
+    cw.createWidget.widgetObjectList = []
     cw.createWidget.widgetId = 0
     cw.createWidget.lastCreated = None
     myVars.widgetImageFilenames = []
@@ -580,11 +581,17 @@ def setDefaultFont(which):
 
 def newProject():
     configPath = getConfigPath()
-    C.printf("configPath %s\n", configPath)
+    log.info("configPath %s", configPath)
     name = Querybox.get_string("New Project name")
-    C.printf("configPath %s %s\n", configPath, name)
-    os.mkdir(configPath + "/" + name)
+    path = os.path.join(configPath, name)
+    os.mkdir(path)
+    log.info("configPath %s project name %s path %s",configPath,name,path)
     myVars.projectName = name
+    myVars.projectPath = path
+    projFileName = myVars.projectName
+    fileName = os.path.join(myVars.projectPath, projFileName)
+    myVars.projectFileName = fileName
+    log.info("projectFileName %s",myVars.projectFileName);
     mainFrame.config(text=myVars.projectName)
 
 def getConfigPath() -> str:
@@ -821,7 +828,7 @@ def welcome():
     A tool to build a simple TkInter GUI.
 	This tool uses ttkbootstrap widgets.
 	A website - youtube - pdf TBD.'''
-    
+
     # remove leading whitespace from each line
     # this does not work on python 3.12
     # about2 = re.sub("\n\s*", "\n", about)
@@ -1098,7 +1105,7 @@ if __name__ == "__main__":
         logger=log, fmt="%(levelname)-8s| %(lineno)-4d %(filename)-20s| %(message)s"
     )
     # arg1 = "warn"
-    arg1 = "info"
+    # arg1 = "info"
     try:
         arg1 = sys.argv[1]
     except IndexError:
