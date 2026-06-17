@@ -3,7 +3,6 @@ import os
 import os.path
 import pickle
 import sys
-import re
 import tkinter as tk
 from collections import defaultdict
 from functools import partial
@@ -591,7 +590,7 @@ def newProject():
     projFileName = myVars.projectName
     fileName = os.path.join(myVars.projectPath, projFileName)
     myVars.projectFileName = fileName
-    log.info("projectFileName %s",myVars.projectFileName);
+    log.info("projectFileName %s",myVars.projectFileName)
     mainFrame.config(text=myVars.projectName)
 
 def getConfigPath() -> str:
@@ -706,7 +705,7 @@ def loadProject(project,altFileName):
         nWidgets = runDict.get("widgetCount")
         myVars.widgetImageFilenames = runDict.get("imageFileNames")
 
-    except AttributeError as e:
+    except AttributeError:
         log.info("AttributeError in project file.")
 
     widgetsFound = 0

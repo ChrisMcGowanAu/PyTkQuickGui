@@ -110,7 +110,7 @@ def checkFontDict(font: dict) -> str:
     if font:
         # spaces in the family name need to be escaped
         family = font["family"]
-        family_str = family.replace(" ", "\ ")
+        family_str = family.replace(" ", "\\ ")
         font["family"] = family_str
         font_str = "%(family)s %(size)i %(weight)s %(slant)s" % font
         if font["underline"]:

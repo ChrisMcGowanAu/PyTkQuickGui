@@ -4,7 +4,7 @@ import tkinter.filedialog as filedialog
 
 # import urllib.request
 import webbrowser
-from typing import List, Any
+from typing import Any
 
 import ttkbootstrap as tboot
 from PIL import ImageTk
