@@ -1669,7 +1669,6 @@ def _make_grid_overlay(frame: tboot.Frame) -> tk.Canvas:  # type: ignore[name-de
             pass
     oc = tk.Canvas(
         frame,
-        bg=frame.cget("background") if hasattr(frame, "cget") else "white",
         highlightthickness=0,
         bd=0,
         takefocus=False,
