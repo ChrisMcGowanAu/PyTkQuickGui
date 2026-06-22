@@ -1645,13 +1645,6 @@ def doNothing():
     pass
 
 
-## ---------------------------------------------------------------------------
-## Grid-line state: column and row pixel positions (editable by dragging)
-## ---------------------------------------------------------------------------
-_grid_col_positions = []   # x-pixel positions of vertical lines
-_grid_row_positions = []   # y-pixel positions of horizontal lines
-_grid_drag_state = {}      # {tag: ("col"|"row", index, start_coord)}
-
 
 def _make_grid_overlay(frame: tboot.Frame) -> tk.Canvas:  # type: ignore[name-defined]
     """Create (or recreate) the transparent overlay Canvas inside *frame*.
@@ -1682,13 +1675,6 @@ def _make_grid_overlay(frame: tboot.Frame) -> tk.Canvas:  # type: ignore[name-de
     oc.bind("<Button-3>", rightMouseDown)
     _gridOverlayCanvas = oc
     return oc
-
-
-def _init_grid_positions(width: int, height: int, cell: int = 64) -> None:
-    """Initialise default evenly-spaced column/row positions."""
-    global _grid_col_positions, _grid_row_positions
-    _grid_col_positions = list(range(cell, width, cell))
-    _grid_row_positions = list(range(cell, height, cell))
 
 
 def drawGridLines():
@@ -1723,119 +1709,100 @@ def drawGridLines():
 
     elif mgr == "Grid":
         # ----------------------------------------------------------------
-        # Grid lines must be drawn on _gridOverlayCanvas which lives
-        # *inside* geomWidgetFrame.  mainCanvas lines would be hidden
-        # behind the opaque geomWidgetFrame window.
+        # Grid lines are drawn on _gridOverlayCanvas inside geomWidgetFrame.
+        # Positions come from geomWidgetFrame.grid_bbox() so they always
+        # match where the geometry manager actually places cell boundaries.
         # ----------------------------------------------------------------
         if _gridOverlayCanvas is None or not _gridOverlayCanvas.winfo_exists():
+            return
+        if geomWidgetFrame is None or not geomWidgetFrame.winfo_exists():
             return
         oc = _gridOverlayCanvas
         oc_w = oc.winfo_width()
         oc_h = oc.winfo_height()
         if oc_w < 2 or oc_h < 2:
-            # Overlay not yet mapped; try the canvas size instead
             oc_w = width
             oc_h = height
 
         oc.delete("gridline")
 
-        global _grid_col_positions, _grid_row_positions
-        # Initialise positions lazily (or after resize)
-        if not _grid_col_positions or not _grid_row_positions:
-            _init_grid_positions(oc_w, oc_h)
-        # Clamp to current overlay size
-        _grid_col_positions = [x for x in _grid_col_positions if 0 < x < oc_w]
-        _grid_row_positions = [y for y in _grid_row_positions if 0 < y < oc_h]
-
-        line_color  = "#c0c0c0"   # thin grey — visible on white/light frames
+        line_color  = "#c0c0c0"
         label_color = "#a0a0a0"
 
-        # Vertical (column) separator lines
-        for i, gx in enumerate(_grid_col_positions):
-            tag = f"gcol_{i}"
+        # Collect unique column-boundary x-positions from grid_bbox
+        col_xs = set()
+        col_xs.add(0)
+        col = 0
+        while True:
+            try:
+                bbox = geomWidgetFrame.grid_bbox(col, 0)
+            except tk.TclError:
+                break
+            if bbox is None:
+                break
+            x, _y, w, _h = bbox
+            if x >= oc_w:
+                break
+            col_xs.add(x)
+            if w > 0:
+                col_xs.add(min(x + w, oc_w))
+            col += 1
+            if col > 64:
+                break
+
+        # Collect unique row-boundary y-positions from grid_bbox
+        row_ys = set()
+        row_ys.add(0)
+        row = 0
+        while True:
+            try:
+                bbox = geomWidgetFrame.grid_bbox(0, row)
+            except tk.TclError:
+                break
+            if bbox is None:
+                break
+            _x, y, _w, h = bbox
+            if y >= oc_h:
+                break
+            row_ys.add(y)
+            if h > 0:
+                row_ys.add(min(y + h, oc_h))
+            row += 1
+            if row > 64:
+                break
+
+        # Draw vertical column-boundary lines
+        for gx in sorted(col_xs):
             oc.create_line(
                 gx, 0, gx, oc_h,
-                fill=line_color, width=1,
-                tags=("gridline", tag)
-            )
-            oc.create_text(
-                gx + 3, 4, text=str(i), anchor="nw",
-                fill=label_color, font=("TkDefaultFont", 7),
-                tags=("gridline", tag)
+                fill=line_color, width=1, tags="gridline"
             )
 
-        # Horizontal (row) separator lines
-        for i, gy in enumerate(_grid_row_positions):
-            tag = f"grow_{i}"
+        # Draw horizontal row-boundary lines
+        for gy in sorted(row_ys):
             oc.create_line(
                 0, gy, oc_w, gy,
-                fill=line_color, width=1,
-                tags=("gridline", tag)
+                fill=line_color, width=1, tags="gridline"
             )
+
+        # Column index labels just inside each column's left edge
+        col_xs_sorted = sorted(col_xs)
+        for i, gx in enumerate(col_xs_sorted[:-1]):
             oc.create_text(
-                4, gy + 3, text=str(i), anchor="nw",
+                gx + 3, 3, text=str(i), anchor="nw",
                 fill=label_color, font=("TkDefaultFont", 7),
-                tags=("gridline", tag)
+                tags="gridline"
             )
 
-        # Wider invisible hit-areas on the overlay so lines are easy to grab
-        for i, gx in enumerate(_grid_col_positions):
-            tag = f"gcol_hit_{i}"
-            oc.create_line(
-                gx, 0, gx, oc_h,
-                fill="", width=8,
-                tags=("gridline", tag)
+        # Row index labels just below each row's top edge
+        row_ys_sorted = sorted(row_ys)
+        for i, gy in enumerate(row_ys_sorted[:-1]):
+            oc.create_text(
+                3, gy + 3, text=str(i), anchor="nw",
+                fill=label_color, font=("TkDefaultFont", 7),
+                tags="gridline"
             )
-            oc.tag_bind(tag, "<Enter>",
-                lambda e, t=tag: oc.config(cursor="sb_h_double_arrow"))
-            oc.tag_bind(tag, "<Leave>",
-                lambda e: oc.config(cursor=""))
-            oc.tag_bind(tag, "<ButtonPress-1>",
-                lambda e, idx=i: _grid_line_drag_start(e, "col", idx))
-            oc.tag_bind(tag, "<B1-Motion>",
-                lambda e, idx=i: _grid_line_drag_move(e, "col", idx))
-            oc.tag_bind(tag, "<ButtonRelease-1>",
-                _grid_line_drag_end)
 
-        for i, gy in enumerate(_grid_row_positions):
-            tag = f"grow_hit_{i}"
-            oc.create_line(
-                0, gy, oc_w, gy,
-                fill="", width=8,
-                tags=("gridline", tag)
-            )
-            oc.tag_bind(tag, "<Enter>",
-                lambda e, t=tag: oc.config(cursor="sb_v_double_arrow"))
-            oc.tag_bind(tag, "<Leave>",
-                lambda e: oc.config(cursor=""))
-            oc.tag_bind(tag, "<ButtonPress-1>",
-                lambda e, idx=i: _grid_line_drag_start(e, "row", idx))
-            oc.tag_bind(tag, "<B1-Motion>",
-                lambda e, idx=i: _grid_line_drag_move(e, "row", idx))
-            oc.tag_bind(tag, "<ButtonRelease-1>",
-                _grid_line_drag_end)
-
-
-def _grid_line_drag_start(event, kind: str, idx: int):
-    _grid_drag_state.clear()
-    _grid_drag_state["kind"]  = kind
-    _grid_drag_state["idx"]   = idx
-    _grid_drag_state["start"] = event.x if kind == "col" else event.y
-
-
-def _grid_line_drag_move(event, kind: str, idx: int):
-    if kind == "col":
-        new_x = max(4, event.x)
-        _grid_col_positions[idx] = new_x
-    else:
-        new_y = max(4, event.y)
-        _grid_row_positions[idx] = new_y
-    drawGridLines()
-
-
-def _grid_line_drag_end(_event):
-    _grid_drag_state.clear()
-    mainCanvas.config(cursor="")
 
 
 def sizeGripRelease(event):
@@ -2069,10 +2036,6 @@ def buildGrid(rows, cols):
         # For Place mode, redraw dot grid on resize
         mainCanvas.bind("<Configure>", lambda e: drawGridLines())
 
-    # Reset grid line positions so they are recalculated for this canvas size
-    global _grid_col_positions, _grid_row_positions
-    _grid_col_positions = []
-    _grid_row_positions = []
     drawGridLines()
     # mainCanvas.bind('<Motion>',frameMove)
 
@@ -2149,10 +2112,6 @@ def _rebuild_canvas_for_geom():
         geomWidgetFrame = None
         cw.createWidget.baseRoot = mainCanvas
         mainCanvas.bind("<Configure>", lambda e: drawGridLines())
-    # Reset grid positions for fresh layout
-    global _grid_col_positions, _grid_row_positions
-    _grid_col_positions = []
-    _grid_row_positions = []
     drawGridLines()
 
 
@@ -2242,4 +2201,6 @@ if __name__ == "__main__":
 
     buildMainGui()
     myVars.style = tboot.Style()
+    # Expose drawGridLines to createWidget without a circular import
+    myVars.redrawGridLines = drawGridLines
     rootWin.mainloop()
