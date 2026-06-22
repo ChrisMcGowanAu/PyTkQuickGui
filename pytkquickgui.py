@@ -1116,6 +1116,11 @@ def loadProject(project, altFileName):
                 expand = int(geomData.get("expand", 0))
                 padx   = int(geomData.get("padx", 4))
                 pady   = int(geomData.get("pady", 4))
+                w.pack_side   = side
+                w.pack_fill   = fill
+                w.pack_expand = expand
+                w.pack_padx   = padx
+                w.pack_pady   = pady
                 w.widget.pack(side=side, fill=fill, expand=expand,
                               padx=padx, pady=pady)
             else:

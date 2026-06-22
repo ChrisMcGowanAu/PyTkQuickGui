@@ -198,8 +198,10 @@ def saveWidgetAsDict(widgetName) -> dict:
             place = w.place_info()
             place.pop("in", None)   # remove quietly; may not be present
         except tk.TclError as ex:
-            log.error("Widget ->%s<- raised an exception %s", str(w), str(ex))
-            return {}
+            # Pack/Grid widgets are not in .place() — place_info() may raise
+            # TclError if the widget path is stale.  Log and continue; geomData
+            # will capture the real geometry below.
+            log.warning("place_info() on ->%s<- raised %s (ignored)", str(w), str(ex))
         # Capture geometry info for all supported managers
         geomData = {}
         try:

@@ -317,6 +317,28 @@ class widgetEditPopup:
                 log.error("applyLayoutSettings Grid: %s", e)
             return
 
+        if myVars.geomManager == "Pack":
+            cwo = cw.findCreateWidgetObject(self.widgetName)
+            try:
+                side   = str(self.stringDict.get("side",   "top"))
+                fill   = str(self.stringDict.get("fill",   "none"))
+                expand = int(self.stringDict.get("expand", 0))
+                padx   = int(self.stringDict.get("padx",   4))
+                pady   = int(self.stringDict.get("pady",   4))
+                self.widget.pack(side=side, fill=fill, expand=expand,
+                                 padx=padx, pady=pady)
+                if cwo:
+                    cwo.pack_side   = side
+                    cwo.pack_fill   = fill
+                    cwo.pack_expand = expand
+                    cwo.pack_padx   = padx
+                    cwo.pack_pady   = pady
+                log.debug(logString, "pack",
+                          f"side={side} fill={fill} expand={expand}")
+            except (tk.TclError, ValueError) as e:
+                log.error("applyLayoutSettings Pack: %s", e)
+            return
+
         onlyThese = ["x", "y", "width", "height"]
         for p in onlyThese:
             origName = str(p) + "Orig"
@@ -608,6 +630,83 @@ class widgetEditPopup:
             stickyCombo.set(sticky_val)
             lab1.grid(row=gridRow, column=0, sticky=tk.NE)
             stickyCombo.grid(row=gridRow, column=3, sticky=tk.SW)
+        elif myVars.geomManager == "Pack":
+            # ---- Pack layout fields -----------------------------------
+            cwo = cw.findCreateWidgetObject(self.widgetName)
+            try:
+                pi = self.widget.pack_info()
+            except tk.TclError:
+                pi = {}
+            def _pi(key, cwo_val, default):
+                if cwo_val is not None:
+                    return cwo_val
+                return pi.get(key, default)
+            side_val   = _pi("side",   cwo.pack_side   if cwo else None, "top")
+            fill_val   = _pi("fill",   cwo.pack_fill   if cwo else None, "none")
+            expand_val = int(_pi("expand", cwo.pack_expand if cwo else None, 0))
+            padx_val   = int(_pi("padx",   cwo.pack_padx   if cwo else None, 4))
+            pady_val   = int(_pi("pady",   cwo.pack_pady   if cwo else None, 4))
+            # side combobox
+            gridRow += 1
+            tboot.Label(layoutPopupFrame, text="side").grid(
+                row=gridRow, column=0, sticky=tk.NE)
+            sideCombo = tboot.Combobox(
+                layoutPopupFrame,
+                values=["top", "bottom", "left", "right"],
+                width=6,
+                validate="focusout",
+                validatecommand=lambda: self.popupCallback("side"),
+            )
+            self.addToStringDict("side", side_val)
+            self.addToStringDict("sideOrig", side_val)
+            self.addToStringDict("sideWidget", sideCombo)
+            sideCombo.set(side_val)
+            sideCombo.grid(row=gridRow, column=3, sticky=tk.SW)
+            # fill combobox
+            gridRow += 1
+            tboot.Label(layoutPopupFrame, text="fill").grid(
+                row=gridRow, column=0, sticky=tk.NE)
+            fillCombo = tboot.Combobox(
+                layoutPopupFrame,
+                values=["none", "x", "y", "both"],
+                width=6,
+                validate="focusout",
+                validatecommand=lambda: self.popupCallback("fill"),
+            )
+            self.addToStringDict("fill", fill_val)
+            self.addToStringDict("fillOrig", fill_val)
+            self.addToStringDict("fillWidget", fillCombo)
+            fillCombo.set(fill_val)
+            fillCombo.grid(row=gridRow, column=3, sticky=tk.SW)
+            # expand spinbox
+            gridRow += 1
+            tboot.Label(layoutPopupFrame, text="expand").grid(
+                row=gridRow, column=0, sticky=tk.NE)
+            expandSpin = tboot.Spinbox(
+                layoutPopupFrame, width=5, from_=0, to=1, increment=1,
+                validate="focusout",
+                validatecommand=lambda: self.popupCallback("expand"),
+            )
+            self.addToStringDict("expand", str(expand_val))
+            self.addToStringDict("expandOrig", str(expand_val))
+            self.addToStringDict("expandWidget", expandSpin)
+            expandSpin.set(expand_val)
+            expandSpin.grid(row=gridRow, column=3, sticky=tk.SW)
+            # padx / pady spinboxes
+            for pname, pval in (("padx", padx_val), ("pady", pady_val)):
+                gridRow += 1
+                tboot.Label(layoutPopupFrame, text=pname).grid(
+                    row=gridRow, column=0, sticky=tk.NE)
+                pspin = tboot.Spinbox(
+                    layoutPopupFrame, width=5, from_=0, to=50, increment=1,
+                    validate="focusout",
+                    validatecommand=lambda pp=pname: self.popupCallback(pp),
+                )
+                self.addToStringDict(pname, str(pval))
+                self.addToStringDict(pname + "Orig", str(pval))
+                self.addToStringDict(pname + "Widget", pspin)
+                pspin.set(pval)
+                pspin.grid(row=gridRow, column=3, sticky=tk.SW)
         else:
             # ---- Place layout fields ----------------------------------
             place = self.widget.place_info()
