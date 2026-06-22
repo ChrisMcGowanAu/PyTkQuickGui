@@ -80,6 +80,14 @@ widgetsUsed = (
 GEOM_MANAGERS = ("Place", "Grid", "Pack")
 geomManager = "Place"
 
+# ---- Widget groups (logical, not tkinter containers) --------------------
+# {group_name: [widgetName, ...]}  — persisted to project JSON
+groups: dict = {}
+
+# ---- Multi-selection ----------------------------------------------------
+# List of pythonName strings for currently Shift+clicked widgets
+selectedWidgets: list = []
+
 
 #def sprintf(buf: str, fmt, *args) -> str:
 #    tmpStr: str = ""
@@ -115,6 +123,10 @@ def initVars():
     createdWidgetOrder = []
     widgetImageFilenames = []
     generatedPyFile = ""
+    global groups
+    global selectedWidgets
+    groups = {}
+    selectedWidgets = []
 
 
 # Common Procs

@@ -24,6 +24,7 @@ from ttkbootstrap.dialogs import Querybox
 import createWidget as cw
 import pytkguivars as myVars
 import cdefs as C
+import undoredo
 # This fixed a bug in ttkbootstrap
 # from PIL import Image
 # Image.CUBIC = Image.BICUBIC
@@ -191,6 +192,7 @@ def saveProject():
         "widgetNameList": cleanList,
         "backgroundColor": myVars.backgroundColor,
         "imageFileNames": createCleanImageList(),
+        "groups": myVars.groups,
     }
     # Work out the order to create the Widgets so the parenting is correct
     createdWidgetOrder = workOutWidgetCreationOrder()
@@ -942,6 +944,10 @@ def loadProject(project, altFileName):
             myVars.generatedPyFile = savedPyFile
             myVars.saveDirName = os.path.dirname(savedPyFile)
             log.info("Restored generatedPyFile path: %s", savedPyFile)
+        savedGroups = runDict.get("groups", {})
+        if isinstance(savedGroups, dict):
+            myVars.groups = savedGroups
+            log.info("Restored %d group(s) from project.", len(savedGroups))
     except AttributeError:
         log.info("AttributeError in project file.")
 
@@ -1031,6 +1037,8 @@ def loadProject(project, altFileName):
 
     checkWidgetNameList()
     mainFrame.config(text=myVars.projectName)
+    # Clear undo history – actions from the old project aren't reachable
+    undoredo.stack.clear()
 
 def loadLastProject():
     configPath = getConfigPath()
@@ -1408,6 +1416,45 @@ def helpMe():
     )
     close_btn.pack(pady=(0, 8))
 
+# ---------------------------------------------------------------------------
+# Group / Ungroup helpers (called from Edit menu)
+# ---------------------------------------------------------------------------
+
+def _groupSelected():
+    """Create a named group from the current multi-selection."""
+    sel = getattr(myVars, "selectedWidgets", [])
+    if len(sel) < 2:
+        Messagebox.show_info(
+            title="Group",
+            message="Select two or more widgets first (Shift+click), then group them.",
+        )
+        return
+    name = Querybox.get_string(
+        prompt="Group name:", title="Create Widget Group",
+        initialvalue=f"group{len(myVars.groups) + 1}",
+    )
+    if not name:
+        return
+    undoredo.stack.push(undoredo.GroupCommand(name, list(sel)))
+    Messagebox.show_info(title="Group", message=f"Created group '{name}'.")
+
+
+def _ungroupSelected():
+    """Dissolve all groups whose members overlap the current selection."""
+    sel = set(getattr(myVars, "selectedWidgets", []))
+    dissolved = []
+    for gname, members in list(myVars.groups.items()):
+        if sel & set(members):
+            undoredo.stack.push(undoredo.UngroupCommand(gname))
+            dissolved.append(gname)
+    if dissolved:
+        Messagebox.show_info(title="Ungroup",
+                             message="Dissolved: " + ", ".join(dissolved))
+    else:
+        Messagebox.show_info(title="Ungroup",
+                             message="No groups found for the current selection.")
+
+
 def buildMenu():
     # global rootWin
     menuBar = tboot.Menu(rootWin)
@@ -1458,6 +1505,20 @@ def buildMenu():
                           command=setDefaultStyleFont)
     toolsMenu.add_command(label="Open backup file", command=openBackupFile)
     toolsMenu.add_command(label="Widget Tree", command=widgetTree)
+
+    # ---- Edit menu (Undo / Redo) ----------------------------------------
+    editMenu = tboot.Menu(menuBar, tearoff=0)
+    editMenu.add_command(label="Undo\tCtrl+Z",
+                         command=lambda: undoredo.stack.undo())
+    editMenu.add_command(label="Redo\tCtrl+Y",
+                         command=lambda: undoredo.stack.redo())
+    editMenu.add_separator()
+    editMenu.add_command(label="Group Selected",
+                         command=lambda: _groupSelected())
+    editMenu.add_command(label="Ungroup",
+                         command=lambda: _ungroupSelected())
+    menuBar.add_cascade(label="Edit", menu=editMenu, underline=0)
+
     # create the Help menu
     helpMenu = tboot.Menu(menuBar, tearoff=0)
 
@@ -1697,6 +1758,28 @@ def buildMainGui():
     geomLabel = tboot.Label(toolbarFrame, text="Layout: Place", bootstyle="info")
     geomLabel.pack(side=tk.LEFT, padx=(8, 0))
     rootWin._geomLabel = geomLabel
+
+    # ---- Undo/Redo status label (right side of toolbar) ---------------
+    undoLabel = tboot.Label(toolbarFrame, text="", bootstyle="secondary",
+                            font=("TkDefaultFont", 8))
+    undoLabel.pack(side=tk.RIGHT, padx=(8, 4))
+    rootWin._undoLabel = undoLabel
+
+    def _refresh_undo_label():
+        try:
+            rootWin._undoLabel.config(text=undoredo.stack.describe())
+        except tk.TclError:
+            pass
+
+    undoredo.stack.on_change = _refresh_undo_label
+
+    # Keyboard bindings for undo / redo
+    rootWin.bind("<Control-z>", lambda e: undoredo.stack.undo())
+    rootWin.bind("<Control-Z>", lambda e: undoredo.stack.undo())
+    rootWin.bind("<Control-y>", lambda e: undoredo.stack.redo())
+    rootWin.bind("<Control-Y>", lambda e: undoredo.stack.redo())
+    rootWin.bind("<Control-Shift-z>", lambda e: undoredo.stack.redo())
+    rootWin.bind("<Control-Shift-Z>", lambda e: undoredo.stack.redo())
 
     # ---- Main canvas frame (row 1) ------------------------------------
     mainFrame = tboot.Labelframe(

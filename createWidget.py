@@ -7,6 +7,7 @@ import ttkbootstrap as tboot
 
 import editWidget as ew
 import pytkguivars as myVars
+import undoredo
 
 string1: Any
 string2: Any
@@ -269,6 +270,10 @@ class createWidget:
         )
         createWidget.lastCreated = self
         createWidget.widgetObjectList.append(self)
+        # Record creation for undo (push_done: the widget is already on screen)
+        undoredo.stack.push_done(
+            undoredo.CreateCommand(self, self.root)
+        )
 
     def setRoot(self, root):
         createWidget.baseRoot = root
@@ -319,11 +324,23 @@ class createWidget:
     def reParent(self, parentWidget):
         name0 = self.widget.widgetName
         place = self.widget.place_info()
+        # Record old parent name before reparenting
+        nl = findPythonWidgetNameList(self.pythonName)
+        old_parent_name = nl[PARENT] if nl else myVars.rootWidgetName
         if parentWidget is not None:
             changeParentOfTo(self.widget, parentWidget)
         else:
             changeParentOfTo(self.widget, self.root)
             parentWidget = self.root
+        # Determine new parent name after reparenting
+        nl2 = findPythonWidgetNameList(self.pythonName)
+        new_parent_name = nl2[PARENT] if nl2 else myVars.rootWidgetName
+        if old_parent_name != new_parent_name:
+            undoredo.stack.push_done(
+                undoredo.ReparentCommand(
+                    self, old_parent_name, new_parent_name, self.root
+                )
+            )
         x1 = int(place.get("x"))
         y1 = int(place.get("y"))
         w = int(place.get("width"))
@@ -414,8 +431,22 @@ class createWidget:
         # Like cone bt create clild widgets of self
 
     def deleteWidget(self):
+        # Record deletion BEFORE destroying so snapshot can still be taken
+        undoredo.stack.push_done(
+            undoredo.DeleteCommand(self, self.root)
+        )
         deleteWidgetFromLists(self.pythonName, self.widget)
         self.widget.destroy()
+
+    def _highlight(self, on: bool):
+        """Toggle a visual highlight to show multi-selection."""
+        try:
+            if on:
+                self.widget.configure(relief="solid")
+            else:
+                self.widget.configure(relief="flat")
+        except tk.TclError:
+            pass  # widget may not support 'relief'
 
     def makePopup(self):
         # Add Menu
@@ -429,7 +460,41 @@ class createWidget:
         self.popup.add_command(label="Re-Parent", command=lambda: self.reParent(None))
         self.popup.add_command(label="Delete", command=self.deleteWidget)
         self.popup.add_separator()
+        # Multi-select / Group
+        self.popup.add_command(
+            label="Add to Selection",
+            command=lambda: self._addToSelection()
+        )
+        self.popup.add_command(
+            label="Group Selected",
+            command=lambda: self._groupFromPopup()
+        )
+        self.popup.add_separator()
         self.popup.add_command(label="Close", command=self.popup.destroy)
+
+    def _addToSelection(self):
+        """Add this widget to the multi-selection."""
+        if self.pythonName not in myVars.selectedWidgets:
+            myVars.selectedWidgets.append(self.pythonName)
+            self._highlight(True)
+            log.info("Added %s to selection: %s", self.pythonName, myVars.selectedWidgets)
+
+    def _groupFromPopup(self):
+        """Prompt for a group name and group all selected widgets."""
+        sel = myVars.selectedWidgets
+        if len(sel) < 2:
+            import tkinter.messagebox as mb
+            mb.showinfo("Group", "Select two or more widgets first.")
+            return
+        import tkinter.simpledialog as sd
+        name = sd.askstring(
+            "Create Group",
+            "Group name:",
+            initialvalue=f"group{len(myVars.groups) + 1}",
+        )
+        if name:
+            undoredo.stack.push(undoredo.GroupCommand(name, list(sel)))
+            log.info("Grouped %s as '%s'", sel, name)
 
     def menuPopup(self, event):
         # display the popup menu
@@ -482,6 +547,24 @@ class createWidget:
     def leftMouseDown(self, event):
         # Call this if needed -- leave in for idiots like me
         # self.leftMouseInfo(self.widget,event)
+
+        # Multi-select: Shift+click toggles this widget in selectedWidgets
+        if event.state & 0x0001:  # Shift key held
+            if self.pythonName in myVars.selectedWidgets:
+                myVars.selectedWidgets.remove(self.pythonName)
+                self._highlight(False)
+            else:
+                myVars.selectedWidgets.append(self.pythonName)
+                self._highlight(True)
+            return  # don't start a drag when Shift-clicking
+        else:
+            # Normal click: clear multi-selection and highlight only this widget
+            for name in list(myVars.selectedWidgets):
+                obj = findCreateWidgetObject(name)
+                if obj:
+                    obj._highlight(False)
+            myVars.selectedWidgets.clear()
+
         self.startX = event.x
         self.startY = event.y
         self.dragType = ""
@@ -499,6 +582,8 @@ class createWidget:
         # Is the stuff above all crap?
         width = self.widget.winfo_width()
         height = self.widget.winfo_height()
+        # Save pre-drag state so leftMouseRelease can record undo
+        self._pre_drag = (self.x, self.y, width, height)
         # This should be a configuration param
         jiffyW = 8
         jiffyH = 8
@@ -586,6 +671,10 @@ class createWidget:
         self.lastY = y
 
     def leftMouseRelease(self, event):
+        # Capture pre-drag state (set in leftMouseDown)
+        pre = getattr(self, "_pre_drag", (self.x, self.y, self.width, self.height))
+        ox, oy, ow, oh = pre
+
         self.dragType = ""
         newX = snapToClosest(self.x)
         newY = snapToClosest(self.y)
@@ -615,4 +704,11 @@ class createWidget:
         else:
             log.error("Geometry Manager %s is TBD", myVars.geomManager)
         raiseChildren(self.pythonName)
+
+        # Record the move/resize as an undoable action (only if something changed)
+        nx, ny, nw, nh = self.x, self.y, self.width, self.height
+        if (ox, oy, ow, oh) != (nx, ny, nw, nh):
+            undoredo.stack.push_done(
+                undoredo.MoveCommand(self, ox, oy, ow, oh, nx, ny, nw, nh)
+            )
 
