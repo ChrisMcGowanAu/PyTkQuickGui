@@ -236,6 +236,12 @@ class createWidget:
         self.pady       = 2      # grid pady  (external padding)
         self.ipadx      = 0      # grid ipadx (internal padding / extra width)
         self.ipady      = 0      # grid ipady (internal padding / extra height)
+        # Pack geometry fields — authoritative user-set values
+        self.pack_side   = "top"   # pack side
+        self.pack_fill   = "none"  # pack fill
+        self.pack_expand = 0       # pack expand (0 or 1)
+        self.pack_padx   = 4       # pack padx
+        self.pack_pady   = 4       # pack pady
         self.x_root = self.x
         self.y_root = self.y
         self.start_x = self.x  # Set start_x on mouse down
@@ -272,7 +278,9 @@ class createWidget:
         elif myVars.geomManager == "Place":
             self.widget.place(x=self.x, y=self.y)
         elif myVars.geomManager == "Pack":
-            self.widget.pack(padx=4, pady=4, anchor="nw")
+            self.widget.pack(side=self.pack_side, fill=self.pack_fill,
+                             expand=self.pack_expand,
+                             padx=self.pack_padx, pady=self.pack_pady)
         else:
             log.error("Geometry Manager %s is TBD", myVars.geomManager)
 
@@ -711,9 +719,19 @@ class createWidget:
             self.lastY = y
             return
         if myVars.geomManager == "Pack":
-            # Pack order can't be dragged visually; just update tracking
-            self.x = self.widget.winfo_x() + int(deltaX)
-            self.y = self.widget.winfo_y() + int(deltaY)
+            # Float the widget visually so the user can see where it is going.
+            # Actual pack order is updated on mouse-release.
+            newX = self.widget.winfo_x() + int(deltaX)
+            newY = self.widget.winfo_y() + int(deltaY)
+            self.x = max(0, newX)
+            self.y = max(0, newY)
+            try:
+                self.widget.pack_forget()
+            except tk.TclError:
+                pass
+            self.widget.place(x=self.x, y=self.y,
+                              width=self.widget.winfo_width(),
+                              height=self.widget.winfo_height())
             self.lastX = x
             self.lastY = y
             return
@@ -847,7 +865,38 @@ class createWidget:
             if myVars.redrawGridLines is not None:
                 self.widget.after_idle(myVars.redrawGridLines)
         elif myVars.geomManager == "Pack":
-            self.widget.pack(padx=4, pady=4, anchor="nw")
+            # Remove the temporary place() used during drag, then re-insert
+            # into pack order at the position nearest to the drop point.
+            try:
+                self.widget.place_forget()
+            except tk.TclError:
+                pass
+            # Find the pack slave whose midpoint is closest to the drop Y
+            # and insert before/after it accordingly.
+            parent = self.root
+            slaves = parent.pack_slaves()
+            # Remove self from the slave list (it was pack_forgotten during drag)
+            other_slaves = [s for s in slaves if s is not self.widget]
+            insert_after = None   # None means insert at the front
+            for sib in other_slaves:
+                sib_mid = sib.winfo_y() + sib.winfo_height() // 2
+                if self.y > sib_mid:
+                    insert_after = sib
+            try:
+                if insert_after is None:
+                    self.widget.pack(side=self.pack_side, fill=self.pack_fill,
+                                     expand=self.pack_expand,
+                                     padx=self.pack_padx, pady=self.pack_pady,
+                                     before=other_slaves[0] if other_slaves else None)
+                else:
+                    self.widget.pack(side=self.pack_side, fill=self.pack_fill,
+                                     expand=self.pack_expand,
+                                     padx=self.pack_padx, pady=self.pack_pady,
+                                     after=insert_after)
+            except (tk.TclError, IndexError):
+                self.widget.pack(side=self.pack_side, fill=self.pack_fill,
+                                 expand=self.pack_expand,
+                                 padx=self.pack_padx, pady=self.pack_pady)
         else:
             log.error("Geometry Manager %s is TBD", myVars.geomManager)
         raiseChildren(self.pythonName)
