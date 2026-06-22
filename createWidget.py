@@ -246,9 +246,11 @@ class createWidget:
         self.widget.bind("<B1-Motion>", self.leftMouseDrag)
         self.widget.bind("<ButtonRelease-1>", self.leftMouseRelease)
         if myVars.geomManager == "Grid":
-            self.widget.grid(row=self.row, column=self.col)
+            self.widget.grid(row=self.row, column=self.col, padx=2, pady=2, sticky="WE")
         elif myVars.geomManager == "Place":
             self.widget.place(x=self.x, y=self.y)
+        elif myVars.geomManager == "Pack":
+            self.widget.pack(padx=4, pady=4, anchor="nw")
         else:
             log.error("Geometry Manager %s is TBD", myVars.geomManager)
 
@@ -258,8 +260,6 @@ class createWidget:
         if myVars.geomManager == "Place":
             # The second place is needed after the 'update()'
             self.widget.place(x=self.x, y=self.y, width=self.width, height=self.height)
-        else:
-            log.error("Geometry Manager %s is TBD", myVars.geomManager)
         log.debug(
             "New %s WidgetId %d Width %d Height %d",
             self.widget.widgetName,
@@ -602,11 +602,16 @@ class createWidget:
         if myVars.geomManager == "Place":
             self.widget.place(x=self.x, y=self.y, height=self.height, width=self.width)
         elif myVars.geomManager == "Grid":
-            z = self.root.grid_location(self.x, self.y)
-            self.row = z[1]
-            self.col = z[0]
-            self.widget.grid(row=self.row, column=self.col)
-            log.debug("Left Mouse Release -- col, row %s %s", str(z), str(event))
+            try:
+                z = self.root.grid_location(self.x, self.y)
+                self.row = z[1]
+                self.col = z[0]
+            except tk.TclError:
+                pass
+            self.widget.grid(row=self.row, column=self.col, padx=2, pady=2, sticky="WE")
+            log.debug("Left Mouse Release -- col, row %s %s", str((self.col, self.row)), str(event))
+        elif myVars.geomManager == "Pack":
+            self.widget.pack(padx=4, pady=4, anchor="nw")
         else:
             log.error("Geometry Manager %s is TBD", myVars.geomManager)
         raiseChildren(self.pythonName)

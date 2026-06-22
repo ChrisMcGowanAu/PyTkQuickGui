@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import os.path
@@ -140,29 +141,35 @@ def createCleanImageList() -> []:
     log.debug("cleanFilenames %s",str(cleanFilenames))
     return cleanFilenames
 
-def saveProjectFile(fileName,fileType,projectData):
+def saveProjectFile(fileName, fileType, projectData):
+    """Save project data as a human-readable JSON file with rolling backups.
+
+    The file format is plain JSON so projects can be inspected and edited
+    in any text editor.  Be careful when hand-editing – an invalid JSON file
+    will prevent the project from loading.
+    """
     if not projectData:
         log.error("projectData is empty. Not saving")
         return
-    ftails = [5,4,3,2,1]
+    ftails = [5, 4, 3, 2, 1]
     completeFileName = fileName + fileType
     for t in ftails:
         testNameA = str(fileName) + str("-save") + str(t) + fileType
         if os.path.isfile(testNameA):
-            testNameB = fileName + "-save" + str(t+1) + fileType
+            testNameB = fileName + "-save" + str(t + 1) + fileType
             os.rename(testNameA, testNameB)
 
     if os.path.isfile(completeFileName):
         testNameA = fileName + "-save" + str(1) + fileType
         os.rename(completeFileName, testNameA)
 
-    f = open(completeFileName, "wb")
     try:
-        pickle.dump(projectData, f)
-    except TypeError as e:
-        log.error("Exception TypeError %s", str(e))
+        with open(completeFileName, "w", encoding="utf-8") as f:
+            json.dump(projectData, f, indent=2, default=str)
+        log.info("Project saved as JSON to %s", completeFileName)
+    except (TypeError, OSError) as e:
+        log.error("Exception saving JSON %s", str(e))
         log.warning("Error in Project Data \n%s", str(projectData))
-    f.close()
 
 def saveProject():
     widgetCount = 0
@@ -171,14 +178,15 @@ def saveProject():
     height = 0  # mainCanvas.winfo_height
     cleanList = createCleanNameList()
     projectData = {
-        "ProjectName": "test",
-        "ProjectPath": "/tmp/test",
+        "ProjectName": myVars.projectName,
+        "ProjectPath": myVars.projectPath,
         "width": width,
         "height": height,
         "theme": myVars.theme,
+        "geomManager": myVars.geomManager,
         "widgetNameList": cleanList,
         "backgroundColor": myVars.backgroundColor,
-        "imageFileNames" : createCleanImageList(),
+        "imageFileNames": createCleanImageList(),
     }
     # Work out the order to create the Widgets so the parenting is correct
     createdWidgetOrder = workOutWidgetCreationOrder()
@@ -353,12 +361,13 @@ def buildPython() -> str:
                         tmpWidgetDef = widgetDef + ", " + key + "=" + val
                     widgetDef = tmpWidgetDef
             print(widgetDef + ")")
+            geomData = wDict.get("GeomData", {})
             if myVars.geomManager == "Place":
-                place = wDict.get("Place")
-                x = place.get("x")
-                y = place.get("y")
-                width = place.get("width")
-                height = place.get("height")
+                place = wDict.get("Place", geomData)
+                x = place.get("x", "0")
+                y = place.get("y", "0")
+                width = place.get("width", "72")
+                height = place.get("height", "32")
                 try:
                     widthPos = int(x) + int(width)
                     heightPos = int(y) + int(height)
@@ -366,34 +375,37 @@ def buildPython() -> str:
                         largestWidth = widthPos
                     if heightPos > largestHeight:
                         largestHeight = heightPos
-                except ArithmeticError as e:
-                    log.warning("ArithmeticError %s", str(e))
-                except ValueError as e:
-                    log.warning("ValueError %s", str(e))
-
-                anchor = place.get("anchor")
-                bordermode = place.get("bordermode")
+                except (ArithmeticError, ValueError) as e:
+                    log.warning("Dimension error %s", str(e))
+                anchor = place.get("anchor", "nw")
+                bordermode = place.get("bordermode", "inside")
                 print(
-                    widgetName
-                    + ".place("
-                    + "x="
-                    + x
-                    + ", y="
-                    + y
-                    + ", width="
-                    + width
-                    + ", height="
-                    + height
-                    + ", anchor='"
-                    + anchor
-                    + "', bordermode='"
-                    + bordermode
-                    + "')"
+                    f"{widgetName}.place(x={x}, y={y}, width={width},"
+                    f" height={height}, anchor='{anchor}',"
+                    f" bordermode='{bordermode}')"
                 )
-            # if myVars.geomManager == 'Grid':
-            # if myVars.geomManager == 'Pack':
+            elif myVars.geomManager == "Grid":
+                row = geomData.get("row", "0")
+                col = geomData.get("column", "0")
+                sticky = geomData.get("sticky", "")
+                padx = geomData.get("padx", "2")
+                pady = geomData.get("pady", "2")
+                print(
+                    f"{widgetName}.grid(row={row}, column={col},"
+                    f" sticky='{sticky}', padx={padx}, pady={pady})"
+                )
+            elif myVars.geomManager == "Pack":
+                side = geomData.get("side", "top")
+                fill = geomData.get("fill", "none")
+                expand = geomData.get("expand", "0")
+                padx = geomData.get("padx", "2")
+                pady = geomData.get("pady", "2")
+                print(
+                    f"{widgetName}.pack(side='{side}', fill='{fill}',"
+                    f" expand={expand}, padx={padx}, pady={pady})"
+                )
             else:
-                log.error("Geometry Manager %s is TBD", myVars.geomManager)
+                log.error("Unknown geometry manager %s", myVars.geomManager)
     largestWidth += 20
     largestHeight += 20
     geom = str(largestWidth) + "x" + str(largestHeight)
@@ -404,7 +416,12 @@ def buildPython() -> str:
     print("rootWin.rowconfigure(0, weight=1)")
     print("sg0 = tboot.Sizegrip(rootWin)")
     print("sg0.grid(row=1, sticky=tk.SE)")
-    print(rootName + ".place(x=0, y=0, relwidth=1.0, relheight=1.0)")
+    if myVars.geomManager == "Place":
+        print(rootName + ".place(x=0, y=0, relwidth=1.0, relheight=1.0)")
+    elif myVars.geomManager == "Grid":
+        print(rootName + ".grid(row=0, column=0, sticky='NSEW')")
+    elif myVars.geomManager == "Pack":
+        print(rootName + ".pack(fill='both', expand=True)")
     print("\nrootWin.mainloop()")
     sys.stdout.close()
     sys.stdout = sys.__stdout__
@@ -480,14 +497,24 @@ def changeParentOfTo(widgetName, parentName):
     widget = widgetList[cw.WIDGET]
     parent = parentList[cw.WIDGET]
 
-    if myVars.geomManager == "Place":
+    mgr = myVars.geomManager
+    if mgr == "Place":
         widget.place(in_=parent)
         widget.parent = parent
         widget.update()
-    # if myVars.geomManager == 'Grid':
-    # if myVars.geomManager == 'Pack':
+    elif mgr == "Grid":
+        # Preserve existing grid info if available, else default to 0,0
+        try:
+            gi = widget.grid_info()
+            row = gi.get("row", 0)
+            col = gi.get("column", 0)
+        except tk.TclError:
+            row, col = 0, 0
+        widget.grid(in_=parent, row=row, column=col, padx=2, pady=2, sticky="WE")
+    elif mgr == "Pack":
+        widget.pack(in_=parent, padx=4, pady=4, anchor="nw")
     else:
-        log.error("Geometry Manager %s is TBD", myVars.geomManager)
+        log.error("Geometry Manager %s is TBD", mgr)
     tk.Misc.lift(widget, parent)
     cw.reparentWidget(widgetName, parent)
 
@@ -627,26 +654,67 @@ def openBackupFile():
     filePath = tk.filedialog.askopenfilename(
         title="Select a backup project File",
         initialdir=configPath,
-        filetypes=[("PyTkQuickGui pickle files", myVars.fileType), ("All files", "*.*")])
+        filetypes=[
+            ("PyTkQuickGui JSON files", "*.json"),
+            ("PyTkQuickGui legacy pickle files", "*.pk1"),
+            ("All files", "*.*"),
+        ],
+    )
 
     if filePath:
         # Work out the probable project name
         projectPath = os.path.dirname(filePath)
         projectName = os.path.basename(projectPath)
-        log.debug("Selected File: %s \nProjectPath %s \nProject %s",filePath,projectPath,projectName)
-        loadProject(projectName,filePath)
+        log.debug("Selected File: %s \nProjectPath %s \nProject %s", filePath, projectPath, projectName)
+        loadProject(projectName, filePath)
 
-def loadProject(project,altFileName):
+def _loadProjectData(fullFileName: str):
+    """Return the project dict from *fullFileName*.
+
+    Tries JSON first; if that fails (e.g. the file is an old pickle save)
+    falls back to pickle so existing projects keep working.
+    Returns None when the file is empty or cannot be parsed.
     """
-    Load a project from a saved file (in pickle format)
-    """
+    if not os.path.isfile(fullFileName):
+        return None
+    if os.path.getsize(fullFileName) == 0:
+        return None
+
+    # ---- Try JSON -------------------------------------------------------
+    try:
+        with open(fullFileName, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        log.info("Loaded project from JSON: %s", fullFileName)
+        return data
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        pass  # fall through to pickle
+
+    # ---- Legacy pickle --------------------------------------------------
+    try:
+        with open(fullFileName, "rb") as f:
+            data = pickle.load(f)
+        log.info("Loaded project from legacy pickle: %s", fullFileName)
+        Messagebox.show_info(
+            title="Legacy Format",
+            message=(
+                f"Project '{os.path.basename(fullFileName)}' was loaded from the "
+                "old pickle format.\nIt will be converted to JSON next time you save."
+            ),
+        )
+        return data
+    except Exception as e:
+        log.error("Failed to load project file %s: %s", fullFileName, str(e))
+        return None
+
+
+def loadProject(project, altFileName):
+    """Load a project from a saved file (JSON or legacy pickle)."""
     configPath = getConfigPath()
-    folder = createFileName(configPath,None,project)
+    folder = createFileName(configPath, None, project)
     fileName = ""
     fullFileName = ""
     if altFileName is None:
-        # folder = configPath + '/' + project.strip()
-        log.info("folder ->%s<-",folder)
+        log.info("folder ->%s<-", folder)
         if project is None:
             log.info("config Path =>%s<=", configPath)
             folder = tk.filedialog.askdirectory(
@@ -660,14 +728,27 @@ def loadProject(project,altFileName):
                      myVars.projectPath, myVars.projectName)
         else:
             log.warning("No project selected Try Again")
-            Messagebox.show_error(title="No Project Selected", message="The Directory Selection box is not intuitive.\nDouble click on project name\nTry Again or create a new Project")
+            Messagebox.show_error(
+                title="No Project Selected",
+                message=(
+                    "The Directory Selection box is not intuitive.\n"
+                    "Double click on project name\nTry Again or create a new Project"
+                ),
+            )
             return
-        # projFileName = myVars.projectName + ".pk1"
         projFileName = myVars.projectName
         fileName = os.path.join(myVars.projectPath, projFileName)
         myVars.projectFileName = fileName
-        fullFileName = fileName + myVars.fileType
-    else : # loading a backup fileName
+        # Try JSON file first, then legacy pickle
+        jsonFile = fileName + myVars.fileType
+        legacyFile = fileName + myVars.legacyFileType
+        if os.path.isfile(jsonFile):
+            fullFileName = jsonFile
+        elif os.path.isfile(legacyFile):
+            fullFileName = legacyFile
+        else:
+            fullFileName = jsonFile  # will be created on save
+    else:  # loading a backup / specific fileName
         projFileName = project
         fileName = altFileName
         myVars.projectName = os.path.basename(folder)
@@ -675,27 +756,14 @@ def loadProject(project,altFileName):
         fullFileName = fileName
 
     mainFrame.config(text=myVars.projectName)
-    data = any
-    runDict = data
-    nWidgets = 0
-    closeFile = True
-    widgetNameList = []
     deleteWidgetData()
-    f : Any
-    try:
-        f = open(fullFileName, "rb")
-    except FileNotFoundError as e:
-        log.warning("File not found -->%s<-- exception %s", fullFileName, str(e))
-        os.mknod(fullFileName)
-        closeFile = False
-    if closeFile:
-        try:
-            data = pickle.load(f)
-            f.close()
-        except EOFError as e:
-            log.warning("pickle error (empty file?) %s exception %s",fullFileName,str(e))
-        except UnicodeDecodeError as e:
-            log.warning("pickle error (empty file?) %s exception %s",fullFileName,str(e))
+
+    data = _loadProjectData(fullFileName)
+    if data is None:
+        # Brand new or empty project – just start fresh
+        log.info("No data found in %s – starting with empty canvas.", fullFileName)
+        mainFrame.config(text=myVars.projectName)
+        return
 
     try:
         runDict = data
@@ -704,7 +772,11 @@ def loadProject(project,altFileName):
         widgetNameList = runDict.get("widgetNameList")
         nWidgets = runDict.get("widgetCount")
         myVars.widgetImageFilenames = runDict.get("imageFileNames")
-
+        savedGeom = runDict.get("geomManager")
+        if savedGeom and savedGeom in myVars.GEOM_MANAGERS:
+            myVars.geomManager = savedGeom
+            if hasattr(rootWin, '_geomLabel'):
+                rootWin._geomLabel.config(text="Layout: " + savedGeom)
     except AttributeError:
         log.info("AttributeError in project file.")
 
@@ -834,19 +906,288 @@ def welcome():
     about2 = about
     Messagebox.show_info(message=about2,title="Welcome")
 
-def helpMe():
-    about = '''Basic Actions:
-    Right click on the background to get a list of Widgets.
-    A selected Widget will place itself where the mouse is.
-    Left click hold and drag to move Widgets around.
-    Left click and drag close to the inside edge of Widgets to resize.
-    Right Click on Widgets to choose Edit and Layout windows.'''
+# ---------------------------------------------------------------------------
+# In-app Help window  (tabbed, scrollable)
+# ---------------------------------------------------------------------------
 
-    # remove leading whitespace from each line
-    # this does not work on python 3.12
-    # about2 = re.sub("\n\s*", "\n", about)
-    about2 = about
-    Messagebox.show_info(message=about2,title="Help")
+_HELP_TABS = {
+    "Getting Started": """
+PyTkQuickGui  –  Quick-start guide
+===================================
+
+1.  CREATE A PROJECT
+    File > New Project  then enter a name.
+
+2.  ADD WIDGETS
+    Right-click anywhere on the canvas.
+    A pop-up menu lists all available widget types.
+    Container widgets (Frame, Labelframe…) appear first.
+    Click a name to place the widget at the cursor.
+
+3.  MOVE A WIDGET
+    Left-click in the centre of a widget and drag.
+
+4.  RESIZE A WIDGET
+    Left-click near any edge of a widget and drag.
+    The cursor changes to indicate resize mode.
+    Sizes snap to a 16-pixel grid on mouse release.
+
+5.  EDIT ATTRIBUTES
+    Right-click a widget > Edit.
+    Change text, colour, font, style, command names, etc.
+    Click Apply to commit, Close to discard.
+
+6.  CHANGE LAYOUT POSITION (Place mode)
+    Right-click a widget > Layout.
+    Enter exact x, y, width, height values.
+
+7.  SAVE
+    File > Save Project  (Ctrl+S equivalent from menu).
+    Projects are stored as JSON files in ~/.config/pytkgui/.
+
+8.  GENERATE CODE
+    File > Generate Python  – choose where to save the .py file.
+    File > Trial Run  – generate & run immediately.
+""",
+
+    "Mouse & Keyboard": """
+Mouse Actions
+=============
+
+  Right-click canvas          Open widget palette (add new widget)
+  Right-click widget          Context menu (Edit / Layout / Clone / Delete…)
+  Left-drag (centre)          Move widget
+  Left-drag (near edge)       Resize widget
+    – right edge              Stretch / shrink width
+    – left edge               Move left edge (adjusts x and width)
+    – bottom edge             Stretch / shrink height
+    – top edge                Move top edge (adjusts y and height)
+  Left-drag size-grip         Resize the canvas
+
+Snap Grid
+=========
+  Widgets snap to a 16-pixel grid when you release the mouse.
+
+Widget Context Menu
+===================
+  Edit          Open attribute editor popup
+  Layout        Open x/y/width/height editor (Place mode)
+  Clone         Duplicate the widget
+  DeepClone     Duplicate container + all children
+  Re-Parent     Move widget into the container it overlaps
+  Delete        Remove the widget
+  Close         Dismiss the menu
+""",
+
+    "Geometry Managers": """
+Geometry Managers
+==================
+Choose one from the toolbar BEFORE placing widgets.
+The choice is saved in the project file and restored on load.
+
+PLACE  (default)
+  Widgets are positioned with absolute pixel coordinates.
+  Generated code:  myWidget.place(x=…, y=…, width=…, height=…)
+  Best for: pixel-perfect prototypes, tool UIs.
+
+GRID
+  Widgets are placed in a row/column table.
+  Drop position is translated to the nearest grid cell.
+  Generated code:  myWidget.grid(row=…, column=…, sticky=…)
+  Best for: forms, dialog boxes, structured layouts.
+
+PACK
+  Widgets are stacked sequentially.
+  Generated code:  myWidget.pack(side=…, fill=…, expand=…)
+  Best for: simple vertical / horizontal stacks.
+
+Note: changing the geometry manager after placing widgets may
+cause the canvas to look different because existing widgets
+were placed with the old manager's rules.
+""",
+
+    "Widgets": """
+ttkbootstrap Widgets
+====================
+  Frame          Container – holds other widgets
+  Labelframe     Frame with a border title
+  Panedwindow    Adjustable splitter container
+  Label          Static text or image
+  Button         Clickable button
+  Entry          Single-line text input
+  Combobox       Drop-down list
+  Spinbox        Numeric spinner
+  Checkbutton    Tick-box
+  Radiobutton    Radio selector
+  Scale          Slider (horizontal or vertical)
+  Progressbar    Progress bar
+  Floodgauge     Animated fill gauge (ttkbootstrap)
+  Meter          Circular gauge (ttkbootstrap)
+  Notebook       Tabbed container
+  Canvas         Drawing / image surface
+
+Standard tk / ttk Widgets
+==========================
+  Text           Multi-line text area
+  Listbox        Scrollable list
+  Treeview       Table / tree view
+  Scrollbar      Scroll bar – attach via the Edit popup
+  Separator      Horizontal or vertical dividing line
+  Sizegrip       Window resize handle (bottom-right corner)
+
+All widgets expose their configurable keys in the Edit popup.
+Common attribute types:
+  Combobox  →  anchor, relief, justify, orient, cursor, style
+  Spinbox   →  height, width, borderwidth, padding
+  Button    →  font, foreground/background colour, image
+  Entry     →  text, command, variable names, etc.
+""",
+
+    "Project Files": """
+Project File Format  (JSON)
+============================
+Projects are stored as plain JSON files:
+
+  ~/.config/pytkgui/<ProjectName>/<ProjectName>.json
+
+Rolling backups are kept automatically:
+  <ProjectName>-save1.json   (most recent previous save)
+  <ProjectName>-save2.json
+  ...up to save5
+
+The JSON file can be opened in any text editor.
+You can edit widget properties by hand – but be careful:
+an invalid JSON file will prevent the project from loading.
+
+Legacy Format (.pk1)
+====================
+Older versions saved projects as Python pickle (.pk1) files.
+These are still loaded automatically. A notice is shown and
+the project will be re-saved as JSON next time you save.
+
+File > Open backup file allows you to load any .json or .pk1
+backup file directly.
+""",
+
+    "Code Generation": """
+Generated Python File
+======================
+File > Generate Python  produces a single .py file:
+
+  import tkinter as tk
+  import ttkbootstrap as tboot
+
+  themeName = 'cyborg'
+  title     = 'MyProject'
+  rootWin   = tboot.Window(themename=themeName, title=title)
+  rootWidget = tboot.Frame(rootWin, ...)
+
+  ####### TK variables #######
+  myVar = tk.StringVar(rootWin, '0.0')
+
+  ####### Functions #######
+  def onButtonClick():
+      print('onButtonClick')
+
+  Widget0 = tboot.Button(rootWidget, text='Click', command=onButtonClick)
+  Widget0.place(x=80, y=48, width=120, height=32, ...)
+
+  ####### Main #######
+  rootWin.geometry('800x600')
+  rootWin.mainloop()
+
+Tips
+====
+  - Set the 'command' attribute in the Edit popup to the
+    function name you want called on click.
+  - Set 'textvariable' or 'variable' to a variable name;
+    the generator creates  myVar = tk.StringVar(…)  for you.
+  - File > Trial Run generates + runs the file immediately
+    so you can preview the layout.
+  - The generated code is plain Python – open it in any IDE
+    and write your application logic.
+""",
+
+    "Tips & Troubleshooting": """
+Useful Tips
+===========
+  • Use Frames and Labelframes to group related widgets.
+    Drag a widget into a frame; it re-parents automatically.
+
+  • Use Tools > Hide Label Borders / Show Label Borders to
+    toggle the 1-pixel debug border on all Label widgets.
+
+  • Use Tools > Widget Tree to print the full widget hierarchy
+    to the terminal – useful for debugging parent/child issues.
+
+  • Use Tools > Open backup file to recover from an accidental
+    deletion by loading a previous auto-save.
+
+  • Themes are applied live – use the Theme menu to preview
+    how your layout looks in different colour schemes.
+
+Troubleshooting
+===============
+  Widget disappeared
+    → It may be behind another widget. Right-click a widget
+      and use Re-Parent, or check Tools > Widget Tree.
+
+  Project won't load
+    → The JSON file may be corrupted. Open it in a text editor
+      and check for syntax errors, or load a backup file.
+
+  Meter widget looks wrong
+    → Use File > Trial Run to see how it renders in the final
+      application window.
+
+  Scrollbars not working
+    → Scrollbar auto-wiring (vertical_scrollbar /
+      horizontal_scrollbar in the Edit popup) only works
+      with the Grid geometry manager.
+
+  Generated code has unexpected geometry
+    → Check that you saved the project AFTER final adjustments
+      and re-generate. The code is always built from the
+      last saved state.
+""",
+}
+
+
+def helpMe():
+    """Open the tabbed in-app help window."""
+    helpWin = tboot.Toplevel(rootWin, title="PyTkQuickGui – Help")
+    helpWin.geometry("700x520")
+    helpWin.resizable(True, True)
+
+    nb = tboot.Notebook(helpWin)
+    nb.pack(fill="both", expand=True, padx=8, pady=8)
+
+    for tab_title, tab_text in _HELP_TABS.items():
+        frame = tboot.Frame(nb)
+        nb.add(frame, text=tab_title)
+
+        # Scrollable text area
+        vsb = tboot.Scrollbar(frame, orient="vertical", style="info round")
+        txt = tk.Text(
+            frame,
+            wrap="word",
+            state="normal",
+            font=("Courier", 10),
+            padx=8,
+            pady=4,
+            borderwidth=0,
+            yscrollcommand=vsb.set,
+        )
+        vsb.config(command=txt.yview)
+        vsb.pack(side="right", fill="y")
+        txt.pack(side="left", fill="both", expand=True)
+        txt.insert("1.0", tab_text.strip())
+        txt.config(state="disabled")
+
+    close_btn = tboot.Button(
+        helpWin, text="Close", style="warning", command=helpWin.destroy
+    )
+    close_btn.pack(pady=(0, 8))
 
 def buildMenu():
     # global rootWin
@@ -932,6 +1273,24 @@ def sizeGripRelease(event):
     drawGridLines()
 
 
+def _placeNewWidget(w, x: int, y: int, width: int = 72, height: int = 32) -> None:
+    """Position a newly created widget according to the active geometry manager."""
+    mgr = myVars.geomManager
+    if mgr == "Place":
+        w.place(x=x, y=y, width=width, height=height)
+    elif mgr == "Grid":
+        # Estimate grid cell from pixel coordinates.  The canvas cell size is
+        # not fixed; use a 32-pixel cell approximation as a starting point.
+        cell = 32
+        col = max(0, x // cell)
+        row = max(0, y // cell)
+        w.grid(row=row, column=col, padx=2, pady=2, sticky="WE")
+    elif mgr == "Pack":
+        w.pack(padx=4, pady=4, anchor="nw")
+    else:
+        log.error("Unknown geometry manager %s", mgr)
+
+
 def createWidgetPopup(event, widgetName):
     defaultStyle = "primary"
     defaultCursor = "arrow"
@@ -939,6 +1298,7 @@ def createWidgetPopup(event, widgetName):
     x = event.x
     y = event.y
     w: Any
+    # ---- Container widgets -------------------------------------------
     if widgetName == "Frame":
         w = tboot.Frame(mainFrame, cursor=defaultCursor, style=defaultStyle)
     elif widgetName == "Labelframe":
@@ -952,8 +1312,8 @@ def createWidgetPopup(event, widgetName):
             style=defaultStyle,
         )
     elif widgetName == "Panedwindow":
-        w = tboot.Panedwindow(
-            mainFrame, cursor=defaultCursor, style=defaultStyle)
+        w = tboot.Panedwindow(mainFrame, cursor=defaultCursor, style=defaultStyle)
+    # ---- ttkbootstrap widgets ----------------------------------------
     elif widgetName == "Label":
         w = tboot.Label(
             mainFrame,
@@ -978,8 +1338,6 @@ def createWidgetPopup(event, widgetName):
         w = tboot.Canvas(
             mainFrame, borderwidth=1, relief=tk.SOLID, cursor=defaultCursor
         )
-        #                 ,highlightthickness=1,highlightbackground='red')
-        # w.configure(scrollregion = w.bbox("all"))
     elif widgetName == "Spinbox":
         w = tboot.Spinbox(mainFrame, cursor=defaultCursor, style=defaultStyle)
     elif widgetName == "Checkbutton":
@@ -1000,33 +1358,56 @@ def createWidgetPopup(event, widgetName):
         w = tboot.Floodgauge(
             mainFrame, value=50, cursor=defaultCursor, style=defaultStyle
         )
-    # Meter does not work correctly
     elif widgetName == "Meter":
-        # Meter dows not have a parent ....
         w = tboot.Meter(
-            metersize=180,
+            mainFrame,
+            metersize=150,
             padding=5,
             amountused=25,
             metertype="semi",
-            subtext="miles per hour",
+            subtext="value",
             interactive=True,
         )
-        # w.configure(subtext="Read the Docs!")
-    # Labeled Scale is not in ttk bootstrap
-    # elif widgetName == 'Labelscale':
-    #    w = tboot.LabeledScale(mainFrame,cursor=defaultCursor,
-    # style=defaultStyle)
+    # ---- Standard tk / ttk widgets -----------------------------------
+    elif widgetName == "Text":
+        w = tk.Text(
+            mainFrame,
+            width=20,
+            height=5,
+            cursor=defaultCursor,
+            borderwidth=1,
+            relief=tk.SOLID,
+        )
+    elif widgetName == "Listbox":
+        w = tk.Listbox(
+            mainFrame,
+            width=20,
+            height=6,
+            cursor=defaultCursor,
+            borderwidth=1,
+            relief=tk.SOLID,
+            selectmode=tk.BROWSE,
+        )
+    elif widgetName == "Treeview":
+        w = tboot.Treeview(
+            mainFrame,
+            columns=("col1",),
+            show="headings",
+            cursor=defaultCursor,
+        )
+        w.heading("col1", text="Column 1")
+    elif widgetName == "Scrollbar":
+        w = tboot.Scrollbar(mainFrame, orient=tk.VERTICAL, style=defaultStyle)
+    elif widgetName == "Separator":
+        w = tboot.Separator(mainFrame, orient=tk.HORIZONTAL, style=defaultStyle)
+    elif widgetName == "Sizegrip":
+        w = tboot.Sizegrip(mainFrame, style=defaultStyle)
     else:
         log.warning("Widget %s not implemented", widgetName)
         return
-    cw.createWidget(mainFrame, w)
 
-    if myVars.geomManager == "Place":
-        w.place(x=x, y=y, width=72, height=32)
-    # elif myVars.geomManager == 'Grid':
-    # elif myVars.geomManager == 'Pack':
-    else:
-        log.error("Geometry Manager %s is TBD", myVars.geomManager)
+    cw.createWidget(mainFrame, w)
+    _placeNewWidget(w, x, y, width=72, height=32)
 
 
 def rightMouseDown(event):
@@ -1067,18 +1448,42 @@ def buildGrid(rows, cols):
     # mainCanvas.bind('<Motion>',frameMove)
 
 
+def setGeomManager(mgr: str) -> None:
+    """Change the active geometry manager and update the toolbar label."""
+    myVars.geomManager = mgr
+    log.info("Geometry manager set to %s", mgr)
+    if hasattr(rootWin, '_geomLabel'):
+        rootWin._geomLabel.config(text="Layout: " + mgr)
+
+
 def buildMainGui():
     global mainFrame
 
     buildMenu()
 
-    # topFrame = tboot.Frame(rootWin, width=600, height=15)
-    # topFrame = tboot.Frame(rootWin)
-    # topFrame.grid(row=0, column=0, sticky="N")
-    # topLabel = tboot.Label(topFrame, text="TBD");
-    # topLabel.grid(row=0, column=0, sticky="W")
-    mainFrame = tboot.Labelframe(rootWin, width=600, height=150, labelanchor=tk.N,text="No Project Selected")
-    mainFrame.grid(row=0, column=0, sticky="NWES")
+    # ---- Toolbar row (row 0) -------------------------------------------
+    toolbarFrame = tboot.Frame(rootWin)
+    toolbarFrame.grid(row=0, column=0, sticky="EW", padx=4, pady=2)
+
+    tboot.Label(toolbarFrame, text="Geometry Manager:").pack(side=tk.LEFT, padx=(0, 4))
+    for mgr in myVars.GEOM_MANAGERS:
+        tboot.Button(
+            toolbarFrame,
+            text=mgr,
+            width=6,
+            style="outline",
+            command=lambda m=mgr: setGeomManager(m),
+        ).pack(side=tk.LEFT, padx=2)
+
+    geomLabel = tboot.Label(toolbarFrame, text="Layout: Place", bootstyle="info")
+    geomLabel.pack(side=tk.LEFT, padx=(8, 0))
+    rootWin._geomLabel = geomLabel
+
+    # ---- Main canvas frame (row 1) ------------------------------------
+    mainFrame = tboot.Labelframe(
+        rootWin, width=600, height=150, labelanchor=tk.N, text="No Project Selected"
+    )
+    mainFrame.grid(row=1, column=0, sticky="NWES")
     cw.createWidget.baseRoot = mainFrame
 
     mainFrame.columnconfigure(0, weight=1)
@@ -1087,11 +1492,10 @@ def buildMainGui():
     sg0.grid(row=1, sticky=tk.SE)
     sg0.bind("<ButtonRelease-1>", sizeGripRelease)
 
-    rootWin.geometry("800x800")
+    rootWin.geometry("900x820")
     rootWin.resizable(True, True)
     rootWin.columnconfigure(0, weight=1)
-    rootWin.rowconfigure(0, weight=1)
-    # rootWin.getLogger()
+    rootWin.rowconfigure(1, weight=1)   # row 1 is the canvas, let it expand
 
     buildGrid(24, 24)
 
