@@ -37,6 +37,9 @@ mainFrame = tboot.Frame()
 rootWin.title("Python Tk GUI Builder")
 iconBar = tboot.Frame()
 mainCanvas = tboot.Canvas()
+# geomWidgetFrame: inner Frame inside mainCanvas for Grid/Pack modes.
+# For Place mode this is None (widgets go directly on mainCanvas).
+geomWidgetFrame = None
 log = logging.getLogger(name="mylogger")
 
 
@@ -761,6 +764,14 @@ def newProject():
     configPath = getConfigPath()
     log.info("configPath %s", configPath)
     name = Querybox.get_string("New Project name")
+    if not name:
+        return
+
+    # Ask for geometry manager once at project creation
+    geom_choice = _askGeomManager()
+    if not geom_choice:
+        return
+
     path = os.path.join(configPath, name)
     os.mkdir(path)
     log.info("configPath %s project name %s path %s",configPath,name,path)
@@ -770,7 +781,48 @@ def newProject():
     fileName = os.path.join(myVars.projectPath, projFileName)
     myVars.projectFileName = fileName
     log.info("projectFileName %s",myVars.projectFileName)
+
+    # Apply geometry manager (canvas is empty so setGeomManager will accept it)
+    myVars.geomManager = geom_choice
+    if hasattr(rootWin, '_geomLabel'):
+        rootWin._geomLabel.config(text="Layout: " + geom_choice)
+    _rebuild_canvas_for_geom()
     mainFrame.config(text=myVars.projectName)
+
+
+def _askGeomManager() -> str:
+    """Show a simple dialog to choose Place / Grid / Pack.
+    Returns the chosen manager string, or empty string if cancelled."""
+    top = tboot.Toplevel(rootWin, title="Choose Geometry Manager")
+    top.grab_set()
+    tboot.Label(top,
+        text="Choose how widgets will be positioned:",
+        font="TkDefaultFont 10 bold").pack(pady=(16, 4), padx=16)
+
+    descriptions = {
+        "Place": "Free-form drag & drop (absolute x/y)  ← recommended",
+        "Grid":  "Row / column grid layout",
+        "Pack":  "Stack widgets top-to-bottom or left-to-right",
+    }
+    chosen = tk.StringVar(value="Place")
+    for mgr, desc in descriptions.items():
+        tboot.Radiobutton(top, text=f"{mgr}  —  {desc}",
+                          variable=chosen, value=mgr).pack(
+            anchor="w", padx=24, pady=2)
+
+    result = [""]
+    def _ok():
+        result[0] = chosen.get()
+        top.destroy()
+    def _cancel():
+        top.destroy()
+
+    bf = tboot.Frame(top)
+    bf.pack(pady=(12, 16))
+    tboot.Button(bf, text="OK",     bootstyle="primary", command=_ok).pack(side=tk.LEFT, padx=8)
+    tboot.Button(bf, text="Cancel", bootstyle="secondary", command=_cancel).pack(side=tk.LEFT, padx=8)
+    top.wait_window()
+    return result[0]
 
 def getConfigPath() -> str:
     if "APPDATA" in os.environ:
@@ -974,7 +1026,9 @@ def loadProject(project, altFileName):
                           n, str(wDict), str(e))
                 continue
             # w = cw.createWidget(mainCanvas,widget)
-            w = cw.createWidget(mainFrame, widget)
+            # Route to the correct parent for the active geometry manager
+            _load_parent = geomWidgetFrame if geomWidgetFrame is not None else mainCanvas
+            w = cw.createWidget(_load_parent, widget)
 
             mgr = myVars.geomManager
             if mgr == "Place":
@@ -1037,6 +1091,8 @@ def loadProject(project, altFileName):
 
     checkWidgetNameList()
     mainFrame.config(text=myVars.projectName)
+    # Rebuild canvas inner frame for the loaded project's geometry manager
+    _rebuild_canvas_for_geom()
     # Clear undo history – actions from the old project aren't reachable
     undoredo.stack.clear()
 
@@ -1559,14 +1615,16 @@ def _placeNewWidget(w, x: int, y: int, width: int = 72, height: int = 32) -> Non
     if mgr == "Place":
         w.place(x=x, y=y, width=width, height=height)
     elif mgr == "Grid":
-        # Estimate grid cell from pixel coordinates.  The canvas cell size is
-        # not fixed; use a 32-pixel cell approximation as a starting point.
+        # Estimate grid cell from pixel coordinates.
+        # geomWidgetFrame must exist; fall back gracefully if not.
+        parent = geomWidgetFrame if geomWidgetFrame is not None else mainCanvas
         cell = 32
         col = max(0, x // cell)
         row = max(0, y // cell)
-        w.grid(row=row, column=col, padx=2, pady=2, sticky="WE")
+        w.grid(in_=parent, row=row, column=col, padx=2, pady=2, sticky="WE")
     elif mgr == "Pack":
-        w.pack(padx=4, pady=4, anchor="nw")
+        parent = geomWidgetFrame if geomWidgetFrame is not None else mainCanvas
+        w.pack(in_=parent, padx=4, pady=4, anchor="nw")
     else:
         log.error("Unknown geometry manager %s", mgr)
 
@@ -1578,12 +1636,18 @@ def createWidgetPopup(event, widgetName):
     x = event.x
     y = event.y
     w: Any
+
+    # Route the parent to the correct frame:
+    # Place  -> mainCanvas (widgets float freely via .place())
+    # Grid / Pack -> geomWidgetFrame (isolated inner frame inside mainCanvas)
+    _parent = geomWidgetFrame if geomWidgetFrame is not None else mainCanvas
+
     # ---- Container widgets -------------------------------------------
     if widgetName == "Frame":
-        w = tboot.Frame(mainFrame, cursor=defaultCursor, style=defaultStyle)
+        w = tboot.Frame(_parent, cursor=defaultCursor, style=defaultStyle)
     elif widgetName == "Labelframe":
         w = tboot.Labelframe(
-            mainFrame,
+            _parent,
             text=widgetName,
             borderwidth=1,
             relief=tk.SOLID,
@@ -1592,11 +1656,11 @@ def createWidgetPopup(event, widgetName):
             style=defaultStyle,
         )
     elif widgetName == "Panedwindow":
-        w = tboot.Panedwindow(mainFrame, cursor=defaultCursor, style=defaultStyle)
+        w = tboot.Panedwindow(_parent, cursor=defaultCursor, style=defaultStyle)
     # ---- ttkbootstrap widgets ----------------------------------------
     elif widgetName == "Label":
         w = tboot.Label(
-            mainFrame,
+            _parent,
             text=widgetName,
             borderwidth=1,
             relief=tk.SOLID,
@@ -1606,41 +1670,41 @@ def createWidgetPopup(event, widgetName):
         )
     elif widgetName == "Button":
         w = tboot.Button(
-            mainFrame, text=widgetName, cursor=defaultCursor, style=defaultStyle
+            _parent, text=widgetName, cursor=defaultCursor, style=defaultStyle
         )
     elif widgetName == "Entry":
-        w = tboot.Entry(mainFrame, cursor=defaultCursor, style=defaultStyle)
+        w = tboot.Entry(_parent, cursor=defaultCursor, style=defaultStyle)
     elif widgetName == "Combobox":
-        w = tboot.Combobox(mainFrame, cursor=defaultCursor, style=defaultStyle)
+        w = tboot.Combobox(_parent, cursor=defaultCursor, style=defaultStyle)
     elif widgetName == "Notebook":
-        w = tboot.Notebook(mainFrame, cursor=defaultCursor, style=defaultStyle)
+        w = tboot.Notebook(_parent, cursor=defaultCursor, style=defaultStyle)
     elif widgetName == "Canvas":
         w = tboot.Canvas(
-            mainFrame, borderwidth=1, relief=tk.SOLID, cursor=defaultCursor
+            _parent, borderwidth=1, relief=tk.SOLID, cursor=defaultCursor
         )
     elif widgetName == "Spinbox":
-        w = tboot.Spinbox(mainFrame, cursor=defaultCursor, style=defaultStyle)
+        w = tboot.Spinbox(_parent, cursor=defaultCursor, style=defaultStyle)
     elif widgetName == "Checkbutton":
         w = tboot.Checkbutton(
-            mainFrame, text=widgetName, cursor=defaultCursor, style=defaultStyle
+            _parent, text=widgetName, cursor=defaultCursor, style=defaultStyle
         )
     elif widgetName == "Radiobutton":
         w = tboot.Radiobutton(
-            mainFrame, text=widgetName, cursor=defaultCursor, style=defaultStyle
+            _parent, text=widgetName, cursor=defaultCursor, style=defaultStyle
         )
     elif widgetName == "Scale":
-        w = tboot.Scale(mainFrame, cursor=defaultCursor, style=defaultStyle)
+        w = tboot.Scale(_parent, cursor=defaultCursor, style=defaultStyle)
     elif widgetName == "Progressbar":
         w = tboot.Progressbar(
-            mainFrame, value=50.0, cursor=defaultCursor, style=defaultStyle
+            _parent, value=50.0, cursor=defaultCursor, style=defaultStyle
         )
     elif widgetName == "Floodgauge":
         w = tboot.Floodgauge(
-            mainFrame, value=50, cursor=defaultCursor, style=defaultStyle
+            _parent, value=50, cursor=defaultCursor, style=defaultStyle
         )
     elif widgetName == "Meter":
         w = tboot.Meter(
-            mainFrame,
+            _parent,
             metersize=150,
             padding=5,
             amountused=25,
@@ -1651,7 +1715,7 @@ def createWidgetPopup(event, widgetName):
     # ---- Standard tk / ttk widgets -----------------------------------
     elif widgetName == "Text":
         w = tk.Text(
-            mainFrame,
+            _parent,
             width=20,
             height=5,
             cursor=defaultCursor,
@@ -1660,7 +1724,7 @@ def createWidgetPopup(event, widgetName):
         )
     elif widgetName == "Listbox":
         w = tk.Listbox(
-            mainFrame,
+            _parent,
             width=20,
             height=6,
             cursor=defaultCursor,
@@ -1670,23 +1734,23 @@ def createWidgetPopup(event, widgetName):
         )
     elif widgetName == "Treeview":
         w = tboot.Treeview(
-            mainFrame,
+            _parent,
             columns=("col1",),
             show="headings",
             cursor=defaultCursor,
         )
         w.heading("col1", text="Column 1")
     elif widgetName == "Scrollbar":
-        w = tboot.Scrollbar(mainFrame, orient=tk.VERTICAL, style=defaultStyle)
+        w = tboot.Scrollbar(_parent, orient=tk.VERTICAL, style=defaultStyle)
     elif widgetName == "Separator":
-        w = tboot.Separator(mainFrame, orient=tk.HORIZONTAL, style=defaultStyle)
+        w = tboot.Separator(_parent, orient=tk.HORIZONTAL, style=defaultStyle)
     elif widgetName == "Sizegrip":
-        w = tboot.Sizegrip(mainFrame, style=defaultStyle)
+        w = tboot.Sizegrip(_parent, style=defaultStyle)
     else:
         log.warning("Widget %s not implemented", widgetName)
         return
 
-    cw.createWidget(mainFrame, w)
+    cw.createWidget(_parent, w)
     _placeNewWidget(w, x, y, width=72, height=32)
 
 
@@ -1716,7 +1780,7 @@ def buildGrid(rows, cols):
     """
     :rtype: object
     """
-    global mainCanvas
+    global mainCanvas, geomWidgetFrame
     mainCanvas = tboot.Canvas(
         mainFrame, width=40, height=100, relief=tk.SOLID, borderwidth=1
     )
@@ -1724,16 +1788,85 @@ def buildGrid(rows, cols):
         row=0, column=0, columnspan=cols, rowspan=rows, padx=5, pady=5, sticky="NSEW"
     )
     mainCanvas.bind("<Button-3>", rightMouseDown)
+
+    # For Grid / Pack modes create an inner Frame that fills the canvas.
+    # Widgets are parented to this frame so their geometry manager is
+    # isolated from mainFrame's grid (which owns mainCanvas itself).
+    mgr = myVars.geomManager
+    if mgr in ("Grid", "Pack"):
+        geomWidgetFrame = tboot.Frame(mainCanvas)
+        # Place the frame so it fills the whole canvas
+        mainCanvas.create_window(0, 0, window=geomWidgetFrame,
+                                 anchor="nw", tags="geomframe")
+        # Expand the window when the canvas is resized
+        def _resize_geom_frame(event):
+            mainCanvas.itemconfig("geomframe",
+                                  width=event.width, height=event.height)
+        mainCanvas.bind("<Configure>", _resize_geom_frame)
+        cw.createWidget.baseRoot = geomWidgetFrame
+    else:
+        geomWidgetFrame = None
+        cw.createWidget.baseRoot = mainCanvas
+
     drawGridLines()
     # mainCanvas.bind('<Motion>',frameMove)
 
 
 def setGeomManager(mgr: str) -> None:
-    """Change the active geometry manager and update the toolbar label."""
+    """Change the active geometry manager.
+
+    Only allowed when the canvas is empty.  Once widgets exist the manager
+    is locked for the lifetime of the project to avoid geometry conflicts.
+    """
+    if cw.createWidget.widgetList:
+        from ttkbootstrap.dialogs import Messagebox as _MB
+        _MB.show_warning(
+            title="Cannot change geometry manager",
+            message=(
+                "Widgets already exist on the canvas.\n\n"
+                "Mixing geometry managers causes tkinter conflicts.\n"
+                "Start a New Project to choose a different manager."
+            ),
+        )
+        return
     myVars.geomManager = mgr
     log.info("Geometry manager set to %s", mgr)
     if hasattr(rootWin, '_geomLabel'):
         rootWin._geomLabel.config(text="Layout: " + mgr)
+    # Rebuild the canvas inner frame for the new manager
+    _rebuild_canvas_for_geom()
+
+
+def _rebuild_canvas_for_geom():
+    """Recreate the inner geomWidgetFrame (or clear it) to match the
+    current myVars.geomManager.  Call after geomManager changes."""
+    global geomWidgetFrame
+    if mainCanvas is None:
+        return
+    # Destroy old inner frame if present
+    if geomWidgetFrame is not None:
+        try:
+            geomWidgetFrame.destroy()
+        except tk.TclError:
+            pass
+        geomWidgetFrame = None
+    # Clear any leftover canvas windows
+    mainCanvas.delete("geomframe")
+    mainCanvas.unbind("<Configure>")
+
+    mgr = myVars.geomManager
+    if mgr in ("Grid", "Pack"):
+        geomWidgetFrame = tboot.Frame(mainCanvas)
+        mainCanvas.create_window(0, 0, window=geomWidgetFrame,
+                                 anchor="nw", tags="geomframe")
+        def _resize_geom_frame(event):
+            mainCanvas.itemconfig("geomframe",
+                                  width=event.width, height=event.height)
+        mainCanvas.bind("<Configure>", _resize_geom_frame)
+        cw.createWidget.baseRoot = geomWidgetFrame
+    else:
+        geomWidgetFrame = None
+        cw.createWidget.baseRoot = mainCanvas
 
 
 def buildMainGui():
@@ -1786,7 +1919,7 @@ def buildMainGui():
         rootWin, width=600, height=150, labelanchor=tk.N, text="No Project Selected"
     )
     mainFrame.grid(row=1, column=0, sticky="NWES")
-    cw.createWidget.baseRoot = mainFrame
+    # baseRoot is set inside buildGrid() once mainCanvas is created
 
     mainFrame.columnconfigure(0, weight=1)
     mainFrame.rowconfigure(0, weight=1)

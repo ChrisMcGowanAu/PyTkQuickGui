@@ -641,8 +641,23 @@ class createWidget:
 
         deltaX = x - self.lastX
         deltaY = y - self.lastY
-        placex = self.widget.place_info().get("x")
-        placey = self.widget.place_info().get("y")
+
+        # Grid / Pack managers don't use place_info() – track position via
+        # winfo_x/y directly so we don't crash on None.
+        if myVars.geomManager != "Place":
+            self.x = self.widget.winfo_x() + int(deltaX)
+            self.y = self.widget.winfo_y() + int(deltaY)
+            self.lastX = x
+            self.lastY = y
+            return   # actual re-gridding happens on ButtonRelease
+
+        placex = self.widget.place_info().get("x", self.x)
+        placey = self.widget.place_info().get("y", self.y)
+        if placex is None:
+            placex = self.x
+        if placey is None:
+            placey = self.y
+
         # Doing this correctly has done my head in. I think it now works ok
         if self.dragType == "dragEast":
             width = width + deltaX
@@ -663,7 +678,6 @@ class createWidget:
         else:
             self.x = int(placex) + int(deltaX)
             self.y = int(placey) + int(deltaY)
-
 
         self.widget.place(x=self.x, y=self.y, width=width, height=height)
         log.debug("self.dragType %s x = %s y = %s self.x %s y=self.y %s width %s height %s self.startX %s self.startY %s",self.dragType,x,y,self.x,self.y,width,height,self.startX,self.startY)
@@ -693,9 +707,10 @@ class createWidget:
         elif myVars.geomManager == "Grid":
             try:
                 z = self.root.grid_location(self.x, self.y)
-                self.row = z[1]
-                self.col = z[0]
-            except tk.TclError:
+                # grid_location can return -1 for positions before the first cell
+                self.row = max(0, int(z[1]))
+                self.col = max(0, int(z[0]))
+            except (tk.TclError, TypeError, ValueError):
                 pass
             self.widget.grid(row=self.row, column=self.col, padx=2, pady=2, sticky="WE")
             log.debug("Left Mouse Release -- col, row %s %s", str((self.col, self.row)), str(event))
