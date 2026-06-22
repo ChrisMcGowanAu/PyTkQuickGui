@@ -232,8 +232,10 @@ class createWidget:
         self.columnspan = 1      # number of grid columns this widget spans
         self.rowspan    = 1      # number of grid rows    this widget spans
         self.sticky     = "WE"   # tkinter sticky string — user-controlled
-        self.padx       = 2      # grid padx
-        self.pady       = 2      # grid pady
+        self.padx       = 2      # grid padx  (external padding)
+        self.pady       = 2      # grid pady  (external padding)
+        self.ipadx      = 0      # grid ipadx (internal padding / extra width)
+        self.ipady      = 0      # grid ipady (internal padding / extra height)
         self.x_root = self.x
         self.y_root = self.y
         self.start_x = self.x  # Set start_x on mouse down
@@ -261,7 +263,9 @@ class createWidget:
         if myVars.geomManager == "Grid":
             self.widget.grid(row=self.row, column=self.col,
                              columnspan=self.columnspan, rowspan=self.rowspan,
-                             padx=self.padx, pady=self.pady, sticky=self.sticky)
+                             padx=self.padx, pady=self.pady,
+                             ipadx=self.ipadx, ipady=self.ipady,
+                             sticky=self.sticky)
         elif myVars.geomManager == "Place":
             self.widget.place(x=self.x, y=self.y)
         elif myVars.geomManager == "Pack":
@@ -825,17 +829,15 @@ class createWidget:
                     self.rowspan    = _ors
             except (tk.TclError, TypeError, ValueError):
                 pass
-            # Preserve padx/pady from live grid_info (may differ from default)
-            try:
-                gi = self.widget.grid_info()
-                self.padx   = int(str(gi.get("padx",   self.padx )).split()[0])
-                self.pady   = int(str(gi.get("pady",   self.pady )).split()[0])
-                self.sticky = str(gi.get("sticky", self.sticky))
-            except (tk.TclError, ValueError):
-                pass
+            # self.sticky / self.padx / self.pady are the authoritative values —
+            # set by applyLayoutSettings or initialised in __init__.
+            # Do NOT read grid_info() here: the widget may still be floating
+            # via .place() and grid_info() would return stale or empty data.
             self.widget.grid(row=self.row, column=self.col,
                              columnspan=self.columnspan, rowspan=self.rowspan,
-                             padx=self.padx, pady=self.pady, sticky=self.sticky)
+                             padx=self.padx, pady=self.pady,
+                             ipadx=self.ipadx, ipady=self.ipady,
+                             sticky=self.sticky)
             log.debug("Left Mouse Release -- col=%s row=%s cspan=%s rspan=%s sticky=%s",
                       self.col, self.row, self.columnspan, self.rowspan, self.sticky)
             # Redraw grid lines so they reflect the updated cell boundaries
