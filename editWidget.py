@@ -285,9 +285,7 @@ class widgetEditPopup:
         log.debug("Apply Layout settings (geomManager=%s)", myVars.geomManager)
 
         if myVars.geomManager == "Grid":
-            cwo = cw.findCreateWidgetObject(
-                self.widget.pythonName if hasattr(self.widget, 'pythonName') else ""
-            )
+            cwo = cw.findCreateWidgetObject(self.widgetName)
             try:
                 row        = int(self.stringDict.get("row",        0))
                 col        = int(self.stringDict.get("column",     0))
@@ -549,9 +547,7 @@ class widgetEditPopup:
             except tk.TclError:
                 gi = {}
             # Try to find the createWidget object to read row/col
-            cwo = cw.findCreateWidgetObject(
-                self.widget.pythonName if hasattr(self.widget, 'pythonName') else ""
-            )
+            cwo = cw.findCreateWidgetObject(self.widgetName)
             # cwo fields are the authoritative user-set values; gi is a fallback
             # only when there is no cwo (e.g. non-tracked widgets).
             def _gi_int(key, cwo_val, default=0):
