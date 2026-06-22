@@ -48,8 +48,9 @@ import ttkbootstrap as tboot
 
 log = logging.getLogger("mylogger")
 
-# These are imported lazily inside functions that need them to avoid
-# circular-import issues (undoredo ← createWidget ← pytkguivars ← undoredo).
+# pytkguivars and createWidget are imported lazily (inside functions) to avoid
+# a circular-import deadlock:  createWidget → undoredo → createWidget.
+# pylint: disable=import-outside-toplevel
 
 
 # ---------------------------------------------------------------------------
@@ -132,11 +133,10 @@ def restore_widget(snapshot: dict, mainFrame) -> Any | None:
     parentName = wDict.get("WidgetParent", "")
     if parentName and parentName != myVars.rootWidgetName:
         try:
-            import createWidget as cw2
-            parentNl = cw2.findPythonWidgetNameList(parentName)
+            parentNl = cw.findPythonWidgetNameList(parentName)
             if parentNl:
-                parentWidget = parentNl[cw2.WIDGET]
-                cw2.changeParentOfTo(widget, parentWidget)
+                parentWidget = parentNl[cw.WIDGET]
+                cw.changeParentOfTo(widget, parentWidget)
         except Exception as e:
             log.warning("restore_widget: could not restore parent %s: %s",
                         parentName, e)
