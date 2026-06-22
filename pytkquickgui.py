@@ -41,6 +41,9 @@ mainCanvas = tboot.Canvas()
 # geomWidgetFrame: inner Frame inside mainCanvas for Grid/Pack modes.
 # For Place mode this is None (widgets go directly on mainCanvas).
 geomWidgetFrame = None
+# _gridOverlayCanvas: transparent tk.Canvas placed *inside* geomWidgetFrame
+# so grid guide-lines are drawn on top of the frame background but below widgets.
+_gridOverlayCanvas = None
 log = logging.getLogger(name="mylogger")
 
 
@@ -530,13 +533,20 @@ def buildPython() -> str:
                     f" bordermode='{bordermode}')"
                 )
             elif myVars.geomManager == "Grid":
-                row = geomData.get("row", "0")
-                col = geomData.get("column", "0")
-                sticky = geomData.get("sticky", "")
-                padx = geomData.get("padx", "2")
-                pady = geomData.get("pady", "2")
+                row        = geomData.get("row",        "0")
+                col        = geomData.get("column",     "0")
+                columnspan = int(geomData.get("columnspan", 1))
+                rowspan    = int(geomData.get("rowspan",    1))
+                sticky     = geomData.get("sticky", "")
+                padx       = geomData.get("padx",   "2")
+                pady       = geomData.get("pady",   "2")
+                span_args  = ""
+                if columnspan > 1:
+                    span_args += f", columnspan={columnspan}"
+                if rowspan > 1:
+                    span_args += f", rowspan={rowspan}"
                 print(
-                    f"{widgetName}.grid(row={row}, column={col},"
+                    f"{widgetName}.grid(row={row}, column={col}{span_args},"
                     f" sticky='{sticky}', padx={padx}, pady={pady})"
                 )
             elif myVars.geomManager == "Pack":
@@ -1070,15 +1080,20 @@ def loadProject(project, altFileName):
                     log.debug(place)
                     w.addPlace(place)
             elif mgr == "Grid":
-                geomData = wDict.get("GeomData") or {}
-                row  = int(geomData.get("row",    0))
-                col  = int(geomData.get("column", 0))
-                sticky = geomData.get("sticky", "WE")
-                padx = int(geomData.get("padx", 2))
-                pady = int(geomData.get("pady", 2))
-                w.row = row
-                w.col = col
+                geomData   = wDict.get("GeomData") or {}
+                row        = int(geomData.get("row",        0))
+                col        = int(geomData.get("column",     0))
+                columnspan = max(1, int(geomData.get("columnspan", 1)))
+                rowspan    = max(1, int(geomData.get("rowspan",    1)))
+                sticky     = geomData.get("sticky", "WE")
+                padx       = int(geomData.get("padx", 2))
+                pady       = int(geomData.get("pady", 2))
+                w.row        = row
+                w.col        = col
+                w.columnspan = columnspan
+                w.rowspan    = rowspan
                 w.widget.grid(row=row, column=col,
+                              columnspan=columnspan, rowspan=rowspan,
                               sticky=sticky, padx=padx, pady=pady)
             elif mgr == "Pack":
                 geomData = wDict.get("GeomData") or {}
@@ -1638,6 +1653,37 @@ _grid_row_positions = []   # y-pixel positions of horizontal lines
 _grid_drag_state = {}      # {tag: ("col"|"row", index, start_coord)}
 
 
+def _make_grid_overlay(frame: tboot.Frame) -> tk.Canvas:  # type: ignore[name-defined]
+    """Create (or recreate) the transparent overlay Canvas inside *frame*.
+
+    The canvas is placed to fill the entire frame with .place() so it does
+    not participate in the grid layout. It is immediately lowered to the
+    bottom of the stacking order so all grid-managed child widgets appear
+    on top.  Returns the new Canvas.
+    """
+    global _gridOverlayCanvas
+    if _gridOverlayCanvas is not None:
+        try:
+            _gridOverlayCanvas.destroy()
+        except tk.TclError:
+            pass
+    oc = tk.Canvas(
+        frame,
+        bg=frame.cget("background") if hasattr(frame, "cget") else "white",
+        highlightthickness=0,
+        bd=0,
+        takefocus=False,
+    )
+    # Place it so it covers the full frame regardless of size
+    oc.place(x=0, y=0, relwidth=1.0, relheight=1.0)
+    # Keep it behind every grid-managed child widget
+    oc.lower()
+    # Right-clicks on the overlay canvas must still open the widget-creation menu
+    oc.bind("<Button-3>", rightMouseDown)
+    _gridOverlayCanvas = oc
+    return oc
+
+
 def _init_grid_positions(width: int, height: int, cell: int = 64) -> None:
     """Initialise default evenly-spaced column/row positions."""
     global _grid_col_positions, _grid_row_positions
@@ -1646,11 +1692,11 @@ def _init_grid_positions(width: int, height: int, cell: int = 64) -> None:
 
 
 def drawGridLines():
-    """Draw column/row guide lines on mainCanvas.
+    """Draw column/row guide lines.
 
-    Lines are colour-coded:
-      Place mode  – faint dot grid (snapTo spacing)
-      Grid mode   – solid blue column/row separators that can be dragged
+    Lines are drawn on:
+      Place mode  – mainCanvas (dot grid, faint grey, snapTo spacing)
+      Grid mode   – _gridOverlayCanvas inside geomWidgetFrame (thin grey lines)
       Pack mode   – nothing (Pack stacks automatically)
     """
     mainCanvas.update()
@@ -1659,13 +1705,13 @@ def drawGridLines():
     log.debug("drawGridLines Width %d height %d geomManager %s",
               width, height, myVars.geomManager)
 
-    # Remove old guide lines
+    # Remove old guide lines from mainCanvas (Place mode dot grid)
     mainCanvas.delete("gridline")
 
     mgr = myVars.geomManager
 
     if mgr == "Place":
-        # Light dot grid at snapTo spacing
+        # Light dot grid at snapTo spacing drawn directly on mainCanvas
         snap = max(8, int(myVars.snapTo))
         dot_color = "#c0c0c0"
         for gx in range(0, width, snap):
@@ -1676,80 +1722,97 @@ def drawGridLines():
                 )
 
     elif mgr == "Grid":
+        # ----------------------------------------------------------------
+        # Grid lines must be drawn on _gridOverlayCanvas which lives
+        # *inside* geomWidgetFrame.  mainCanvas lines would be hidden
+        # behind the opaque geomWidgetFrame window.
+        # ----------------------------------------------------------------
+        if _gridOverlayCanvas is None or not _gridOverlayCanvas.winfo_exists():
+            return
+        oc = _gridOverlayCanvas
+        oc_w = oc.winfo_width()
+        oc_h = oc.winfo_height()
+        if oc_w < 2 or oc_h < 2:
+            # Overlay not yet mapped; try the canvas size instead
+            oc_w = width
+            oc_h = height
+
+        oc.delete("gridline")
+
         global _grid_col_positions, _grid_row_positions
         # Initialise positions lazily (or after resize)
         if not _grid_col_positions or not _grid_row_positions:
-            _init_grid_positions(width, height)
-        # Clamp to current canvas size
-        _grid_col_positions = [x for x in _grid_col_positions if 0 < x < width]
-        _grid_row_positions = [y for y in _grid_row_positions if 0 < y < height]
+            _init_grid_positions(oc_w, oc_h)
+        # Clamp to current overlay size
+        _grid_col_positions = [x for x in _grid_col_positions if 0 < x < oc_w]
+        _grid_row_positions = [y for y in _grid_row_positions if 0 < y < oc_h]
 
-        line_color = "#4488cc"
-        label_color = "#224466"
+        line_color  = "#c0c0c0"   # thin grey — visible on white/light frames
+        label_color = "#a0a0a0"
 
-        # Vertical (column) lines
+        # Vertical (column) separator lines
         for i, gx in enumerate(_grid_col_positions):
             tag = f"gcol_{i}"
-            mainCanvas.create_line(
-                gx, 0, gx, height,
-                fill=line_color, width=1, dash=(4, 4),
+            oc.create_line(
+                gx, 0, gx, oc_h,
+                fill=line_color, width=1,
                 tags=("gridline", tag)
             )
-            mainCanvas.create_text(
+            oc.create_text(
                 gx + 3, 4, text=str(i), anchor="nw",
                 fill=label_color, font=("TkDefaultFont", 7),
                 tags=("gridline", tag)
             )
 
-        # Horizontal (row) lines
+        # Horizontal (row) separator lines
         for i, gy in enumerate(_grid_row_positions):
             tag = f"grow_{i}"
-            mainCanvas.create_line(
-                0, gy, width, gy,
-                fill=line_color, width=1, dash=(4, 4),
+            oc.create_line(
+                0, gy, oc_w, gy,
+                fill=line_color, width=1,
                 tags=("gridline", tag)
             )
-            mainCanvas.create_text(
+            oc.create_text(
                 4, gy + 3, text=str(i), anchor="nw",
                 fill=label_color, font=("TkDefaultFont", 7),
                 tags=("gridline", tag)
             )
 
-        # Wider invisible hit-areas so lines are easy to grab
+        # Wider invisible hit-areas on the overlay so lines are easy to grab
         for i, gx in enumerate(_grid_col_positions):
             tag = f"gcol_hit_{i}"
-            mainCanvas.create_line(
-                gx, 0, gx, height,
+            oc.create_line(
+                gx, 0, gx, oc_h,
                 fill="", width=8,
                 tags=("gridline", tag)
             )
-            mainCanvas.tag_bind(tag, "<Enter>",
-                lambda e, t=tag: mainCanvas.config(cursor="sb_h_double_arrow"))
-            mainCanvas.tag_bind(tag, "<Leave>",
-                lambda e: mainCanvas.config(cursor=""))
-            mainCanvas.tag_bind(tag, "<ButtonPress-1>",
+            oc.tag_bind(tag, "<Enter>",
+                lambda e, t=tag: oc.config(cursor="sb_h_double_arrow"))
+            oc.tag_bind(tag, "<Leave>",
+                lambda e: oc.config(cursor=""))
+            oc.tag_bind(tag, "<ButtonPress-1>",
                 lambda e, idx=i: _grid_line_drag_start(e, "col", idx))
-            mainCanvas.tag_bind(tag, "<B1-Motion>",
+            oc.tag_bind(tag, "<B1-Motion>",
                 lambda e, idx=i: _grid_line_drag_move(e, "col", idx))
-            mainCanvas.tag_bind(tag, "<ButtonRelease-1>",
+            oc.tag_bind(tag, "<ButtonRelease-1>",
                 _grid_line_drag_end)
 
         for i, gy in enumerate(_grid_row_positions):
             tag = f"grow_hit_{i}"
-            mainCanvas.create_line(
-                0, gy, width, gy,
+            oc.create_line(
+                0, gy, oc_w, gy,
                 fill="", width=8,
                 tags=("gridline", tag)
             )
-            mainCanvas.tag_bind(tag, "<Enter>",
-                lambda e, t=tag: mainCanvas.config(cursor="sb_v_double_arrow"))
-            mainCanvas.tag_bind(tag, "<Leave>",
-                lambda e: mainCanvas.config(cursor=""))
-            mainCanvas.tag_bind(tag, "<ButtonPress-1>",
+            oc.tag_bind(tag, "<Enter>",
+                lambda e, t=tag: oc.config(cursor="sb_v_double_arrow"))
+            oc.tag_bind(tag, "<Leave>",
+                lambda e: oc.config(cursor=""))
+            oc.tag_bind(tag, "<ButtonPress-1>",
                 lambda e, idx=i: _grid_line_drag_start(e, "row", idx))
-            mainCanvas.tag_bind(tag, "<B1-Motion>",
+            oc.tag_bind(tag, "<B1-Motion>",
                 lambda e, idx=i: _grid_line_drag_move(e, "row", idx))
-            mainCanvas.tag_bind(tag, "<ButtonRelease-1>",
+            oc.tag_bind(tag, "<ButtonRelease-1>",
                 _grid_line_drag_end)
 
 
@@ -1793,6 +1856,12 @@ def _placeNewWidget(w, x: int, y: int, width: int = 72, height: int = 32) -> Non
         col = max(0, x // cell)
         row = max(0, y // cell)
         w.grid(in_=parent, row=row, column=col, padx=2, pady=2, sticky="WE")
+        # Re-lower the overlay canvas so it stays behind the new widget
+        if _gridOverlayCanvas is not None:
+            try:
+                _gridOverlayCanvas.lower()
+            except tk.TclError:
+                pass
     elif mgr == "Pack":
         parent = geomWidgetFrame if geomWidgetFrame is not None else mainCanvas
         w.pack(in_=parent, padx=4, pady=4, anchor="nw")
@@ -1977,10 +2046,20 @@ def buildGrid(rows, cols):
         # Place the frame so it fills the whole canvas
         mainCanvas.create_window(0, 0, window=geomWidgetFrame,
                                  anchor="nw", tags="geomframe")
+        # Bug fix: right-click on empty frame background must reach rightMouseDown.
+        # geomWidgetFrame covers the entire canvas so mainCanvas never sees the event.
+        geomWidgetFrame.bind("<Button-3>", rightMouseDown)
+        # Overlay canvas for grid guide-lines (drawn inside geomWidgetFrame so
+        # they appear above the frame background but below child widgets).
+        _make_grid_overlay(geomWidgetFrame)
         # Expand the window when the canvas is resized; also redraw guides
         def _resize_geom_frame(event):
             mainCanvas.itemconfig("geomframe",
                                   width=event.width, height=event.height)
+            if _gridOverlayCanvas is not None:
+                _gridOverlayCanvas.place(x=0, y=0,
+                                         width=event.width, height=event.height)
+                _gridOverlayCanvas.lower()
             drawGridLines()
         mainCanvas.bind("<Configure>", _resize_geom_frame)
         cw.createWidget.baseRoot = geomWidgetFrame
@@ -2025,16 +2104,17 @@ def setGeomManager(mgr: str) -> None:
 def _rebuild_canvas_for_geom():
     """Recreate the inner geomWidgetFrame (or clear it) to match the
     current myVars.geomManager.  Call after geomManager changes."""
-    global geomWidgetFrame
+    global geomWidgetFrame, _gridOverlayCanvas
     if mainCanvas is None:
         return
-    # Destroy old inner frame if present
+    # Destroy old inner frame if present (also destroys _gridOverlayCanvas child)
     if geomWidgetFrame is not None:
         try:
             geomWidgetFrame.destroy()
         except tk.TclError:
             pass
         geomWidgetFrame = None
+    _gridOverlayCanvas = None
     # Clear any leftover canvas windows
     mainCanvas.delete("geomframe")
     mainCanvas.unbind("<Configure>")
@@ -2051,9 +2131,17 @@ def _rebuild_canvas_for_geom():
             geomWidgetFrame.rowconfigure(r, weight=1, minsize=30)
         mainCanvas.create_window(0, 0, window=geomWidgetFrame,
                                  anchor="nw", tags="geomframe")
+        # Bug fix: right-click on empty frame background must reach rightMouseDown.
+        geomWidgetFrame.bind("<Button-3>", rightMouseDown)
+        # Overlay canvas for grid guide-lines
+        _make_grid_overlay(geomWidgetFrame)
         def _resize_geom_frame(event):
             mainCanvas.itemconfig("geomframe",
                                   width=event.width, height=event.height)
+            if _gridOverlayCanvas is not None:
+                _gridOverlayCanvas.place(x=0, y=0,
+                                         width=event.width, height=event.height)
+                _gridOverlayCanvas.lower()
             drawGridLines()
         mainCanvas.bind("<Configure>", _resize_geom_frame)
         cw.createWidget.baseRoot = geomWidgetFrame

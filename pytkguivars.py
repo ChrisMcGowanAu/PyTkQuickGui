@@ -142,7 +142,7 @@ def checkFontDict(font: dict) -> str:
         family = font["family"]
         family_str = family.replace(" ", "\\ ")
         font["family"] = family_str
-        font_str = "%(family)s %(size)i %(weight)s %(slant)s" % font
+        font_str = f"{font['family']} {font['size']} {font['weight']} {font['slant']}"
         if font["underline"]:
             font_str += " underline"
         if font["overstrike"]:
@@ -201,11 +201,13 @@ def saveWidgetAsDict(widgetName) -> dict:
             if geomManager == "Grid":
                 gi = w.grid_info()
                 geomData = {
-                    "row": str(gi.get("row", 0)),
-                    "column": str(gi.get("column", 0)),
-                    "sticky": str(gi.get("sticky", "")),
-                    "padx": str(gi.get("padx", 2)),
-                    "pady": str(gi.get("pady", 2)),
+                    "row":        str(gi.get("row",        0)),
+                    "column":     str(gi.get("column",     0)),
+                    "columnspan": str(gi.get("columnspan", 1)),
+                    "rowspan":    str(gi.get("rowspan",    1)),
+                    "sticky":     str(gi.get("sticky",     "")),
+                    "padx":       str(gi.get("padx",       2)),
+                    "pady":       str(gi.get("pady",       2)),
                 }
             elif geomManager == "Pack":
                 pi = w.pack_info()
@@ -400,4 +402,3 @@ def getPhotoImage(widgetName,key) -> PhotoImage | None:
                     log.error("IndexError in %s",str(w))
                     return None
     return None
-

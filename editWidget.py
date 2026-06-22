@@ -289,17 +289,23 @@ class widgetEditPopup:
                 self.widget.pythonName if hasattr(self.widget, 'pythonName') else ""
             )
             try:
-                row    = int(self.stringDict.get("row",    0))
-                col    = int(self.stringDict.get("column", 0))
-                padx   = int(self.stringDict.get("padx",   2))
-                pady   = int(self.stringDict.get("pady",   2))
-                sticky = str(self.stringDict.get("sticky", "ew"))
+                row        = int(self.stringDict.get("row",        0))
+                col        = int(self.stringDict.get("column",     0))
+                columnspan = max(1, int(self.stringDict.get("columnspan", 1)))
+                rowspan    = max(1, int(self.stringDict.get("rowspan",    1)))
+                padx       = int(self.stringDict.get("padx",       2))
+                pady       = int(self.stringDict.get("pady",       2))
+                sticky     = str(self.stringDict.get("sticky",     "ew"))
                 self.widget.grid(row=row, column=col,
+                                 columnspan=columnspan, rowspan=rowspan,
                                  padx=padx, pady=pady, sticky=sticky)
                 if cwo:
-                    cwo.row = row
-                    cwo.col = col
-                log.debug(logString, "grid", f"row={row} col={col} sticky={sticky}")
+                    cwo.row        = row
+                    cwo.col        = col
+                    cwo.columnspan = columnspan
+                    cwo.rowspan    = rowspan
+                log.debug(logString, "grid",
+                          f"row={row} col={col} cspan={columnspan} rspan={rowspan} sticky={sticky}")
             except (tk.TclError, ValueError) as e:
                 log.error("applyLayoutSettings Grid: %s", e)
             return
@@ -538,10 +544,12 @@ class widgetEditPopup:
                 self.widget.pythonName if hasattr(self.widget, 'pythonName') else ""
             )
             grid_fields = [
-                ("row",    int(gi.get("row",    cwo.row if cwo else 0)), 0, 31, 1),
-                ("column", int(gi.get("column", cwo.col if cwo else 0)), 0, 31, 1),
-                ("padx",   int(str(gi.get("padx", 2)).split()[0] if gi.get("padx") else 2), 0, 50, 1),
-                ("pady",   int(str(gi.get("pady", 2)).split()[0] if gi.get("pady") else 2), 0, 50, 1),
+                ("row",        int(gi.get("row",    cwo.row if cwo else 0)),        0, 31, 1),
+                ("column",     int(gi.get("column", cwo.col if cwo else 0)),        0, 31, 1),
+                ("columnspan", int(gi.get("columnspan", cwo.columnspan if cwo else 1)), 1, 32, 1),
+                ("rowspan",    int(gi.get("rowspan",    cwo.rowspan    if cwo else 1)), 1, 32, 1),
+                ("padx",       int(str(gi.get("padx", 2)).split()[0] if gi.get("padx") else 2), 0, 50, 1),
+                ("pady",       int(str(gi.get("pady", 2)).split()[0] if gi.get("pady") else 2), 0, 50, 1),
             ]
             # sticky is a string, not a spinbox
             sticky_val = str(gi.get("sticky", "ew"))
