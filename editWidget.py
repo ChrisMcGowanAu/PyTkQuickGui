@@ -4,7 +4,7 @@ import tkinter.filedialog as filedialog
 
 # import urllib.request
 import webbrowser
-from typing import List, Any
+from typing import Any
 
 import ttkbootstrap as tboot
 from PIL import ImageTk
@@ -16,6 +16,7 @@ from ttkbootstrap import Entry, Labelframe
 
 import createWidget as cw
 import pytkguivars as myVars
+import undoredo
 
 stickyVals = [" ", tk.N, tk.S, tk.E, tk.W, tk.NS, tk.EW, tk.NSEW]
 borderVals = [tk.INSIDE, tk.OUTSIDE]
@@ -340,6 +341,12 @@ class widgetEditPopup:
                         try:
                             log.info(logString, str(k), str(newVal))
                             self.widget.configure(**{k: newVal})
+                            # Record the attribute change for undo
+                            undoredo.stack.push_done(
+                                undoredo.EditAttributeCommand(
+                                    self.widget, k, str(oldVal), str(newVal)
+                                )
+                            )
                         except tk.TclError as e:
                             log.error(e)
                             log.warning("k %s val %s", str(k), str(newVal))
