@@ -1675,8 +1675,9 @@ def _make_grid_overlay(frame: tboot.Frame) -> tk.Canvas:  # type: ignore[name-de
     )
     # Place it so it covers the full frame regardless of size
     oc.place(x=0, y=0, relwidth=1.0, relheight=1.0)
-    # Keep it behind every grid-managed child widget
-    oc.lower()
+    # Lower the overlay widget below all siblings so grid-children appear on top.
+    # tk.Misc.lower() lowers in the window stacking order (not a canvas item op).
+    tk.Misc.lower(oc)
     # Right-clicks on the overlay canvas must still open the widget-creation menu
     oc.bind("<Button-3>", rightMouseDown)
     _gridOverlayCanvas = oc
@@ -1858,7 +1859,7 @@ def _placeNewWidget(w, x: int, y: int, width: int = 72, height: int = 32) -> Non
         # Re-lower the overlay canvas so it stays behind the new widget
         if _gridOverlayCanvas is not None:
             try:
-                _gridOverlayCanvas.lower()
+                tk.Misc.lower(_gridOverlayCanvas)
             except tk.TclError:
                 pass
     elif mgr == "Pack":
@@ -2058,7 +2059,7 @@ def buildGrid(rows, cols):
             if _gridOverlayCanvas is not None:
                 _gridOverlayCanvas.place(x=0, y=0,
                                          width=event.width, height=event.height)
-                _gridOverlayCanvas.lower()
+                tk.Misc.lower(_gridOverlayCanvas)
             drawGridLines()
         mainCanvas.bind("<Configure>", _resize_geom_frame)
         cw.createWidget.baseRoot = geomWidgetFrame
@@ -2140,7 +2141,7 @@ def _rebuild_canvas_for_geom():
             if _gridOverlayCanvas is not None:
                 _gridOverlayCanvas.place(x=0, y=0,
                                          width=event.width, height=event.height)
-                _gridOverlayCanvas.lower()
+                tk.Misc.lower(_gridOverlayCanvas)
             drawGridLines()
         mainCanvas.bind("<Configure>", _resize_geom_frame)
         cw.createWidget.baseRoot = geomWidgetFrame

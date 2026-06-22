@@ -740,7 +740,7 @@ class createWidget:
         self.lastX = x
         self.lastY = y
 
-    def leftMouseRelease(self, event):
+    def leftMouseRelease(self, _event):
         # Capture pre-drag state (set in leftMouseDown)
         pre = getattr(self, "_pre_drag", (self.x, self.y, self.width, self.height))
         ox, oy, ow, oh = pre
