@@ -1092,6 +1092,9 @@ def loadProject(project, altFileName):
                 w.col        = col
                 w.columnspan = columnspan
                 w.rowspan    = rowspan
+                w.sticky     = sticky
+                w.padx       = padx
+                w.pady       = pady
                 w.widget.grid(row=row, column=col,
                               columnspan=columnspan, rowspan=rowspan,
                               sticky=sticky, padx=padx, pady=pady)

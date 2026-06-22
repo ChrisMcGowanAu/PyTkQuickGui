@@ -304,6 +304,9 @@ class widgetEditPopup:
                     cwo.col        = col
                     cwo.columnspan = columnspan
                     cwo.rowspan    = rowspan
+                    cwo.sticky     = sticky
+                    cwo.padx       = padx
+                    cwo.pady       = pady
                 log.debug(logString, "grid",
                           f"row={row} col={col} cspan={columnspan} rspan={rowspan} sticky={sticky}")
             except (tk.TclError, ValueError) as e:

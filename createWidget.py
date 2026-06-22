@@ -229,8 +229,11 @@ class createWidget:
         # log.debug(random.randint(3,  9))
         self.row = 4
         self.col = 4
-        self.columnspan = 1   # number of grid columns this widget spans
-        self.rowspan    = 1   # number of grid rows    this widget spans
+        self.columnspan = 1      # number of grid columns this widget spans
+        self.rowspan    = 1      # number of grid rows    this widget spans
+        self.sticky     = "WE"   # tkinter sticky string — user-controlled
+        self.padx       = 2      # grid padx
+        self.pady       = 2      # grid pady
         self.x_root = self.x
         self.y_root = self.y
         self.start_x = self.x  # Set start_x on mouse down
@@ -258,7 +261,7 @@ class createWidget:
         if myVars.geomManager == "Grid":
             self.widget.grid(row=self.row, column=self.col,
                              columnspan=self.columnspan, rowspan=self.rowspan,
-                             padx=2, pady=2, sticky="WE")
+                             padx=self.padx, pady=self.pady, sticky=self.sticky)
         elif myVars.geomManager == "Place":
             self.widget.place(x=self.x, y=self.y)
         elif myVars.geomManager == "Pack":
@@ -822,11 +825,19 @@ class createWidget:
                     self.rowspan    = _ors
             except (tk.TclError, TypeError, ValueError):
                 pass
+            # Preserve padx/pady from live grid_info (may differ from default)
+            try:
+                gi = self.widget.grid_info()
+                self.padx   = int(str(gi.get("padx",   self.padx )).split()[0])
+                self.pady   = int(str(gi.get("pady",   self.pady )).split()[0])
+                self.sticky = str(gi.get("sticky", self.sticky))
+            except (tk.TclError, ValueError):
+                pass
             self.widget.grid(row=self.row, column=self.col,
                              columnspan=self.columnspan, rowspan=self.rowspan,
-                             padx=2, pady=2, sticky="WE")
-            log.debug("Left Mouse Release -- col=%s row=%s cspan=%s rspan=%s",
-                      self.col, self.row, self.columnspan, self.rowspan)
+                             padx=self.padx, pady=self.pady, sticky=self.sticky)
+            log.debug("Left Mouse Release -- col=%s row=%s cspan=%s rspan=%s sticky=%s",
+                      self.col, self.row, self.columnspan, self.rowspan, self.sticky)
             # Redraw grid lines so they reflect the updated cell boundaries
             if myVars.redrawGridLines is not None:
                 self.widget.after_idle(myVars.redrawGridLines)
