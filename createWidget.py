@@ -229,11 +229,17 @@ class createWidget:
         # log.debug(random.randint(3,  9))
         self.row = 4
         self.col = 4
+        self.columnspan = 1   # number of grid columns this widget spans
+        self.rowspan    = 1   # number of grid rows    this widget spans
         self.x_root = self.x
         self.y_root = self.y
         self.start_x = self.x  # Set start_x on mouse down
         self.start_y = self.y  # Set start_y on mouse down
-        self._pre_drag = (self.x, self.y, 0, 0)  # set properly in leftMouseDown
+        self._pre_drag = (self.x, self.y, 0, 0)        # set properly in leftMouseDown
+        self._last_drag_type   = ""                     # set in leftMouseRelease
+        self._span_drag_origin = (self.col, self.row,   # set in leftMouseDown
+                                  self.columnspan, self.rowspan,
+                                  self.x, self.y, 0, 0)
 
         log.debug(self.widget.widgetName)
         self.pythonName = "Widget" + str(createWidget.widgetId)
@@ -250,7 +256,9 @@ class createWidget:
         self.widget.bind("<B1-Motion>", self.leftMouseDrag)
         self.widget.bind("<ButtonRelease-1>", self.leftMouseRelease)
         if myVars.geomManager == "Grid":
-            self.widget.grid(row=self.row, column=self.col, padx=2, pady=2, sticky="WE")
+            self.widget.grid(row=self.row, column=self.col,
+                             columnspan=self.columnspan, rowspan=self.rowspan,
+                             padx=2, pady=2, sticky="WE")
         elif myVars.geomManager == "Place":
             self.widget.place(x=self.x, y=self.y)
         elif myVars.geomManager == "Pack":
@@ -585,6 +593,12 @@ class createWidget:
         height = self.widget.winfo_height()
         # Save pre-drag state so leftMouseRelease can record undo
         self._pre_drag = (self.x, self.y, width, height)
+        # For Grid span-drags: remember the anchor cell and original span
+        self._span_drag_origin = (
+            self.col, self.row,
+            self.columnspan, self.rowspan,
+            self.x, self.y, width, height,
+        )
         # This should be a configuration param
         jiffyW = 8
         jiffyH = 8
@@ -643,17 +657,45 @@ class createWidget:
         deltaX = x - self.lastX
         deltaY = y - self.lastY
 
-        # Grid / Pack: temporarily float the widget with .place() so the user
-        # can see it move.  On ButtonRelease it snaps back to the grid cell.
+        # Grid mode: edge-drags resize the span; centre-drag moves the widget.
         if myVars.geomManager == "Grid":
-            newX = self.widget.winfo_x() + int(deltaX)
-            newY = self.widget.winfo_y() + int(deltaY)
-            self.x = max(0, newX)
-            self.y = max(0, newY)
-            # Temporarily override geometry so widget floats during drag
-            self.widget.place(x=self.x, y=self.y,
-                              width=self.widget.winfo_width(),
-                              height=self.widget.winfo_height())
+            origin = getattr(self, "_span_drag_origin",
+                             (self.col, self.row, self.columnspan, self.rowspan,
+                              self.x, self.y, width, height))
+            _oc, _or, _ocs, _ors, ox, oy, ow, oh = origin
+            if self.dragType == "dragEast":
+                # Stretch right edge rightward; left anchor stays fixed at ox
+                cur_right = self.widget.winfo_x() + width + int(deltaX)
+                new_w = max(16, cur_right - ox)
+                self.widget.place(x=ox, y=oy, width=new_w, height=oh)
+            elif self.dragType == "dragSouth":
+                # Stretch bottom edge downward; top anchor stays fixed at oy
+                cur_bottom = self.widget.winfo_y() + height + int(deltaY)
+                new_h = max(16, cur_bottom - oy)
+                self.widget.place(x=ox, y=oy, width=ow, height=new_h)
+            elif self.dragType == "dragWest":
+                # Stretch left edge leftward; right anchor stays fixed at ox+ow
+                right_edge = ox + ow
+                cur_left  = self.widget.winfo_x() + int(deltaX)
+                new_x = min(max(0, cur_left), right_edge - 16)
+                new_w = max(16, right_edge - new_x)
+                self.widget.place(x=new_x, y=oy, width=new_w, height=oh)
+            elif self.dragType == "dragNorth":
+                # Stretch top edge upward; bottom anchor stays fixed at oy+oh
+                bottom_edge = oy + oh
+                cur_top = self.widget.winfo_y() + int(deltaY)
+                new_y = min(max(0, cur_top), bottom_edge - 16)
+                new_h = max(16, bottom_edge - new_y)
+                self.widget.place(x=ox, y=new_y, width=ow, height=new_h)
+            else:
+                # Centre-drag: float the whole widget
+                newX = self.widget.winfo_x() + int(deltaX)
+                newY = self.widget.winfo_y() + int(deltaY)
+                self.x = max(0, newX)
+                self.y = max(0, newY)
+                self.widget.place(x=self.x, y=self.y,
+                                  width=self.widget.winfo_width(),
+                                  height=self.widget.winfo_height())
             self.lastX = x
             self.lastY = y
             return
@@ -703,6 +745,7 @@ class createWidget:
         pre = getattr(self, "_pre_drag", (self.x, self.y, self.width, self.height))
         ox, oy, ow, oh = pre
 
+        self._last_drag_type = self.dragType   # read before clearing
         self.dragType = ""
         newX = snapToClosest(self.x)
         newY = snapToClosest(self.y)
@@ -719,20 +762,67 @@ class createWidget:
         if myVars.geomManager == "Place":
             self.widget.place(x=self.x, y=self.y, height=self.height, width=self.width)
         elif myVars.geomManager == "Grid":
-            # Widget may be floating via .place() from drag — remove it first
+            # Widget may be floating via .place() from drag — snap back to grid.
+            drag_type = getattr(self, "_last_drag_type", "")
+            origin = getattr(self, "_span_drag_origin",
+                             (self.col, self.row, self.columnspan, self.rowspan,
+                              self.x, self.y, self.width, self.height))
+            anc_col, anc_row, _ocs, _ors, _ox, _oy, _ow, _oh = origin
             try:
                 self.widget.place_forget()
             except tk.TclError:
                 pass
             try:
-                z = self.root.grid_location(self.x, self.y)
-                # grid_location can return -1 for positions before the first cell
-                self.row = max(0, int(z[1]))
-                self.col = max(0, int(z[0]))
+                if drag_type == "dragEast":
+                    # Right edge dragged: anchor col unchanged, span = cols crossed
+                    right_x = self.widget.winfo_x() + self.widget.winfo_width()
+                    z_end = self.root.grid_location(right_x - 1, self.widget.winfo_y())
+                    end_col = max(anc_col, int(z_end[0]))
+                    self.col = anc_col
+                    self.columnspan = max(1, end_col - anc_col + 1)
+                    self.row = anc_row
+                    self.rowspan = _ors
+                elif drag_type == "dragSouth":
+                    # Bottom edge dragged: anchor row unchanged, span = rows crossed
+                    bot_y = self.widget.winfo_y() + self.widget.winfo_height()
+                    z_end = self.root.grid_location(self.widget.winfo_x(), bot_y - 1)
+                    end_row = max(anc_row, int(z_end[1]))
+                    self.row = anc_row
+                    self.rowspan = max(1, end_row - anc_row + 1)
+                    self.col = anc_col
+                    self.columnspan = _ocs
+                elif drag_type == "dragWest":
+                    # Left edge dragged: right col fixed, new start col moves left
+                    right_col = anc_col + _ocs - 1
+                    z_start = self.root.grid_location(
+                        self.widget.winfo_x(), self.widget.winfo_y())
+                    new_col = min(max(0, int(z_start[0])), right_col)
+                    self.col = new_col
+                    self.columnspan = max(1, right_col - new_col + 1)
+                    self.row = anc_row
+                    self.rowspan = _ors
+                elif drag_type == "dragNorth":
+                    # Top edge dragged: bottom row fixed, new start row moves up
+                    bot_row = anc_row + _ors - 1
+                    z_start = self.root.grid_location(
+                        self.widget.winfo_x(), self.widget.winfo_y())
+                    new_row = min(max(0, int(z_start[1])), bot_row)
+                    self.row = new_row
+                    self.rowspan = max(1, bot_row - new_row + 1)
+                    self.col = anc_col
+                    self.columnspan = _ocs
+                else:
+                    # Centre-drag: move to the cell under the widget's top-left
+                    z = self.root.grid_location(self.x, self.y)
+                    self.row = max(0, int(z[1]))
+                    self.col = max(0, int(z[0]))
             except (tk.TclError, TypeError, ValueError):
                 pass
-            self.widget.grid(row=self.row, column=self.col, padx=2, pady=2, sticky="WE")
-            log.debug("Left Mouse Release -- col, row %s %s", str((self.col, self.row)), str(event))
+            self.widget.grid(row=self.row, column=self.col,
+                             columnspan=self.columnspan, rowspan=self.rowspan,
+                             padx=2, pady=2, sticky="WE")
+            log.debug("Left Mouse Release -- col=%s row=%s cspan=%s rspan=%s",
+                      self.col, self.row, self.columnspan, self.rowspan)
         elif myVars.geomManager == "Pack":
             self.widget.pack(padx=4, pady=4, anchor="nw")
         else:
