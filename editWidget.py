@@ -185,36 +185,49 @@ class widgetEditPopup:
         newY = y + moveY
         widget.place(x=newX, y=newY)
 
+    def _popup_drag_start(self, event):
+        """Record the starting position for a popup drag."""
+        widget = event.widget
+        # Walk up to the Labelframe root of the popup
+        while widget is not None:
+            try:
+                if isinstance(widget, Labelframe):
+                    break
+                widget = widget.master
+            except AttributeError:
+                break
+        self._drag_widget = widget
+        self._drag_start_x = event.x_root
+        self._drag_start_y = event.y_root
+        pi = widget.place_info()
+        self._drag_orig_x = int(pi.get("x", 300))
+        self._drag_orig_y = int(pi.get("y", 10))
+
     def leftMouseDrag(self, event):
         """
-        Callback to allow a user to drag the widget
-        :param event:
+        Callback to allow a user to drag the popup frame.
+        Bound to both the yellow triangle and the whole header row.
+        Uses absolute screen coords (event.x_root/y_root) for reliable
+        movement regardless of which child widget the event fired on.
         """
-        # This is a weird algorithm
-        # it is a hack to get around using event.x_root and event.y_root
-        # which seems tricky. However,  it does work (sort of)
-        # The yellow dot/triangle on the popup is uses as a selection point
-        widget = event.widget.master
-        x = int(widget.place_info().get("x"))
-        y = int(widget.place_info().get("y"))
-        moveX = event.x
-        moveY = event.y
-        threshold = 8
-        if abs(event.x) > threshold:
-            if event.x > 0:
-                moveX = threshold
-            else:
-                moveX = -1 * threshold
-        if abs(event.y) > threshold:
-            if event.y > 0:
-                moveY = threshold
-            else:
-                moveY = -1 * threshold
-
-        log.debug("x %s event.x %s moveX %s",x,event.x,moveX)
-        log.debug("y %s event.y %s moveY %s",y,event.y,moveY)
-        newX = x + moveX
-        newY = y + moveY
+        widget = getattr(self, "_drag_widget", None)
+        if widget is None:
+            # fallback: walk up from the event source
+            widget = event.widget
+            while widget is not None:
+                try:
+                    if isinstance(widget, Labelframe):
+                        break
+                    widget = widget.master
+                except AttributeError:
+                    break
+        dx = event.x_root - getattr(self, "_drag_start_x", event.x_root)
+        dy = event.y_root - getattr(self, "_drag_start_y", event.y_root)
+        newX = getattr(self, "_drag_orig_x", 300) + dx
+        newY = getattr(self, "_drag_orig_y", 10) + dy
+        newX = max(0, newX)
+        newY = max(0, newY)
+        log.debug("popup drag dx %s dy %s -> %s %s", dx, dy, newX, newY)
         widget.place(x=newX, y=newY)
 
     def leftMouseRelease(self, event):
@@ -259,10 +272,34 @@ class widgetEditPopup:
 
     def applyLayoutSettings(self) -> None:
         """
-        Apply changed layout for the Widget
+        Apply changed layout for the Widget.
+        Place mode: updates x, y, width, height.
+        Grid mode:  updates row, column, sticky, padx, pady.
         """
         logString = "Layout %s new value %s"
-        log.debug("Apply Layout settings")
+        log.debug("Apply Layout settings (geomManager=%s)", myVars.geomManager)
+
+        if myVars.geomManager == "Grid":
+            import createWidget as _cw
+            cwo = _cw.findCreateWidgetObject(
+                self.widget.pythonName if hasattr(self.widget, 'pythonName') else ""
+            )
+            try:
+                row    = int(self.stringDict.get("row",    0))
+                col    = int(self.stringDict.get("column", 0))
+                padx   = int(self.stringDict.get("padx",   2))
+                pady   = int(self.stringDict.get("pady",   2))
+                sticky = str(self.stringDict.get("sticky", "ew"))
+                self.widget.grid(row=row, column=col,
+                                 padx=padx, pady=pady, sticky=sticky)
+                if cwo:
+                    cwo.row = row
+                    cwo.col = col
+                log.debug(logString, "grid", f"row={row} col={col} sticky={sticky}")
+            except (tk.TclError, ValueError) as e:
+                log.error("applyLayoutSettings Grid: %s", e)
+            return
+
         onlyThese = ["x", "y", "width", "height"]
         for p in onlyThese:
             origName = str(p) + "Orig"
@@ -429,34 +466,52 @@ class widgetEditPopup:
 
     def createDragPoint(self, rootFrame, dragType) -> None:
         """
-        Creates a small drag able point to move the popup
-        :param rootFrame:
-        :param dragType:
+        Creates the drag handle row at the top of a popup.
+        The entire header row (including a spacer label) is draggable,
+        not just the small yellow triangle.
+        :param rootFrame: the Labelframe popup
+        :param dragType: 'triangle' or 'dot'
         """
-        # This creates a yellow dot which can be used to drag the Frame
+        # Header row: yellow handle + spacer label (both draggable)
+        headerRow = tboot.Frame(rootFrame)
+        headerRow.grid(row=0, column=0, columnspan=10, sticky="EW")
         clickCanvas = tboot.Canvas(
-            rootFrame,
+            headerRow,
             width=20,
             height=20,
         )
-        clickCanvas.grid(row=0, column=0, sticky="NW")
+        clickCanvas.pack(side=tk.LEFT)
         if dragType == "triangle":
             points = [0, 20, 0, 0, 20, 0]
             clickCanvas.create_polygon(points, fill="yellow")
         else:
             clickCanvas.create_oval(1, 1, 20, 20, fill="yellow")
-        clickCanvas.bind("<B1-Motion>", self.leftMouseDrag)
+        # Spacer label fills the rest of the header — also draggable
+        spacer = tboot.Label(headerRow, text="  drag here  ",
+                             foreground="#888", font=("TkDefaultFont", 8))
+        spacer.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        # Bind drag on all header children
+        for w in (clickCanvas, spacer, headerRow):
+            w.bind("<ButtonPress-1>", self._popup_drag_start)
+            w.bind("<B1-Motion>", self.leftMouseDrag)
 
     def createLayoutPopup(self):
         """
-        Widget layout ( x, y, width, height)
+        Widget layout popup.
+        Place mode: x, y, width, height spinboxes.
+        Grid mode:  row, column, sticky, padx, pady spinboxes.
+        The popup is parented to the top-level window so it always appears
+        on top, regardless of whether the widget lives in geomWidgetFrame.
         """
+        # Always parent to the real top-level window, not self.root
+        # (self.root may be geomWidgetFrame which is inside a canvas window)
+        topWin = self.widget.winfo_toplevel()
         gridRow = 0
         wName = myVars.fixWidgetName(self.widget.widgetName)
         log.debug("Widget %s name %s", self.widget, wName)
         label = "Edit layout for " + wName
         layoutPopupFrame = Labelframe(
-            self.root,
+            topWin,
             text=label,
             labelanchor="n",
             padding=2,
@@ -465,40 +520,97 @@ class widgetEditPopup:
         )
         layoutPopupFrame.place(x=300, y=10)
         self.createDragPoint(layoutPopupFrame, "triangle")
-        w = tboot.Label(layoutPopupFrame, text=" ")
-        w.grid(row=gridRow, column=1, columnspan=3, sticky=tk.NS)
-        place = self.widget.place_info()
-        # layoutPopupFrame.title("Edit Widget Layout")
-        for p in place:
-            onlyThese = ["x", "y", "width", "height"]
-            if p not in onlyThese:
-                continue
-            gridRow += 1
-            lab1 = tboot.Label(layoutPopupFrame, text=p)
-            ###############################
-            # Spinbox fields
-            ###############################
-            val = place[p]
-            origName = str(p) + "Orig"
-            self.addToStringDict(origName, val)
-            self.addToStringDict(p, val)
-            uniqueName = p + str(gridRow)
-            w = tboot.Spinbox(
-                layoutPopupFrame,
-                width=5,
-                name=uniqueName,
-                from_=0,
-                to=299,
-                increment=1,
-                validate="focusout",
-                validatecommand=lambda pp=p: self.popupCallback(pp),
+
+        if myVars.geomManager == "Grid":
+            # ---- Grid layout fields -----------------------------------
+            # Read stored GeomData from our helper dict, or fall back to
+            # the widget's actual grid_info()
+            try:
+                gi = self.widget.grid_info()
+            except tk.TclError:
+                gi = {}
+            # Try to find the createWidget object to read row/col
+            import createWidget as _cw
+            cwo = _cw.findCreateWidgetObject(
+                self.widget.pythonName if hasattr(self.widget, 'pythonName') else ""
             )
-            widgetKey = p + "Widget"
-            self.addToStringDict(widgetKey, w)
-            w.set(val)
+            grid_fields = [
+                ("row",    int(gi.get("row",    cwo.row if cwo else 0)), 0, 31, 1),
+                ("column", int(gi.get("column", cwo.col if cwo else 0)), 0, 31, 1),
+                ("padx",   int(str(gi.get("padx", 2)).split()[0] if gi.get("padx") else 2), 0, 50, 1),
+                ("pady",   int(str(gi.get("pady", 2)).split()[0] if gi.get("pady") else 2), 0, 50, 1),
+            ]
+            # sticky is a string, not a spinbox
+            sticky_val = str(gi.get("sticky", "ew"))
+            for p, val, frm, to, inc in grid_fields:
+                gridRow += 1
+                lab1 = tboot.Label(layoutPopupFrame, text=p)
+                origName = p + "Orig"
+                self.addToStringDict(origName, str(val))
+                self.addToStringDict(p, str(val))
+                uniqueName = p + str(gridRow)
+                w = tboot.Spinbox(
+                    layoutPopupFrame,
+                    width=5,
+                    name=uniqueName,
+                    from_=frm,
+                    to=to,
+                    increment=inc,
+                    validate="focusout",
+                    validatecommand=lambda pp=p: self.popupCallback(pp),
+                )
+                widgetKey = p + "Widget"
+                self.addToStringDict(widgetKey, w)
+                w.set(val)
+                lab1.grid(row=gridRow, column=0, sticky=tk.NE)
+                w.grid(row=gridRow, column=3, sticky=tk.SW)
+            # sticky combobox
+            gridRow += 1
+            lab1 = tboot.Label(layoutPopupFrame, text="sticky")
+            stickyCombo = tboot.Combobox(
+                layoutPopupFrame,
+                values=["ew", "ns", "nsew", "n", "s", "e", "w", "ne", "nw", "se", "sw", ""],
+                width=6,
+                validate="focusout",
+                validatecommand=lambda: self.popupCallback("sticky"),
+            )
+            self.addToStringDict("sticky", sticky_val)
+            self.addToStringDict("stickyOrig", sticky_val)
+            self.addToStringDict("stickyWidget", stickyCombo)
+            stickyCombo.set(sticky_val)
             lab1.grid(row=gridRow, column=0, sticky=tk.NE)
-            w.grid(row=gridRow, column=3, sticky=tk.SW)
-        # blank Label to make the layout better
+            stickyCombo.grid(row=gridRow, column=3, sticky=tk.SW)
+        else:
+            # ---- Place layout fields ----------------------------------
+            place = self.widget.place_info()
+            for p in place:
+                onlyThese = ["x", "y", "width", "height"]
+                if p not in onlyThese:
+                    continue
+                gridRow += 1
+                lab1 = tboot.Label(layoutPopupFrame, text=p)
+                val = place[p]
+                origName = str(p) + "Orig"
+                self.addToStringDict(origName, val)
+                self.addToStringDict(p, val)
+                uniqueName = p + str(gridRow)
+                w = tboot.Spinbox(
+                    layoutPopupFrame,
+                    width=5,
+                    name=uniqueName,
+                    from_=0,
+                    to=9999,
+                    increment=1,
+                    validate="focusout",
+                    validatecommand=lambda pp=p: self.popupCallback(pp),
+                )
+                widgetKey = p + "Widget"
+                self.addToStringDict(widgetKey, w)
+                w.set(val)
+                lab1.grid(row=gridRow, column=0, sticky=tk.NE)
+                w.grid(row=gridRow, column=3, sticky=tk.SW)
+
+        # blank spacer
         gridRow += 1
         lab2 = tboot.Label(layoutPopupFrame, text="  ")
         lab2.grid(row=gridRow, column=2)
@@ -548,8 +660,10 @@ class widgetEditPopup:
         wName = myVars.fixWidgetName(self.widget.widgetName)
         log.debug("Widget %s name %s", self.widget, wName)
         label = "Edit attributes for " + wName
+        # Always parent to the real top-level window (not geomWidgetFrame)
+        topWin = self.widget.winfo_toplevel()
         editPopupFrame = Labelframe(
-            self.root,
+            topWin,
             text=label,
             labelanchor="n",
             padding=2,

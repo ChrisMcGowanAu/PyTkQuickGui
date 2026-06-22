@@ -806,7 +806,17 @@ def _askGeomManager() -> str:
     # Use tk.Toplevel to avoid ttkbootstrap positional-arg conflict with 'title'
     top = tk.Toplevel(rootWin)
     top.title("Choose Geometry Manager")
+    top.resizable(False, False)
     top.grab_set()
+    # Centre over rootWin once the window has been drawn
+    top.update_idletasks()
+    rw = rootWin.winfo_width() or 900
+    rh = rootWin.winfo_height() or 820
+    rx = rootWin.winfo_rootx()
+    ry = rootWin.winfo_rooty()
+    tw = top.winfo_reqwidth() or 380
+    th = top.winfo_reqheight() or 200
+    top.geometry(f"{tw}x{th}+{rx + (rw - tw)//2}+{ry + (rh - th)//2}")
     tboot.Label(top,
         text="Choose how widgets will be positioned:",
         font="TkDefaultFont 10 bold").pack(pady=(16, 4), padx=16)
@@ -1015,6 +1025,10 @@ def loadProject(project, altFileName):
     except AttributeError:
         log.info("AttributeError in project file.")
 
+    # Rebuild the canvas inner frame BEFORE creating widgets so they land in
+    # the correct (new) geomWidgetFrame for the loaded project's geometry manager.
+    _rebuild_canvas_for_geom()
+
     widgetsFound = 0
     n = 0
     while widgetsFound < nWidgets:
@@ -1024,11 +1038,17 @@ def loadProject(project, altFileName):
         if wDict is not None:
             widgetsFound += 1
             widgetDef = myVars.buildAWidget(n, wDict)
+            # Route to the correct parent for the active geometry manager.
+            # The eval'd widget def uses 'mainFrame' as parent token — we shadow
+            # it here so the widget is created inside geomWidgetFrame directly.
+            _load_parent = geomWidgetFrame if geomWidgetFrame is not None else mainCanvas
             try:
                 # widget = ast.literal_eval(widgetDef)
                 log.info("widgetDef ->%s<-", widgetDef)
-                # imageName = str(widgetId) + "image"
-                widget = eval(widgetDef)
+                # Evaluate with mainFrame aliased to _load_parent so the widget
+                # is created as a child of the correct container.
+                # pylint: disable=eval-used
+                widget = eval(widgetDef, globals(), {"mainFrame": _load_parent})
             except NameError as e:
                 log.error("%d dict %s eval() NameError %s",
                           n, str(wDict), str(e))
@@ -1037,9 +1057,6 @@ def loadProject(project, altFileName):
                 log.error("%d dict %s eval() TypeError %s",
                           n, str(wDict), str(e))
                 continue
-            # w = cw.createWidget(mainCanvas,widget)
-            # Route to the correct parent for the active geometry manager
-            _load_parent = geomWidgetFrame if geomWidgetFrame is not None else mainCanvas
             w = cw.createWidget(_load_parent, widget)
 
             mgr = myVars.geomManager
@@ -1103,8 +1120,9 @@ def loadProject(project, altFileName):
 
     checkWidgetNameList()
     mainFrame.config(text=myVars.projectName)
-    # Rebuild canvas inner frame for the loaded project's geometry manager
-    _rebuild_canvas_for_geom()
+    # Force tkinter to process all pending geometry requests so that
+    # winfo_x() / winfo_y() return correct values immediately after load.
+    rootWin.update_idletasks()
     # Clear undo history – actions from the old project aren't reachable
     undoredo.stack.clear()
 
@@ -1943,6 +1961,14 @@ def buildGrid(rows, cols):
     mgr = myVars.geomManager
     if mgr in ("Grid", "Pack"):
         geomWidgetFrame = tboot.Frame(mainCanvas)
+        # Give the inner frame a large initial size so widgets aren't clipped.
+        # The canvas create_window will be resized on every <Configure> event.
+        geomWidgetFrame.configure(width=1200, height=900)
+        # Allow every column/row to expand so grid cells grow with the frame
+        for c in range(32):
+            geomWidgetFrame.columnconfigure(c, weight=1, minsize=60)
+        for r in range(32):
+            geomWidgetFrame.rowconfigure(r, weight=1, minsize=30)
         # Place the frame so it fills the whole canvas
         mainCanvas.create_window(0, 0, window=geomWidgetFrame,
                                  anchor="nw", tags="geomframe")
@@ -2012,6 +2038,13 @@ def _rebuild_canvas_for_geom():
     mgr = myVars.geomManager
     if mgr in ("Grid", "Pack"):
         geomWidgetFrame = tboot.Frame(mainCanvas)
+        # Give the inner frame a large initial size so widgets aren't clipped.
+        geomWidgetFrame.configure(width=1200, height=900)
+        # Allow every column/row to expand so grid cells grow with the frame
+        for c in range(32):
+            geomWidgetFrame.columnconfigure(c, weight=1, minsize=60)
+        for r in range(32):
+            geomWidgetFrame.rowconfigure(r, weight=1, minsize=30)
         mainCanvas.create_window(0, 0, window=geomWidgetFrame,
                                  anchor="nw", tags="geomframe")
         def _resize_geom_frame(event):
@@ -2040,18 +2073,12 @@ def buildMainGui():
     toolbarFrame = tboot.Frame(rootWin)
     toolbarFrame.grid(row=0, column=0, sticky="EW", padx=4, pady=2)
 
-    tboot.Label(toolbarFrame, text="Geometry Manager:").pack(side=tk.LEFT, padx=(0, 4))
-    for mgr in myVars.GEOM_MANAGERS:
-        tboot.Button(
-            toolbarFrame,
-            text=mgr,
-            width=6,
-            style="outline",
-            command=lambda m=mgr: setGeomManager(m),
-        ).pack(side=tk.LEFT, padx=2)
-
-    geomLabel = tboot.Label(toolbarFrame, text="Layout: Place", bootstyle="info")
-    geomLabel.pack(side=tk.LEFT, padx=(8, 0))
+    # Show the active geometry manager as a read-only label.
+    # The manager is chosen once at New Project time; the buttons have been
+    # removed to prevent mid-session switching confusion.
+    tboot.Label(toolbarFrame, text="Layout:").pack(side=tk.LEFT, padx=(0, 2))
+    geomLabel = tboot.Label(toolbarFrame, text=myVars.geomManager, bootstyle="info")
+    geomLabel.pack(side=tk.LEFT, padx=(0, 8))
     rootWin._geomLabel = geomLabel
 
     # ---- Undo/Redo status label (right side of toolbar) ---------------
