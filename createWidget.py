@@ -40,6 +40,7 @@ class GridWidget:
         self.widget = widget
         self.row = row
         self.col = col
+        self.widget.pythonName = self.pythonName
         self.widget.grid(row=self.row, column=self.col, sticky="WENS")
 
     def mouseEnter(self, event):
