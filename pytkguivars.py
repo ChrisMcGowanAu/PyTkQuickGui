@@ -40,11 +40,18 @@ projectPath: str = "/tmp/tmp"
 saveDirName: str = "/tmp"
 # This can be used if a project is not opened
 projectFileName: str = "/tmp/pytkquickgui"
-fileType:str = ".pk1"
+fileType:str = ".json"
+legacyFileType:str = ".pk1"  # kept so old saves can still be opened
 lastProjectFile: str = "lastProject.txt"
 lastProjectSaved: str = ""
 projectSaved: bool = False
+# Path to the most-recently user-saved generated Python file.
+# If set, buildPython() will attempt to preserve user edits from this file.
+generatedPyFile: str = ""
+
+# ---- Widgets available in the right-click palette ----------------------
 widgetsUsed = (
+    # ttkbootstrap widgets
     "Label",
     "Button",
     "Entry",
@@ -56,13 +63,30 @@ widgetsUsed = (
     "Radiobutton",
     "Scale",
     "Progressbar",
+    "Floodgauge",
+    "Meter",
+    # Standard tk/ttk widgets
+    "Text",
+    "Listbox",
+    "Treeview",
+    "Scrollbar",
+    "Separator",
+    "Sizegrip",
 )
 
-# 'Floodgauge','Progressbar','Meter')
-
-# Could be 'Place' 'Grid' or 'Pack'
-# Some objects use Grid and Pack internally, and the root Window uses Grid
+# ---- Geometry manager ---------------------------------------------------
+# Valid values: 'Place'  'Grid'  'Pack'
+# Some objects use Grid and Pack internally; the root window uses Grid.
+GEOM_MANAGERS = ("Place", "Grid", "Pack")
 geomManager = "Place"
+
+# ---- Widget groups (logical, not tkinter containers) --------------------
+# {group_name: [widgetName, ...]}  — persisted to project JSON
+groups: dict = {}
+
+# ---- Multi-selection ----------------------------------------------------
+# List of pythonName strings for currently Shift+clicked widgets
+selectedWidgets: list = []
 
 
 #def sprintf(buf: str, fmt, *args) -> str:
@@ -85,6 +109,7 @@ def initVars():
     global rootWidgetName
     global createdWidgetOrder
     global widgetImageFilenames
+    global generatedPyFile
     projectDict = {}
     childNameVars = [tk.StringVar()] * 64
     imageFileNames = [tk.StringVar()] * 64
@@ -97,6 +122,11 @@ def initVars():
     rootWidgetName = "rootWidget"
     createdWidgetOrder = []
     widgetImageFilenames = []
+    generatedPyFile = ""
+    global groups
+    global selectedWidgets
+    groups = {}
+    selectedWidgets = []
 
 
 # Common Procs
@@ -169,10 +199,35 @@ def saveWidgetAsDict(widgetName) -> dict:
         except tk.TclError as ex:
             log.error("Widget ->%s<- raised an exception %s", str(w), str(ex))
             return {}
+        # Capture geometry info for all supported managers
+        geomData = {}
+        try:
+            if geomManager == "Grid":
+                gi = w.grid_info()
+                geomData = {
+                    "row": str(gi.get("row", 0)),
+                    "column": str(gi.get("column", 0)),
+                    "sticky": str(gi.get("sticky", "")),
+                    "padx": str(gi.get("padx", 2)),
+                    "pady": str(gi.get("pady", 2)),
+                }
+            elif geomManager == "Pack":
+                pi = w.pack_info()
+                geomData = {
+                    "side": str(pi.get("side", "top")),
+                    "fill": str(pi.get("fill", "none")),
+                    "expand": str(pi.get("expand", 0)),
+                    "padx": str(pi.get("padx", 2)),
+                    "pady": str(pi.get("pady", 2)),
+                }
+        except tk.TclError:
+            pass
+
         widgetDict = {
             "WidgetName": w.widgetName,
             "WidgetParent": widgetParent,
             "Place": place,
+            "GeomData": geomData,
         }
         keyCount = 0
         keys = w.keys()
