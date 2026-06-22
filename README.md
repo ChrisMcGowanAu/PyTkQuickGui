@@ -246,7 +246,11 @@ Projects are stored as plain **JSON** files in `~/.config/pytkgui/<ProjectName>/
 ```
 
 ### Legacy pickle files (`.pk1`)
-Projects saved by older versions of PyTkQuickGui used Python's `pickle` format (`.pk1` extension).  These files are still loaded transparently and a notice is shown.  They will be re-saved as JSON the next time you use *File ▸ Save Project*.
+Projects saved by older versions of PyTkQuickGui used Python's `pickle` format (`.pk1` extension).  The loader **automatically detects** whether a file is JSON or pickle — no manual conversion needed:
+
+1. When you open a project directory PyTkQuickGui looks for `<name>.json` first, then `<name>.pk1`.
+2. When you use *File ▸ Open backup file* both `.json` and `.pk1` entries appear in the file dialog.
+3. A one-time info dialog tells you the file was loaded from the legacy format and will be re-saved as JSON on next save.
 
 > **Warning:** Hand-editing JSON is powerful but risky.  An invalid JSON file will prevent the project from loading.  Keep a backup copy before editing.
 
@@ -254,7 +258,7 @@ Projects saved by older versions of PyTkQuickGui used Python's `pickle` format (
 
 ## Generating Python Code
 
-*File ▸ Generate Python* (or *Trial Run*) produces a single `.py` file:
+*File ▸ Generate Python* produces a single `.py` file structured in clearly-marked sections:
 
 ```python
 import tkinter as tk
@@ -270,17 +274,36 @@ myStringVar = tk.StringVar(rootWin, '0.0')
 
 ####### Functions #######
 def onClickMe():
+    # AUTO-GENERATED STUB
     print('onClickMe')
 
+####### Widgets #######
 Widget0 = tboot.Button(rootWidget, text='Click Me', command=onClickMe, ...)
 Widget0.place(x=80, y=48, width=120, height=32, ...)
 
-####### Main #######
+####### Main  #######
 rootWin.geometry('800x600')
 rootWin.mainloop()
 ```
 
-You then open this file in your IDE and fill in the logic inside each callback function.  The GUI code is never touched again unless you re-open the project in PyTkQuickGui.
+### Preserving your code across re-generations
+
+Re-generating **does not overwrite code you have already written**.  The tool uses the section markers and a stub-sentinel comment to decide what to keep:
+
+| Section | Behaviour on re-generate |
+|---|---|
+| `####### TK variables #######` | Variables still at the default `StringVar(rootWin,'0.0')` are replaced; ones you've changed are **preserved** |
+| `####### Functions #######` | Stubs containing `# AUTO-GENERATED STUB` are replaced with a fresh stub; functions you've edited (sentinel removed / real code added) are **preserved verbatim** |
+| `####### Widgets #######` | Always regenerated from the current builder state |
+| `####### Main  #######` | Always regenerated |
+
+**Recommended workflow:**
+1. Build the layout in PyTkQuickGui.
+2. *File ▸ Generate Python* → choose (or accept) a `.py` path.
+3. Open that file in your IDE and write your logic (remove the `# AUTO-GENERATED STUB` lines as you go).
+4. Return to PyTkQuickGui, adjust the layout, re-run *Generate Python* — PyTkQuickGui auto-fills the dialog with the last used path and merges your code back in.
+
+> **Note:** *File ▸ Trial Run* generates a **temporary** internal file and runs it.  It does **not** update your saved `.py` file and does not trigger code preservation — it is intended only for a quick layout preview.
 
 ---
 

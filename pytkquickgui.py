@@ -1,9 +1,12 @@
+import ast
 import json
 import logging
 import os
 import os.path
 import pickle
+import re
 import sys
+import textwrap
 import tkinter as tk
 from collections import defaultdict
 from functools import partial
@@ -184,6 +187,7 @@ def saveProject():
         "height": height,
         "theme": myVars.theme,
         "geomManager": myVars.geomManager,
+        "generatedPyFile": myVars.generatedPyFile,
         "widgetNameList": cleanList,
         "backgroundColor": myVars.backgroundColor,
         "imageFileNames": createCleanImageList(),
@@ -223,24 +227,128 @@ def saveProject():
     sys.stdout = sys.__stdout__
     mainFrame.config(text=myVars.projectName)
 
+# ---------------------------------------------------------------------------
+# Smart code preservation helpers
+# ---------------------------------------------------------------------------
+
+# Sentinel comment written into every auto-generated function stub so we can
+# detect whether the user has changed it.
+_STUB_SENTINEL = "# AUTO-GENERATED STUB"
+
+# Marker written at the top of every generated section so the parser can
+# locate the boundaries reliably.
+_SEC_TKVARS   = "####### TK variables #######"
+_SEC_FUNCTIONS = "####### Functions #######"
+_SEC_WIDGETS   = "####### Widgets #######"
+_SEC_MAIN      = "####### Main  #######"
+
+
+def _parseExistingPython(filePath: str) -> tuple[dict, dict]:
+    """Parse *filePath* (a previously generated .py file) and return:
+
+    * ``func_bodies``  – ``{func_name: full_source_string}`` for every
+      function that the user has modified (stub sentinel absent).
+    * ``tkvar_lines``  – ``{var_name: init_line}`` for every tk variable
+      line that differs from the plain auto-generated default
+      (``var = tk.StringVar(rootWin,'0.0')``).
+
+    Returns two empty dicts if the file cannot be read or parsed.
+    """
+    func_bodies: dict[str, str] = {}
+    tkvar_lines: dict[str, str] = {}
+
+    if not filePath or not os.path.isfile(filePath):
+        return func_bodies, tkvar_lines
+
+    try:
+        src = open(filePath, "r", encoding="utf-8").read()
+    except OSError as e:
+        log.warning("_parseExistingPython: cannot read %s: %s", filePath, e)
+        return func_bodies, tkvar_lines
+
+    lines = src.splitlines(keepends=True)
+
+    # ---- Locate section boundaries by scanning for the sentinel comments --
+    sec_tkvars = sec_functions = sec_widgets = sec_main = None
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if stripped == _SEC_TKVARS:     sec_tkvars    = i
+        elif stripped == _SEC_FUNCTIONS: sec_functions = i
+        elif stripped == _SEC_WIDGETS:   sec_widgets   = i
+        elif stripped == _SEC_MAIN:      sec_main      = i
+
+    # ---- Extract user-modified tk variable lines -------------------------
+    if sec_tkvars is not None:
+        end = sec_functions if sec_functions is not None else len(lines)
+        # pattern: <name> = tk.StringVar(rootWin, ...)
+        var_pat = re.compile(
+            r'^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*tk\.StringVar\s*\(.*\)'
+        )
+        for line in lines[sec_tkvars + 1 : end]:
+            m = var_pat.match(line.strip())
+            if m:
+                var_name = m.group(1)
+                default_line = f"{var_name} = tk.StringVar(rootWin,'0.0')"
+                actual_line  = line.rstrip()
+                if actual_line.strip() != default_line:
+                    tkvar_lines[var_name] = actual_line.strip()
+                    log.debug("_parseExistingPython: preserved tkvar %s", var_name)
+
+    # ---- Extract user-modified function bodies ---------------------------
+    if sec_functions is not None:
+        end = sec_widgets if sec_widgets is not None else (
+              sec_main   if sec_main   is not None else len(lines))
+        # Walk function definitions using the AST for reliability
+        func_region = "".join(lines[sec_functions + 1 : end])
+        try:
+            tree = ast.parse(func_region)
+        except SyntaxError as e:
+            log.warning("_parseExistingPython: SyntaxError in functions section: %s", e)
+            tree = None
+        if tree:
+            region_lines = func_region.splitlines(keepends=True)
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.FunctionDef):
+                    continue
+                name = node.name
+                # Grab source lines for this function
+                start = node.lineno - 1   # ast lines are 1-based
+                end_ln = node.end_lineno   # inclusive 1-based
+                func_src = "".join(region_lines[start:end_ln])
+                # Check for stub sentinel anywhere in body
+                if _STUB_SENTINEL not in func_src:
+                    func_bodies[name] = func_src
+                    log.debug(
+                        "_parseExistingPython: preserved user function %s", name
+                    )
+    return func_bodies, tkvar_lines
+
+
 def buildPython() -> str:
     """
     Generate python code and do a trial run
     """
     functions = []
     tkvars = []
-    # if myVars.projectDict == {}:
     saveProject()
     runDict = myVars.projectDict
     nWidgets = runDict.get("widgetCount")
     largestWidth = 200
     largestHeight = 200
-    # print('width',width,'height',height)
     createdWidgetOrder = workOutWidgetCreationOrder()
-    print("nWidgets", nWidgets)
-    print("# -------------------------")
+    log.info("nWidgets %s", nWidgets)
     configPath = getConfigPath()
     fileName = configPath + "/" + "test.py"
+
+    # ---- Load existing user edits (if any) from the last saved .py ------
+    _preserved_funcs, _preserved_tkvars = _parseExistingPython(
+        myVars.generatedPyFile
+    )
+    if _preserved_funcs or _preserved_tkvars:
+        log.info(
+            "buildPython: preserving %d function(s) and %d tkvar(s) from %s",
+            len(_preserved_funcs), len(_preserved_tkvars), myVars.generatedPyFile
+        )
     # sys.stdout = open("/tmp/test.py", "w", encoding="utf8")
     sys.stdout = open(fileName, "w", encoding="utf8")
     print("import tkinter as tk\nimport ttkbootstrap as tboot\n")
@@ -293,19 +401,37 @@ def buildPython() -> str:
                         tkvars.append(val)
 
     print("")
-    print("####### TK variables #######")
+    print(_SEC_TKVARS)
     for f in myVars.widgetImageFilenames:
         name = str(f[myVars.WIDGET]) + str(f[myVars.KEY])
-        print(name + " = tk.PhotoImage(file='" + f[myVars.FILENAME] + "')" )
+        print(name + " = tk.PhotoImage(file='" + f[myVars.FILENAME] + "')")
+    # Deduplicate tk variables (one widget may reference the same variable)
+    seen_vars: set = set()
     for v in tkvars:
-        print(v + " = tk.StringVar(rootWin,'0.0')")
+        if v and v not in seen_vars:
+            seen_vars.add(v)
+            if v in _preserved_tkvars:
+                # User has changed this initialisation – keep their version
+                print(_preserved_tkvars[v])
+            else:
+                print(v + " = tk.StringVar(rootWin,'0.0')")
     print("")
-    print("####### Functions #######")
+    print(_SEC_FUNCTIONS)
     for f in functions:
+        if not f:
+            continue
         print("")
-        print("def " + f + "():")
-        print("    print('" + f + "') ")
+        if f in _preserved_funcs:
+            # Emit the user's version verbatim (already dedented relative to
+            # the region we parsed, so just print it)
+            print(_preserved_funcs[f].rstrip())
+        else:
+            # Emit a blank stub with the sentinel so we know it's untouched
+            print("def " + f + "():")
+            print("    " + _STUB_SENTINEL)
+            print("    print('" + f + "')")
     print("")
+    print(_SEC_WIDGETS)
     for widgetName in createdWidgetOrder:
         # widgetId = "Widget" + str(n)
         if widgetName == rootName:
@@ -437,19 +563,43 @@ def runMe():
     os.system(cmd)
 
 def generatePython():
-    # configPath = getConfigPath()
-    fileName = buildPython()
+    """Ask for a save path, generate Python and copy the file there.
+
+    The chosen path is stored in myVars.generatedPyFile so that the next
+    call to buildPython() can load and preserve any user edits.
+    """
+    # If we already know a target file, pre-fill the dialog with it.
     home = os.environ["HOME"]
-    initialFile = myVars.projectName + ".py"
-    newFile = tk.filedialog.asksaveasfilename(initialdir=home,
-                                              initialfile=initialFile,
-                                              filetypes=[("Python file","*.py")],
-                                              defaultextension="py")
-    # Note: get the directory name for the samed file and add this to the .config
-    myVars.saveDirName = os.path.dirname(newFile)
-    log.info("save dir %s saved file = %s",myVars.saveDirName,newFile)
-    cmd = "cp " + fileName + " " + newFile
-    os.system(cmd)
+    initialDir  = myVars.saveDirName if myVars.saveDirName else home
+    initialFile = (
+        os.path.basename(myVars.generatedPyFile)
+        if myVars.generatedPyFile
+        else myVars.projectName + ".py"
+    )
+    newFile = tk.filedialog.asksaveasfilename(
+        initialdir=initialFile and os.path.dirname(myVars.generatedPyFile) or initialDir,
+        initialfile=initialFile,
+        filetypes=[("Python file", "*.py")],
+        defaultextension="py",
+    )
+    if not newFile:
+        return  # user cancelled
+
+    # Remember where the user is keeping their generated file.
+    myVars.saveDirName    = os.path.dirname(newFile)
+    myVars.generatedPyFile = newFile
+    log.info("save dir %s saved file = %s", myVars.saveDirName, newFile)
+
+    # Now build (with preservation) and copy.
+    fileName = buildPython()
+    try:
+        import shutil
+        shutil.copy2(fileName, newFile)
+        log.info("Generated Python written to %s", newFile)
+    except OSError as e:
+        log.error("Failed to copy generated file: %s", e)
+        Messagebox.show_error(title="Generate Error",
+                              message=f"Could not write to {newFile}:\n{e}")
 
 
 def deleteWidgetData():
@@ -749,11 +899,21 @@ def loadProject(project, altFileName):
         else:
             fullFileName = jsonFile  # will be created on save
     else:  # loading a backup / specific fileName
-        projFileName = project
-        fileName = altFileName
-        myVars.projectName = os.path.basename(folder)
-        myVars.projectPath = folder
-        fullFileName = fileName
+        # altFileName is the full path to the file chosen by the user.
+        # 'folder' above was built from (configPath, project) so it may not
+        # exist if project is e.g. a raw filename – derive everything from
+        # altFileName instead.
+        fullFileName = altFileName
+        projectPath = os.path.dirname(altFileName)
+        # The project name is the *directory* name that contains the file,
+        # which matches how newProject/loadProject create the folder layout.
+        myVars.projectName = os.path.basename(projectPath) or os.path.splitext(
+            os.path.basename(altFileName)
+        )[0]
+        myVars.projectPath = projectPath
+        myVars.projectFileName = os.path.join(
+            projectPath, myVars.projectName
+        )
 
     mainFrame.config(text=myVars.projectName)
     deleteWidgetData()
@@ -777,6 +937,11 @@ def loadProject(project, altFileName):
             myVars.geomManager = savedGeom
             if hasattr(rootWin, '_geomLabel'):
                 rootWin._geomLabel.config(text="Layout: " + savedGeom)
+        savedPyFile = runDict.get("generatedPyFile", "")
+        if savedPyFile and os.path.isfile(savedPyFile):
+            myVars.generatedPyFile = savedPyFile
+            myVars.saveDirName = os.path.dirname(savedPyFile)
+            log.info("Restored generatedPyFile path: %s", savedPyFile)
     except AttributeError:
         log.info("AttributeError in project file.")
 
@@ -805,14 +970,34 @@ def loadProject(project, altFileName):
             # w = cw.createWidget(mainCanvas,widget)
             w = cw.createWidget(mainFrame, widget)
 
-            if myVars.geomManager == "Place":
-                place = wDict.get("Place")
-                log.debug(place)
-                w.addPlace(place)
-            # if myVars.geomManager == 'Grid':
-            # if myVars.geomManager == 'Pack':
+            mgr = myVars.geomManager
+            if mgr == "Place":
+                place = wDict.get("Place") or {}
+                if place:
+                    log.debug(place)
+                    w.addPlace(place)
+            elif mgr == "Grid":
+                geomData = wDict.get("GeomData") or {}
+                row  = int(geomData.get("row",    0))
+                col  = int(geomData.get("column", 0))
+                sticky = geomData.get("sticky", "WE")
+                padx = int(geomData.get("padx", 2))
+                pady = int(geomData.get("pady", 2))
+                w.row = row
+                w.col = col
+                w.widget.grid(row=row, column=col,
+                              sticky=sticky, padx=padx, pady=pady)
+            elif mgr == "Pack":
+                geomData = wDict.get("GeomData") or {}
+                side   = geomData.get("side",   "top")
+                fill   = geomData.get("fill",   "none")
+                expand = int(geomData.get("expand", 0))
+                padx   = int(geomData.get("padx", 4))
+                pady   = int(geomData.get("pady", 4))
+                w.widget.pack(side=side, fill=fill, expand=expand,
+                              padx=padx, pady=pady)
             else:
-                log.error("Geometry Manager %s is TBD", myVars.geomManager)
+                log.error("Geometry Manager %s unknown", mgr)
         n += 1
         if n > (nWidgets * 10):
             log.error(
@@ -1087,8 +1272,10 @@ File > Generate Python  produces a single .py file:
 
   ####### Functions #######
   def onButtonClick():
+      # AUTO-GENERATED STUB
       print('onButtonClick')
 
+  ####### Widgets #######
   Widget0 = tboot.Button(rootWidget, text='Click', command=onButtonClick)
   Widget0.place(x=80, y=48, width=120, height=32, ...)
 
@@ -1096,16 +1283,48 @@ File > Generate Python  produces a single .py file:
   rootWin.geometry('800x600')
   rootWin.mainloop()
 
+Preserving Your Code
+====================
+Re-generating does NOT overwrite code you have written!
+
+  Functions
+    Each new function stub contains a comment:
+        # AUTO-GENERATED STUB
+    When you edit a function (add real code, remove the
+    stub comment), the generator detects the change and
+    preserves your version on every future re-generation.
+
+  TK Variables
+    Variables initialised as the default
+        myVar = tk.StringVar(rootWin,'0.0')
+    are replaced if you change the initial value, e.g.:
+        myVar = tk.StringVar(rootWin, 'Hello')
+    or use a different variable type entirely.
+
+  Widget layout & widget list
+    These are ALWAYS regenerated from the builder state
+    – that is the point of re-generation.  Do not put
+    custom code in the ####### Widgets ####### section.
+
+Workflow
+========
+  1. Build layout in PyTkQuickGui.
+  2. File > Generate Python  – choose a .py file to save.
+  3. Edit that .py: implement function bodies, tweak vars.
+  4. Go back to PyTkQuickGui, adjust layout, re-generate
+     (using File > Generate Python and choosing the SAME
+     file, or just hitting Generate Python which pre-fills
+     the dialog with the last used path).
+  5. Your code is merged back automatically.
+
 Tips
 ====
   - Set the 'command' attribute in the Edit popup to the
     function name you want called on click.
   - Set 'textvariable' or 'variable' to a variable name;
     the generator creates  myVar = tk.StringVar(…)  for you.
-  - File > Trial Run generates + runs the file immediately
-    so you can preview the layout.
-  - The generated code is plain Python – open it in any IDE
-    and write your application logic.
+  - File > Trial Run generates + runs a temporary copy;
+    it does NOT update the user's .py file.
 """,
 
     "Tips & Troubleshooting": """

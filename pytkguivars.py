@@ -45,6 +45,9 @@ legacyFileType:str = ".pk1"  # kept so old saves can still be opened
 lastProjectFile: str = "lastProject.txt"
 lastProjectSaved: str = ""
 projectSaved: bool = False
+# Path to the most-recently user-saved generated Python file.
+# If set, buildPython() will attempt to preserve user edits from this file.
+generatedPyFile: str = ""
 
 # ---- Widgets available in the right-click palette ----------------------
 widgetsUsed = (
@@ -98,6 +101,7 @@ def initVars():
     global rootWidgetName
     global createdWidgetOrder
     global widgetImageFilenames
+    global generatedPyFile
     projectDict = {}
     childNameVars = [tk.StringVar()] * 64
     imageFileNames = [tk.StringVar()] * 64
@@ -110,6 +114,7 @@ def initVars():
     rootWidgetName = "rootWidget"
     createdWidgetOrder = []
     widgetImageFilenames = []
+    generatedPyFile = ""
 
 
 # Common Procs
