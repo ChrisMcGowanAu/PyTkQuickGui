@@ -642,14 +642,27 @@ class createWidget:
         deltaX = x - self.lastX
         deltaY = y - self.lastY
 
-        # Grid / Pack managers don't use place_info() – track position via
-        # winfo_x/y directly so we don't crash on None.
-        if myVars.geomManager != "Place":
+        # Grid / Pack: temporarily float the widget with .place() so the user
+        # can see it move.  On ButtonRelease it snaps back to the grid cell.
+        if myVars.geomManager == "Grid":
+            newX = self.widget.winfo_x() + int(deltaX)
+            newY = self.widget.winfo_y() + int(deltaY)
+            self.x = max(0, newX)
+            self.y = max(0, newY)
+            # Temporarily override geometry so widget floats during drag
+            self.widget.place(x=self.x, y=self.y,
+                              width=self.widget.winfo_width(),
+                              height=self.widget.winfo_height())
+            self.lastX = x
+            self.lastY = y
+            return
+        if myVars.geomManager == "Pack":
+            # Pack order can't be dragged visually; just update tracking
             self.x = self.widget.winfo_x() + int(deltaX)
             self.y = self.widget.winfo_y() + int(deltaY)
             self.lastX = x
             self.lastY = y
-            return   # actual re-gridding happens on ButtonRelease
+            return
 
         placex = self.widget.place_info().get("x", self.x)
         placey = self.widget.place_info().get("y", self.y)
@@ -705,6 +718,11 @@ class createWidget:
         if myVars.geomManager == "Place":
             self.widget.place(x=self.x, y=self.y, height=self.height, width=self.width)
         elif myVars.geomManager == "Grid":
+            # Widget may be floating via .place() from drag — remove it first
+            try:
+                self.widget.place_forget()
+            except tk.TclError:
+                pass
             try:
                 z = self.root.grid_location(self.x, self.y)
                 # grid_location can return -1 for positions before the first cell

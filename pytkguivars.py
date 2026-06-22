@@ -186,16 +186,12 @@ def saveWidgetAsDict(widgetName) -> dict:
         # w.update()
         log.debug("widgetName %s", w.widgetName)
         # Remove 'in' from place.
-        place = "unknown"
+        # For Grid/Pack managed widgets place_info() returns {} — that is fine,
+        # we just store an empty dict and rely on GeomData instead.
+        place = {}
         try:
             place = w.place_info()
-            del place["in"]
-        except KeyError as e:
-            log.error(
-                "Key 'in' missing from place exception %s place ->%s<-",
-                str(e),
-                str(place),
-            )
+            place.pop("in", None)   # remove quietly; may not be present
         except tk.TclError as ex:
             log.error("Widget ->%s<- raised an exception %s", str(w), str(ex))
             return {}

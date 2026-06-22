@@ -158,6 +158,15 @@ def saveProjectFile(fileName, fileType, projectData):
     if not projectData:
         log.error("projectData is empty. Not saving")
         return
+    # Ensure the directory exists (handles the 'tmp' default project case)
+    dirName = os.path.dirname(fileName)
+    if dirName and not os.path.isdir(dirName):
+        try:
+            os.makedirs(dirName, exist_ok=True)
+            log.info("Created project directory %s", dirName)
+        except OSError as e:
+            log.error("Cannot create project directory %s: %s", dirName, e)
+            return
     ftails = [5, 4, 3, 2, 1]
     completeFileName = fileName + fileType
     for t in ftails:
@@ -773,7 +782,8 @@ def newProject():
         return
 
     path = os.path.join(configPath, name)
-    os.mkdir(path)
+    # Create directory only if it doesn't already exist
+    os.makedirs(path, exist_ok=True)
     log.info("configPath %s project name %s path %s",configPath,name,path)
     myVars.projectName = name
     myVars.projectPath = path
@@ -793,7 +803,9 @@ def newProject():
 def _askGeomManager() -> str:
     """Show a simple dialog to choose Place / Grid / Pack.
     Returns the chosen manager string, or empty string if cancelled."""
-    top = tboot.Toplevel(rootWin, title="Choose Geometry Manager")
+    # Use tk.Toplevel to avoid ttkbootstrap positional-arg conflict with 'title'
+    top = tk.Toplevel(rootWin)
+    top.title("Choose Geometry Manager")
     top.grab_set()
     tboot.Label(top,
         text="Choose how widgets will be positioned:",
@@ -1595,13 +1607,149 @@ def doNothing():
     pass
 
 
+## ---------------------------------------------------------------------------
+## Grid-line state: column and row pixel positions (editable by dragging)
+## ---------------------------------------------------------------------------
+_grid_col_positions = []   # x-pixel positions of vertical lines
+_grid_row_positions = []   # y-pixel positions of horizontal lines
+_grid_drag_state = {}      # {tag: ("col"|"row", index, start_coord)}
+
+
+def _init_grid_positions(width: int, height: int, cell: int = 64) -> None:
+    """Initialise default evenly-spaced column/row positions."""
+    global _grid_col_positions, _grid_row_positions
+    _grid_col_positions = list(range(cell, width, cell))
+    _grid_row_positions = list(range(cell, height, cell))
+
+
 def drawGridLines():
-    # Get dimensions ....
+    """Draw column/row guide lines on mainCanvas.
+
+    Lines are colour-coded:
+      Place mode  – faint dot grid (snapTo spacing)
+      Grid mode   – solid blue column/row separators that can be dragged
+      Pack mode   – nothing (Pack stacks automatically)
+    """
     mainCanvas.update()
-    width = mainCanvas.winfo_width()
+    width  = mainCanvas.winfo_width()
     height = mainCanvas.winfo_height()
-    # log.debug("width ",width," height ",height," snapTo ",myVars.snapTo)
-    log.debug("Width %d height %d snapTo %s", width, height, myVars.snapTo)
+    log.debug("drawGridLines Width %d height %d geomManager %s",
+              width, height, myVars.geomManager)
+
+    # Remove old guide lines
+    mainCanvas.delete("gridline")
+
+    mgr = myVars.geomManager
+
+    if mgr == "Place":
+        # Light dot grid at snapTo spacing
+        snap = max(8, int(myVars.snapTo))
+        dot_color = "#c0c0c0"
+        for gx in range(0, width, snap):
+            for gy in range(0, height, snap):
+                mainCanvas.create_rectangle(
+                    gx, gy, gx + 1, gy + 1,
+                    fill=dot_color, outline="", tags="gridline"
+                )
+
+    elif mgr == "Grid":
+        global _grid_col_positions, _grid_row_positions
+        # Initialise positions lazily (or after resize)
+        if not _grid_col_positions or not _grid_row_positions:
+            _init_grid_positions(width, height)
+        # Clamp to current canvas size
+        _grid_col_positions = [x for x in _grid_col_positions if 0 < x < width]
+        _grid_row_positions = [y for y in _grid_row_positions if 0 < y < height]
+
+        line_color = "#4488cc"
+        label_color = "#224466"
+
+        # Vertical (column) lines
+        for i, gx in enumerate(_grid_col_positions):
+            tag = f"gcol_{i}"
+            mainCanvas.create_line(
+                gx, 0, gx, height,
+                fill=line_color, width=1, dash=(4, 4),
+                tags=("gridline", tag)
+            )
+            mainCanvas.create_text(
+                gx + 3, 4, text=str(i), anchor="nw",
+                fill=label_color, font=("TkDefaultFont", 7),
+                tags=("gridline", tag)
+            )
+
+        # Horizontal (row) lines
+        for i, gy in enumerate(_grid_row_positions):
+            tag = f"grow_{i}"
+            mainCanvas.create_line(
+                0, gy, width, gy,
+                fill=line_color, width=1, dash=(4, 4),
+                tags=("gridline", tag)
+            )
+            mainCanvas.create_text(
+                4, gy + 3, text=str(i), anchor="nw",
+                fill=label_color, font=("TkDefaultFont", 7),
+                tags=("gridline", tag)
+            )
+
+        # Wider invisible hit-areas so lines are easy to grab
+        for i, gx in enumerate(_grid_col_positions):
+            tag = f"gcol_hit_{i}"
+            mainCanvas.create_line(
+                gx, 0, gx, height,
+                fill="", width=8,
+                tags=("gridline", tag)
+            )
+            mainCanvas.tag_bind(tag, "<Enter>",
+                lambda e, t=tag: mainCanvas.config(cursor="sb_h_double_arrow"))
+            mainCanvas.tag_bind(tag, "<Leave>",
+                lambda e: mainCanvas.config(cursor=""))
+            mainCanvas.tag_bind(tag, "<ButtonPress-1>",
+                lambda e, idx=i: _grid_line_drag_start(e, "col", idx))
+            mainCanvas.tag_bind(tag, "<B1-Motion>",
+                lambda e, idx=i: _grid_line_drag_move(e, "col", idx))
+            mainCanvas.tag_bind(tag, "<ButtonRelease-1>",
+                lambda e: _grid_line_drag_end(e))
+
+        for i, gy in enumerate(_grid_row_positions):
+            tag = f"grow_hit_{i}"
+            mainCanvas.create_line(
+                0, gy, width, gy,
+                fill="", width=8,
+                tags=("gridline", tag)
+            )
+            mainCanvas.tag_bind(tag, "<Enter>",
+                lambda e, t=tag: mainCanvas.config(cursor="sb_v_double_arrow"))
+            mainCanvas.tag_bind(tag, "<Leave>",
+                lambda e: mainCanvas.config(cursor=""))
+            mainCanvas.tag_bind(tag, "<ButtonPress-1>",
+                lambda e, idx=i: _grid_line_drag_start(e, "row", idx))
+            mainCanvas.tag_bind(tag, "<B1-Motion>",
+                lambda e, idx=i: _grid_line_drag_move(e, "row", idx))
+            mainCanvas.tag_bind(tag, "<ButtonRelease-1>",
+                lambda e: _grid_line_drag_end(e))
+
+
+def _grid_line_drag_start(event, kind: str, idx: int):
+    _grid_drag_state.clear()
+    _grid_drag_state["kind"]  = kind
+    _grid_drag_state["idx"]   = idx
+    _grid_drag_state["start"] = event.x if kind == "col" else event.y
+
+
+def _grid_line_drag_move(event, kind: str, idx: int):
+    if kind == "col":
+        new_x = max(4, event.x)
+        _grid_col_positions[idx] = new_x
+    else:
+        new_y = max(4, event.y)
+        _grid_row_positions[idx] = new_y
+    drawGridLines()
+
+
+def _grid_line_drag_end(event):
+    _grid_drag_state.clear()
+    mainCanvas.config(cursor="")
 
 
 def sizeGripRelease(event):
@@ -1798,16 +1946,23 @@ def buildGrid(rows, cols):
         # Place the frame so it fills the whole canvas
         mainCanvas.create_window(0, 0, window=geomWidgetFrame,
                                  anchor="nw", tags="geomframe")
-        # Expand the window when the canvas is resized
+        # Expand the window when the canvas is resized; also redraw guides
         def _resize_geom_frame(event):
             mainCanvas.itemconfig("geomframe",
                                   width=event.width, height=event.height)
+            drawGridLines()
         mainCanvas.bind("<Configure>", _resize_geom_frame)
         cw.createWidget.baseRoot = geomWidgetFrame
     else:
         geomWidgetFrame = None
         cw.createWidget.baseRoot = mainCanvas
+        # For Place mode, redraw dot grid on resize
+        mainCanvas.bind("<Configure>", lambda e: drawGridLines())
 
+    # Reset grid line positions so they are recalculated for this canvas size
+    global _grid_col_positions, _grid_row_positions
+    _grid_col_positions = []
+    _grid_row_positions = []
     drawGridLines()
     # mainCanvas.bind('<Motion>',frameMove)
 
@@ -1862,11 +2017,18 @@ def _rebuild_canvas_for_geom():
         def _resize_geom_frame(event):
             mainCanvas.itemconfig("geomframe",
                                   width=event.width, height=event.height)
+            drawGridLines()
         mainCanvas.bind("<Configure>", _resize_geom_frame)
         cw.createWidget.baseRoot = geomWidgetFrame
     else:
         geomWidgetFrame = None
         cw.createWidget.baseRoot = mainCanvas
+        mainCanvas.bind("<Configure>", lambda e: drawGridLines())
+    # Reset grid positions for fresh layout
+    global _grid_col_positions, _grid_row_positions
+    _grid_col_positions = []
+    _grid_row_positions = []
+    drawGridLines()
 
 
 def buildMainGui():
