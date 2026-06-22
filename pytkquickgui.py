@@ -5,6 +5,7 @@ import os
 import os.path
 import pickle
 import re
+import shutil
 import sys
 import textwrap
 import tkinter as tk
@@ -286,10 +287,14 @@ def _parseExistingPython(filePath: str) -> tuple[dict, dict]:
     sec_tkvars = sec_functions = sec_widgets = sec_main = None
     for i, line in enumerate(lines):
         stripped = line.strip()
-        if stripped == _SEC_TKVARS:     sec_tkvars    = i
-        elif stripped == _SEC_FUNCTIONS: sec_functions = i
-        elif stripped == _SEC_WIDGETS:   sec_widgets   = i
-        elif stripped == _SEC_MAIN:      sec_main      = i
+        if stripped == _SEC_TKVARS:
+            sec_tkvars = i
+        elif stripped == _SEC_FUNCTIONS:
+            sec_functions = i
+        elif stripped == _SEC_WIDGETS:
+            sec_widgets = i
+        elif stripped == _SEC_MAIN:
+            sec_main = i
 
     # ---- Extract user-modified tk variable lines -------------------------
     if sec_tkvars is not None:
@@ -315,13 +320,13 @@ def _parseExistingPython(filePath: str) -> tuple[dict, dict]:
         # Walk function definitions using the AST for reliability
         func_region = "".join(lines[sec_functions + 1 : end])
         try:
-            tree = ast.parse(func_region)
+            ast_tree = ast.parse(func_region)
         except SyntaxError as e:
             log.warning("_parseExistingPython: SyntaxError in functions section: %s", e)
-            tree = None
-        if tree:
+            ast_tree = None
+        if ast_tree:
             region_lines = func_region.splitlines(keepends=True)
-            for node in ast.walk(tree):
+            for node in ast.walk(ast_tree):
                 if not isinstance(node, ast.FunctionDef):
                     continue
                 name = node.name
@@ -607,7 +612,6 @@ def generatePython():
     # Now build (with preservation) and copy.
     fileName = buildPython()
     try:
-        import shutil
         shutil.copy2(fileName, newFile)
         log.info("Generated Python written to %s", newFile)
     except OSError as e:
@@ -1468,7 +1472,8 @@ Troubleshooting
 
 def helpMe():
     """Open the tabbed in-app help window."""
-    helpWin = tboot.Toplevel(rootWin, title="PyTkQuickGui – Help")
+    helpWin = tboot.Toplevel(rootWin)
+    helpWin.title("PyTkQuickGui – Help")
     helpWin.geometry("700x520")
     helpWin.resizable(True, True)
 
@@ -1595,14 +1600,14 @@ def buildMenu():
     # ---- Edit menu (Undo / Redo) ----------------------------------------
     editMenu = tboot.Menu(menuBar, tearoff=0)
     editMenu.add_command(label="Undo\tCtrl+Z",
-                         command=lambda: undoredo.stack.undo())
+                         command=undoredo.stack.undo)
     editMenu.add_command(label="Redo\tCtrl+Y",
-                         command=lambda: undoredo.stack.redo())
+                         command=undoredo.stack.redo)
     editMenu.add_separator()
     editMenu.add_command(label="Group Selected",
-                         command=lambda: _groupSelected())
+                         command=_groupSelected)
     editMenu.add_command(label="Ungroup",
-                         command=lambda: _ungroupSelected())
+                         command=_ungroupSelected)
     menuBar.add_cascade(label="Edit", menu=editMenu, underline=0)
 
     # create the Help menu
@@ -1727,7 +1732,7 @@ def drawGridLines():
             mainCanvas.tag_bind(tag, "<B1-Motion>",
                 lambda e, idx=i: _grid_line_drag_move(e, "col", idx))
             mainCanvas.tag_bind(tag, "<ButtonRelease-1>",
-                lambda e: _grid_line_drag_end(e))
+                _grid_line_drag_end)
 
         for i, gy in enumerate(_grid_row_positions):
             tag = f"grow_hit_{i}"
@@ -1745,7 +1750,7 @@ def drawGridLines():
             mainCanvas.tag_bind(tag, "<B1-Motion>",
                 lambda e, idx=i: _grid_line_drag_move(e, "row", idx))
             mainCanvas.tag_bind(tag, "<ButtonRelease-1>",
-                lambda e: _grid_line_drag_end(e))
+                _grid_line_drag_end)
 
 
 def _grid_line_drag_start(event, kind: str, idx: int):
@@ -1765,7 +1770,7 @@ def _grid_line_drag_move(event, kind: str, idx: int):
     drawGridLines()
 
 
-def _grid_line_drag_end(event):
+def _grid_line_drag_end(_event):
     _grid_drag_state.clear()
     mainCanvas.config(cursor="")
 
@@ -2000,8 +2005,7 @@ def setGeomManager(mgr: str) -> None:
     is locked for the lifetime of the project to avoid geometry conflicts.
     """
     if cw.createWidget.widgetList:
-        from ttkbootstrap.dialogs import Messagebox as _MB
-        _MB.show_warning(
+        Messagebox.show_warning(
             title="Cannot change geometry manager",
             message=(
                 "Widgets already exist on the canvas.\n\n"

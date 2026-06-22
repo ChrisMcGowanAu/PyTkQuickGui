@@ -89,8 +89,13 @@ class widgetEditPopup:
         self.widgetName = widgetName
         self.root = root
         self.stringDict = {}
-        # clickCanvas.bind('<B1-Motion>', leftMouseDrag)  # clickCanvas2.bind('<B1-Motion>', leftMouseDragResize)
         self.childNameDict = {}
+        # Popup-drag state (set in _popup_drag_start, used in leftMouseDrag)
+        self._drag_widget = None
+        self._drag_start_x = 0
+        self._drag_start_y = 0
+        self._drag_orig_x = 300
+        self._drag_orig_y = 10
 
     # def addToChildNamesDict(self, key, val):
     #    self.childNameDict.update({key + ':', val})
@@ -280,8 +285,7 @@ class widgetEditPopup:
         log.debug("Apply Layout settings (geomManager=%s)", myVars.geomManager)
 
         if myVars.geomManager == "Grid":
-            import createWidget as _cw
-            cwo = _cw.findCreateWidgetObject(
+            cwo = cw.findCreateWidgetObject(
                 self.widget.pythonName if hasattr(self.widget, 'pythonName') else ""
             )
             try:
@@ -530,8 +534,7 @@ class widgetEditPopup:
             except tk.TclError:
                 gi = {}
             # Try to find the createWidget object to read row/col
-            import createWidget as _cw
-            cwo = _cw.findCreateWidgetObject(
+            cwo = cw.findCreateWidgetObject(
                 self.widget.pythonName if hasattr(self.widget, 'pythonName') else ""
             )
             grid_fields = [

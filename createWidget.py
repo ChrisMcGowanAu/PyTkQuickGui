@@ -1,6 +1,8 @@
 import logging as log
 import random
 import tkinter as tk
+import tkinter.messagebox as mb
+import tkinter.simpledialog as sd
 from typing import Any
 
 import ttkbootstrap as tboot
@@ -231,6 +233,7 @@ class createWidget:
         self.y_root = self.y
         self.start_x = self.x  # Set start_x on mouse down
         self.start_y = self.y  # Set start_y on mouse down
+        self._pre_drag = (self.x, self.y, 0, 0)  # set properly in leftMouseDown
 
         log.debug(self.widget.widgetName)
         self.pythonName = "Widget" + str(createWidget.widgetId)
@@ -463,11 +466,11 @@ class createWidget:
         # Multi-select / Group
         self.popup.add_command(
             label="Add to Selection",
-            command=lambda: self._addToSelection()
+            command=self._addToSelection
         )
         self.popup.add_command(
             label="Group Selected",
-            command=lambda: self._groupFromPopup()
+            command=self._groupFromPopup
         )
         self.popup.add_separator()
         self.popup.add_command(label="Close", command=self.popup.destroy)
@@ -483,10 +486,8 @@ class createWidget:
         """Prompt for a group name and group all selected widgets."""
         sel = myVars.selectedWidgets
         if len(sel) < 2:
-            import tkinter.messagebox as mb
             mb.showinfo("Group", "Select two or more widgets first.")
             return
-        import tkinter.simpledialog as sd
         name = sd.askstring(
             "Create Group",
             "Group name:",
