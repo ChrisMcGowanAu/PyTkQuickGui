@@ -248,6 +248,9 @@ class createWidget:
 
         log.debug(self.widget.widgetName)
         self.pythonName = "Widget" + str(createWidget.widgetId)
+        # Stamp pythonName onto the tk widget itself so editWidget.py can
+        # look up the createWidget object via findCreateWidgetObject().
+        self.widget.pythonName = self.pythonName
         log.debug("Widget ID %s", str(createWidget.widgetId))
         createWidget.widgetList.append(self.widget)
         createWidget.widgetNameList.append(
