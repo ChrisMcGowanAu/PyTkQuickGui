@@ -213,6 +213,8 @@ def saveWidgetAsDict(widgetName) -> dict:
                     "sticky":     str(gi.get("sticky",     "")),
                     "padx":       str(gi.get("padx",       2)),
                     "pady":       str(gi.get("pady",       2)),
+                    "ipadx":      str(gi.get("ipadx",      0)),
+                    "ipady":      str(gi.get("ipady",      0)),
                 }
             elif geomManager == "Pack":
                 pi = w.pack_info()

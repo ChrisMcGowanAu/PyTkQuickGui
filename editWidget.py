@@ -295,10 +295,14 @@ class widgetEditPopup:
                 rowspan    = max(1, int(self.stringDict.get("rowspan",    1)))
                 padx       = int(self.stringDict.get("padx",       2))
                 pady       = int(self.stringDict.get("pady",       2))
+                ipadx      = int(self.stringDict.get("ipadx",      0))
+                ipady      = int(self.stringDict.get("ipady",      0))
                 sticky     = str(self.stringDict.get("sticky",     "ew"))
                 self.widget.grid(row=row, column=col,
                                  columnspan=columnspan, rowspan=rowspan,
-                                 padx=padx, pady=pady, sticky=sticky)
+                                 padx=padx, pady=pady,
+                                 ipadx=ipadx, ipady=ipady,
+                                 sticky=sticky)
                 if cwo:
                     cwo.row        = row
                     cwo.col        = col
@@ -307,6 +311,8 @@ class widgetEditPopup:
                     cwo.sticky     = sticky
                     cwo.padx       = padx
                     cwo.pady       = pady
+                    cwo.ipadx      = ipadx
+                    cwo.ipady      = ipady
                 log.debug(logString, "grid",
                           f"row={row} col={col} cspan={columnspan} rspan={rowspan} sticky={sticky}")
             except (tk.TclError, ValueError) as e:
@@ -546,16 +552,28 @@ class widgetEditPopup:
             cwo = cw.findCreateWidgetObject(
                 self.widget.pythonName if hasattr(self.widget, 'pythonName') else ""
             )
+            # cwo fields are the authoritative user-set values; gi is a fallback
+            # only when there is no cwo (e.g. non-tracked widgets).
+            def _gi_int(key, cwo_val, default=0):
+                if cwo_val is not None:
+                    return cwo_val
+                raw = gi.get(key)
+                if raw is None:
+                    return default
+                return int(str(raw).split()[0])
             grid_fields = [
-                ("row",        int(gi.get("row",    cwo.row if cwo else 0)),        0, 31, 1),
-                ("column",     int(gi.get("column", cwo.col if cwo else 0)),        0, 31, 1),
-                ("columnspan", int(gi.get("columnspan", cwo.columnspan if cwo else 1)), 1, 32, 1),
-                ("rowspan",    int(gi.get("rowspan",    cwo.rowspan    if cwo else 1)), 1, 32, 1),
-                ("padx",       int(str(gi.get("padx", 2)).split()[0] if gi.get("padx") else 2), 0, 50, 1),
-                ("pady",       int(str(gi.get("pady", 2)).split()[0] if gi.get("pady") else 2), 0, 50, 1),
+                ("row",        _gi_int("row",        cwo.row        if cwo else None, 0), 0, 31, 1),
+                ("column",     _gi_int("column",     cwo.col        if cwo else None, 0), 0, 31, 1),
+                ("columnspan", _gi_int("columnspan", cwo.columnspan if cwo else None, 1), 1, 32, 1),
+                ("rowspan",    _gi_int("rowspan",    cwo.rowspan    if cwo else None, 1), 1, 32, 1),
+                ("padx",       _gi_int("padx",       cwo.padx       if cwo else None, 2), 0, 50, 1),
+                ("pady",       _gi_int("pady",       cwo.pady       if cwo else None, 2), 0, 50, 1),
+                ("ipadx",      _gi_int("ipadx",      cwo.ipadx      if cwo else None, 0), 0, 500, 1),
+                ("ipady",      _gi_int("ipady",      cwo.ipady      if cwo else None, 0), 0, 500, 1),
             ]
-            # sticky is a string, not a spinbox
-            sticky_val = str(gi.get("sticky", "ew"))
+            # sticky: prefer cwo.sticky (user-set), fall back to gi, then "ew"
+            sticky_val = (cwo.sticky if cwo and hasattr(cwo, "sticky") else None) \
+                         or str(gi.get("sticky", "")) or "ew"
             for p, val, frm, to, inc in grid_fields:
                 gridRow += 1
                 lab1 = tboot.Label(layoutPopupFrame, text=p)

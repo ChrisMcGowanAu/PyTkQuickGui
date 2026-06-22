@@ -540,13 +540,19 @@ def buildPython() -> str:
                 sticky     = geomData.get("sticky", "")
                 padx       = geomData.get("padx",   "2")
                 pady       = geomData.get("pady",   "2")
-                span_args  = ""
+                ipadx      = int(geomData.get("ipadx",  0))
+                ipady      = int(geomData.get("ipady",  0))
+                extra_args = ""
                 if columnspan > 1:
-                    span_args += f", columnspan={columnspan}"
+                    extra_args += f", columnspan={columnspan}"
                 if rowspan > 1:
-                    span_args += f", rowspan={rowspan}"
+                    extra_args += f", rowspan={rowspan}"
+                if ipadx:
+                    extra_args += f", ipadx={ipadx}"
+                if ipady:
+                    extra_args += f", ipady={ipady}"
                 print(
-                    f"{widgetName}.grid(row={row}, column={col}{span_args},"
+                    f"{widgetName}.grid(row={row}, column={col}{extra_args},"
                     f" sticky='{sticky}', padx={padx}, pady={pady})"
                 )
             elif myVars.geomManager == "Pack":
@@ -1088,6 +1094,8 @@ def loadProject(project, altFileName):
                 sticky     = geomData.get("sticky", "WE")
                 padx       = int(geomData.get("padx", 2))
                 pady       = int(geomData.get("pady", 2))
+                ipadx      = int(geomData.get("ipadx",      0))
+                ipady      = int(geomData.get("ipady",      0))
                 w.row        = row
                 w.col        = col
                 w.columnspan = columnspan
@@ -1095,9 +1103,12 @@ def loadProject(project, altFileName):
                 w.sticky     = sticky
                 w.padx       = padx
                 w.pady       = pady
+                w.ipadx      = ipadx
+                w.ipady      = ipady
                 w.widget.grid(row=row, column=col,
                               columnspan=columnspan, rowspan=rowspan,
-                              sticky=sticky, padx=padx, pady=pady)
+                              sticky=sticky, padx=padx, pady=pady,
+                              ipadx=ipadx, ipady=ipady)
             elif mgr == "Pack":
                 geomData = wDict.get("GeomData") or {}
                 side   = geomData.get("side",   "top")
