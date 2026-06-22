@@ -88,6 +88,11 @@ groups: dict = {}
 # List of pythonName strings for currently Shift+clicked widgets
 selectedWidgets: list = []
 
+# ---- Redraw callback ----------------------------------------------------
+# pytkquickgui sets this to drawGridLines() at startup so createWidget can
+# trigger a redraw without a circular import.
+redrawGridLines = None
+
 
 #def sprintf(buf: str, fmt, *args) -> str:
 #    tmpStr: str = ""

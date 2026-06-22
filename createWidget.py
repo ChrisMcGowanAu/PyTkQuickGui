@@ -593,12 +593,6 @@ class createWidget:
         height = self.widget.winfo_height()
         # Save pre-drag state so leftMouseRelease can record undo
         self._pre_drag = (self.x, self.y, width, height)
-        # For Grid span-drags: remember the anchor cell and original span
-        self._span_drag_origin = (
-            self.col, self.row,
-            self.columnspan, self.rowspan,
-            self.x, self.y, width, height,
-        )
         # This should be a configuration param
         jiffyW = 8
         jiffyH = 8
@@ -608,6 +602,13 @@ class createWidget:
             jiffyH = height/4
         self.x = self.widget.winfo_x()
         self.y = self.widget.winfo_y()
+        # For Grid span-drags: remember anchor cell, original span, and
+        # ACTUAL pixel position (captured after winfo_x/y update above)
+        self._span_drag_origin = (
+            self.col, self.row,
+            self.columnspan, self.rowspan,
+            self.x, self.y, width, height,
+        )
         self.cornerY = self.y + height
         self.cornerX = self.x + width
         log.debug("Left Mouse Down --  self.x %s self.y %s Width %s Height %s", str(self.x) , str(self.y), str(width), str(height))
@@ -812,10 +813,13 @@ class createWidget:
                     self.col = anc_col
                     self.columnspan = _ocs
                 else:
-                    # Centre-drag: move to the cell under the widget's top-left
+                    # Centre-drag: move to the cell under the widget's top-left.
+                    # Preserve existing columnspan/rowspan — only position changes.
                     z = self.root.grid_location(self.x, self.y)
                     self.row = max(0, int(z[1]))
                     self.col = max(0, int(z[0]))
+                    self.columnspan = _ocs
+                    self.rowspan    = _ors
             except (tk.TclError, TypeError, ValueError):
                 pass
             self.widget.grid(row=self.row, column=self.col,
@@ -823,6 +827,9 @@ class createWidget:
                              padx=2, pady=2, sticky="WE")
             log.debug("Left Mouse Release -- col=%s row=%s cspan=%s rspan=%s",
                       self.col, self.row, self.columnspan, self.rowspan)
+            # Redraw grid lines so they reflect the updated cell boundaries
+            if myVars.redrawGridLines is not None:
+                self.widget.after_idle(myVars.redrawGridLines)
         elif myVars.geomManager == "Pack":
             self.widget.pack(padx=4, pady=4, anchor="nw")
         else:
