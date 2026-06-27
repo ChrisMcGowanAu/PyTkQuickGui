@@ -398,4 +398,4 @@ MIT – see [LICENSE](LICENSE) for details.
 
 ---
 
-*PyTkQuickGui – Chris McGowan 2024-2025*
+*PyTkQuickGui – Chris McGowan 2024-2026*
