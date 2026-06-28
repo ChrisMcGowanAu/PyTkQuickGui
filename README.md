@@ -4,7 +4,7 @@
 
 PyTkQuickGui lets you lay out tkinter widgets by dragging, resizing, and editing them on a live canvas, then generates a complete, ready-to-run Python file with all the boilerplate already written.  You fill in the business logic; PyTkQuickGui handles the widget creation and placement code.
 
-> **Status:** Alpha – functional and actively used, but still growing.  Feedback and contributions are very welcome.
+> **Status:** Alpha – functional and actively used, but still growing.  Some widget types have not been fully integrated. Feedback and contributions are very welcome.
 
 ---
 
