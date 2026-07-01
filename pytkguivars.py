@@ -1,11 +1,13 @@
+import logging as log
 import os
 import os.path
-import logging as log
 import tkinter as tk
 from tkinter import PhotoImage
 
 import ttkbootstrap as tboot
+
 import createWidget as cw
+
 # import cdefs as C
 # import io
 # from io import StringIO
@@ -40,8 +42,8 @@ projectPath: str = "/tmp/tmp"
 saveDirName: str = "/tmp"
 # This can be used if a project is not opened
 projectFileName: str = "/tmp/pytkquickgui"
-fileType:str = ".json"
-legacyFileType:str = ".pk1"  # kept so old saves can still be opened
+fileType: str = ".json"
+legacyFileType: str = ".pk1"  # kept so old saves can still be opened
 lastProjectFile: str = "lastProject.txt"
 lastProjectSaved: str = ""
 projectSaved: bool = False
@@ -94,7 +96,7 @@ selectedWidgets: list = []
 redrawGridLines = None
 
 
-#def sprintf(buf: str, fmt, *args) -> str:
+# def sprintf(buf: str, fmt, *args) -> str:
 #    tmpStr: str = ""
 #    tmpStr.format(fmt % args)
 #    # buf.write(fmt % args)
@@ -196,7 +198,7 @@ def saveWidgetAsDict(widgetName) -> dict:
         place = {}
         try:
             place = w.place_info()
-            place.pop("in", None)   # remove quietly; may not be present
+            place.pop("in", None)  # remove quietly; may not be present
         except tk.TclError as ex:
             # Pack/Grid widgets are not in .place() — place_info() may raise
             # TclError if the widget path is stale.  Log and continue; geomData
@@ -208,15 +210,15 @@ def saveWidgetAsDict(widgetName) -> dict:
             if geomManager == "Grid":
                 gi = w.grid_info()
                 geomData = {
-                    "row":        str(gi.get("row",        0)),
-                    "column":     str(gi.get("column",     0)),
+                    "row": str(gi.get("row", 0)),
+                    "column": str(gi.get("column", 0)),
                     "columnspan": str(gi.get("columnspan", 1)),
-                    "rowspan":    str(gi.get("rowspan",    1)),
-                    "sticky":     str(gi.get("sticky",     "")),
-                    "padx":       str(gi.get("padx",       2)),
-                    "pady":       str(gi.get("pady",       2)),
-                    "ipadx":      str(gi.get("ipadx",      0)),
-                    "ipady":      str(gi.get("ipady",      0)),
+                    "rowspan": str(gi.get("rowspan", 1)),
+                    "sticky": str(gi.get("sticky", "")),
+                    "padx": str(gi.get("padx", 2)),
+                    "pady": str(gi.get("pady", 2)),
+                    "ipadx": str(gi.get("ipadx", 0)),
+                    "ipady": str(gi.get("ipady", 0)),
                 }
             elif geomManager == "Pack":
                 pi = w.pack_info()
@@ -251,8 +253,7 @@ def saveWidgetAsDict(widgetName) -> dict:
                     attrId = "Attribute" + str(keyCount)
                     # Ignore empty values
                     if (value is not None) and (len(str(value)) > -1):
-                        widgetAttribute = {
-                            attrId: {"Key": key, "Value": str(value)}}
+                        widgetAttribute = {attrId: {"Key": key, "Value": str(value)}}
                         newWidget = Merge(widgetDict, widgetAttribute)
                         widgetDict = newWidget
                         keyCount += 1
@@ -316,11 +317,15 @@ def buildAWidget(widgetId: object, wDictOrig: dict) -> str:
                     if f[WIDGET] == widgetName:
                         if f[KEY] == key:
                             filename = f[FILENAME]
-                            if os.path.isfile(filename) :
+                            if os.path.isfile(filename):
                                 newImage = tk.PhotoImage(file=filename)
-                                n = [newWidgetName,key,filename,newImage]
+                                n = [newWidgetName, key, filename, newImage]
                                 widgetImageFilenames.append(n)
-                                log.info("New image for newWidgetName %s %s",newWidgetName,n)
+                                log.info(
+                                    "New image for newWidgetName %s %s",
+                                    newWidgetName,
+                                    n,
+                                )
                                 break
                 val = "myVars.getPhotoImage('" + newWidgetName + "','" + key + "')"
         # like 'to' 'from' needs to have an underscore
@@ -330,16 +335,19 @@ def buildAWidget(widgetId: object, wDictOrig: dict) -> str:
         if val.find("<") > -1:
             log.warning(
                 "key ->%s<- value ->%s<-has a weird value dict  ->%s<- ",
-                key, val, aDict,)
+                key,
+                val,
+                aDict,
+            )
             # Typically, this a TK object that is in < xxx > format
             continue
-        if key != 'image' and val.find("(") > -1:
+        if key != "image" and val.find("(") > -1:
             # The 'values' key has this saved format. This might be a tk thing.
             # It needs to be converted to a list
             newVal = fixComboValues(key, val)
             val = newVal
             useValQuotes = False
-        if key == 'image':
+        if key == "image":
             useValQuotes = False
         if len(val) > 0:
             tmpWidgetDef: str = ""
@@ -391,7 +399,8 @@ def fixWidgetTypeName(wType) -> str:
         wType = t
     return wType
 
-def getPhotoImage(widgetName,key) -> PhotoImage | None:
+
+def getPhotoImage(widgetName, key) -> PhotoImage | None:
     # the 'image=' part of tkinter widget parameters is tricky to save and restore.
     # The imageName and path to file is in myVars.widgetImageFilenames
     count = -1
@@ -399,15 +408,15 @@ def getPhotoImage(widgetName,key) -> PhotoImage | None:
         count += 1
         if widgetName == w[WIDGET]:
             if key == w[KEY]:
-                log.info("getPhotoImage %s",str(w))
+                log.info("getPhotoImage %s", str(w))
                 fileName = w[FILENAME]
                 try:
                     if os.path.isfile(fileName):
                         newImage = tk.PhotoImage(file=fileName)
-                        n = [widgetName,key,fileName,newImage]
+                        n = [widgetName, key, fileName, newImage]
                         widgetImageFilenames[count] = n
-                        return  newImage
+                        return newImage
                 except IndexError:
-                    log.error("IndexError in %s",str(w))
+                    log.error("IndexError in %s", str(w))
                     return None
     return None

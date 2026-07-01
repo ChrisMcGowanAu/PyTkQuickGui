@@ -95,12 +95,12 @@ def findPythonWidgetNameList(name: str) -> list:
 def reparentWidget(pythonName, w):
     # NAME: int = 0 PARENT: int = 1 WIDGET: int = 2 CHILDREN: int = 3
     nl = findPythonWidgetNameList(pythonName)
-    log.debug("w %s baseRoot %s",w,createWidget.baseRoot)
+    log.debug("w %s baseRoot %s", w, createWidget.baseRoot)
     if str(w) == str(createWidget.baseRoot):
         nl[PARENT] = myVars.rootWidgetName
         # remove pythonName out of any childen
         for nl1 in createWidget.widgetNameList:
-            log.info("nl1 %s",nl1)
+            log.info("nl1 %s", nl1)
             if pythonName in nl1[CHILDREN]:
                 nl1[CHILDREN].remove(pythonName)
         return
@@ -187,6 +187,7 @@ def raiseChildren(pythonName):
     else:
         log.warning("Failed to find %s", pythonName)
 
+
 # def findCreateWidgetObject(pythonName) -> createWidget:
 def findCreateWidgetObject(pythonName):
     for obj in createWidget.widgetObjectList:
@@ -232,28 +233,35 @@ class createWidget:
         # log.debug(random.randint(3,  9))
         self.row = 4
         self.col = 4
-        self.columnspan = 1      # number of grid columns this widget spans
-        self.rowspan    = 1      # number of grid rows    this widget spans
-        self.sticky     = "WE"   # tkinter sticky string — user-controlled
-        self.padx       = 2      # grid padx  (external padding)
-        self.pady       = 2      # grid pady  (external padding)
-        self.ipadx      = 0      # grid ipadx (internal padding / extra width)
-        self.ipady      = 0      # grid ipady (internal padding / extra height)
+        self.columnspan = 1  # number of grid columns this widget spans
+        self.rowspan = 1  # number of grid rows    this widget spans
+        self.sticky = "WENS"  # tkinter sticky string — user-controlled
+        self.padx = 2  # grid padx  (external padding)
+        self.pady = 2  # grid pady  (external padding)
+        self.ipadx = 0  # grid ipadx (internal padding / extra width)
+        self.ipady = 0  # grid ipady (internal padding / extra height)
         # Pack geometry fields — authoritative user-set values
-        self.pack_side   = "top"   # pack side
-        self.pack_fill   = "none"  # pack fill
-        self.pack_expand = 0       # pack expand (0 or 1)
-        self.pack_padx   = 4       # pack padx
-        self.pack_pady   = 4       # pack pady
+        self.pack_side = "top"  # pack side
+        self.pack_fill = "none"  # pack fill
+        self.pack_expand = 0  # pack expand (0 or 1)
+        self.pack_padx = 4  # pack padx
+        self.pack_pady = 4  # pack pady
         self.x_root = self.x
         self.y_root = self.y
         self.start_x = self.x  # Set start_x on mouse down
         self.start_y = self.y  # Set start_y on mouse down
-        self._pre_drag = (self.x, self.y, 0, 0)        # set properly in leftMouseDown
-        self._last_drag_type   = ""                     # set in leftMouseRelease
-        self._span_drag_origin = (self.col, self.row,   # set in leftMouseDown
-                                  self.columnspan, self.rowspan,
-                                  self.x, self.y, 0, 0)
+        self._pre_drag = (self.x, self.y, 0, 0)  # set properly in leftMouseDown
+        self._last_drag_type = ""  # set in leftMouseRelease
+        self._span_drag_origin = (
+            self.col,
+            self.row,  # set in leftMouseDown
+            self.columnspan,
+            self.rowspan,
+            self.x,
+            self.y,
+            0,
+            0,
+        )
 
         log.debug(self.widget.widgetName)
         self.pythonName = "Widget" + str(createWidget.widgetId)
@@ -273,17 +281,27 @@ class createWidget:
         self.widget.bind("<B1-Motion>", self.leftMouseDrag)
         self.widget.bind("<ButtonRelease-1>", self.leftMouseRelease)
         if myVars.geomManager == "Grid":
-            self.widget.grid(row=self.row, column=self.col,
-                             columnspan=self.columnspan, rowspan=self.rowspan,
-                             padx=self.padx, pady=self.pady,
-                             ipadx=self.ipadx, ipady=self.ipady,
-                             sticky=self.sticky)
+            self.widget.grid(
+                row=self.row,
+                column=self.col,
+                columnspan=self.columnspan,
+                rowspan=self.rowspan,
+                padx=self.padx,
+                pady=self.pady,
+                ipadx=self.ipadx,
+                ipady=self.ipady,
+                sticky=self.sticky,
+            )
         elif myVars.geomManager == "Place":
             self.widget.place(x=self.x, y=self.y)
         elif myVars.geomManager == "Pack":
-            self.widget.pack(side=self.pack_side, fill=self.pack_fill,
-                             expand=self.pack_expand,
-                             padx=self.pack_padx, pady=self.pack_pady)
+            self.widget.pack(
+                side=self.pack_side,
+                fill=self.pack_fill,
+                expand=self.pack_expand,
+                padx=self.pack_padx,
+                pady=self.pack_pady,
+            )
         else:
             log.error("Geometry Manager %s is TBD", myVars.geomManager)
 
@@ -303,9 +321,7 @@ class createWidget:
         createWidget.lastCreated = self
         createWidget.widgetObjectList.append(self)
         # Record creation for undo (push_done: the widget is already on screen)
-        undoredo.stack.push_done(
-            undoredo.CreateCommand(self, self.root)
-        )
+        undoredo.stack.push_done(undoredo.CreateCommand(self, self.root))
 
     def setRoot(self, root):
         createWidget.baseRoot = root
@@ -333,14 +349,14 @@ class createWidget:
         popup = ew.widgetEditPopup(self.root, self.widget, self.pythonName)
         popup.createEditPopup()
 
-    def findParentObject(self,parent):
+    def findParentObject(self, parent):
         for w in createWidget.widgetList:
             if w is not None and w != self.widget:
                 if w.widget == parent:
                     return w
         return None
 
-    def findParentWidget(self,widget):
+    def findParentWidget(self, widget):
         parent = widget.place_info().get("in")
         log.debug("Parent %s self.root %s", str(parent), str(self.root))
         if self.root == parent:
@@ -401,7 +417,7 @@ class createWidget:
                     changeParentOfTo(self.widget, w)
                     self.widget.place(x=newX, y=newY)
 
-    def clone(self,offsetx,offsety):
+    def clone(self, offsetx, offsety):
         mainFrame = self.root
         mainCanvas = self.root
         # widgetId = createWidget.widgetId
@@ -438,35 +454,38 @@ class createWidget:
                 w = nameDetails[WIDGET]
                 changeParentOfTo(newW.widget, w)
             except tk.TclError as e:
-                log.error("self.widget ->%s<- nameDetails ->%s<-",self.widget, str(nameDetails[WIDGET]))
+                log.error(
+                    "self.widget ->%s<- nameDetails ->%s<-",
+                    self.widget,
+                    str(nameDetails[WIDGET]),
+                )
                 log.error("Exception %s", str(e))
-        newW.widget.place(x=self.x + offsetx, y=self.y + offsety, width=width, height=height)
+        newW.widget.place(
+            x=self.x + offsetx, y=self.y + offsety, width=width, height=height
+        )
         return newW
 
     def deepClone(self):
-        newW = self.clone(0,32) # The main widget
+        newW = self.clone(0, 32)  # The main widget
         # clonedParent = "Widget" + str(self.widgetId)
         # NAME: int = 0 PARENT: int = 1 WIDGET: int = 2 CHILDREN: int = 3
         for w in createWidget.widgetNameList:
-            log.info("w %s self %s",str(w[NAME]),str(self.pythonName))
-            if  self.pythonName == w[NAME]:
+            log.info("w %s self %s", str(w[NAME]), str(self.pythonName))
+            if self.pythonName == w[NAME]:
                 children = w[CHILDREN]
                 for c in children:
-                    log.info("child %s",str(c))
+                    log.info("child %s", str(c))
                     if c:
                         obj = findCreateWidgetObject(c)
                         if obj is not None:
-                            newObj = obj.clone(0,0)
+                            newObj = obj.clone(0, 0)
                             changeParentOfTo(newObj.widget, newW.widget)
-
 
         # Like cone bt create clild widgets of self
 
     def deleteWidget(self):
         # Record deletion BEFORE destroying so snapshot can still be taken
-        undoredo.stack.push_done(
-            undoredo.DeleteCommand(self, self.root)
-        )
+        undoredo.stack.push_done(undoredo.DeleteCommand(self, self.root))
         deleteWidgetFromLists(self.pythonName, self.widget)
         self.widget.destroy()
 
@@ -487,20 +506,14 @@ class createWidget:
         # Adding Menu Items
         self.popup.add_command(label="Edit", command=self.editTtkPopup)
         self.popup.add_command(label="Layout", command=self.editPlacePopup)
-        self.popup.add_command(label="Clone", command=lambda: self.clone(0,0))
+        self.popup.add_command(label="Clone", command=lambda: self.clone(0, 0))
         self.popup.add_command(label="DeepClone", command=self.deepClone)
         self.popup.add_command(label="Re-Parent", command=lambda: self.reParent(None))
         self.popup.add_command(label="Delete", command=self.deleteWidget)
         self.popup.add_separator()
         # Multi-select / Group
-        self.popup.add_command(
-            label="Add to Selection",
-            command=self._addToSelection
-        )
-        self.popup.add_command(
-            label="Group Selected",
-            command=self._groupFromPopup
-        )
+        self.popup.add_command(label="Add to Selection", command=self._addToSelection)
+        self.popup.add_command(label="Group Selected", command=self._groupFromPopup)
         self.popup.add_separator()
         self.popup.add_command(label="Close", command=self.popup.destroy)
 
@@ -509,7 +522,9 @@ class createWidget:
         if self.pythonName not in myVars.selectedWidgets:
             myVars.selectedWidgets.append(self.pythonName)
             self._highlight(True)
-            log.info("Added %s to selection: %s", self.pythonName, myVars.selectedWidgets)
+            log.info(
+                "Added %s to selection: %s", self.pythonName, myVars.selectedWidgets
+            )
 
     def _groupFromPopup(self):
         """Prompt for a group name and group all selected widgets."""
@@ -550,7 +565,7 @@ class createWidget:
         if str(widget) == "None":
             return
         log.info("-----------------")
-        log.info("Widget Info -->%s<--",widget)
+        log.info("Widget Info -->%s<--", widget)
         width = widget.winfo_width()
         height = widget.winfo_height()
         rootx = widget.winfo_rootx()
@@ -564,15 +579,15 @@ class createWidget:
         # p0 = widget.winfo_parent()
         ptrx = widget.winfo_pointerx()
         ptry = widget.winfo_pointery()
-        log.info("event x,y %s,%s",event.x,event.y)
-        log.info("pointer x,y %s,%s",ptrx,ptry)
-        log.info("root x,y %s,%s",rootx,rooty)
-        log.info("pos x,y %s,%s width %s height %s",x,y,width,height)
-        log.info("place x,y %s %s",placex,placey)
+        log.info("event x,y %s,%s", event.x, event.y)
+        log.info("pointer x,y %s,%s", ptrx, ptry)
+        log.info("root x,y %s,%s", rootx, rooty)
+        log.info("pos x,y %s,%s width %s height %s", x, y, width, height)
+        log.info("place x,y %s %s", placex, placey)
         # log.info("geometry %s",str(g))
-        log.info("widget %s parent %s",str(widget),str(p))
+        log.info("widget %s parent %s", str(widget), str(p))
         if p != ".":
-            self.leftMouseInfo(p,event)
+            self.leftMouseInfo(p, event)
 
     def leftMouseDown(self, event):
         # Call this if needed -- leave in for idiots like me
@@ -618,21 +633,32 @@ class createWidget:
         jiffyW = 8
         jiffyH = 8
         if width < (jiffyW * 4):
-            jiffyW = width/4
+            jiffyW = width / 4
         if height < (jiffyH * 4):
-            jiffyH = height/4
+            jiffyH = height / 4
         self.x = self.widget.winfo_x()
         self.y = self.widget.winfo_y()
         # For Grid span-drags: remember anchor cell, original span, and
         # ACTUAL pixel position (captured after winfo_x/y update above)
         self._span_drag_origin = (
-            self.col, self.row,
-            self.columnspan, self.rowspan,
-            self.x, self.y, width, height,
+            self.col,
+            self.row,
+            self.columnspan,
+            self.rowspan,
+            self.x,
+            self.y,
+            width,
+            height,
         )
         self.cornerY = self.y + height
         self.cornerX = self.x + width
-        log.debug("Left Mouse Down --  self.x %s self.y %s Width %s Height %s", str(self.x) , str(self.y), str(width), str(height))
+        log.debug(
+            "Left Mouse Down --  self.x %s self.y %s Width %s Height %s",
+            str(self.x),
+            str(self.y),
+            str(width),
+            str(height),
+        )
         if event.x > (width - jiffyW):
             self.dragType = "dragEast"
             log.debug("Drag right Side")
@@ -664,7 +690,14 @@ class createWidget:
                 "self.widget lift %s Failed with exception %s", str(self.widget), str(e)
             )
         raiseChildren(self.pythonName)
-        log.debug("Left Mouse Down --  self.x %s self.y %s Width %s Height %s self.dragType %s", str(self.x) , str(self.y), str(width), str(height),self.dragType)
+        log.debug(
+            "Left Mouse Down --  self.x %s self.y %s Width %s Height %s self.dragType %s",
+            str(self.x),
+            str(self.y),
+            str(width),
+            str(height),
+            self.dragType,
+        )
         self.lastX = self.x
         self.lastY = self.y
 
@@ -681,9 +714,20 @@ class createWidget:
 
         # Grid mode: edge-drags resize the span; centre-drag moves the widget.
         if myVars.geomManager == "Grid":
-            origin = getattr(self, "_span_drag_origin",
-                             (self.col, self.row, self.columnspan, self.rowspan,
-                              self.x, self.y, width, height))
+            origin = getattr(
+                self,
+                "_span_drag_origin",
+                (
+                    self.col,
+                    self.row,
+                    self.columnspan,
+                    self.rowspan,
+                    self.x,
+                    self.y,
+                    width,
+                    height,
+                ),
+            )
             _oc, _or, _ocs, _ors, ox, oy, ow, oh = origin
             if self.dragType == "dragEast":
                 # Stretch right edge rightward; left anchor stays fixed at ox
@@ -698,7 +742,7 @@ class createWidget:
             elif self.dragType == "dragWest":
                 # Stretch left edge leftward; right anchor stays fixed at ox+ow
                 right_edge = ox + ow
-                cur_left  = self.widget.winfo_x() + int(deltaX)
+                cur_left = self.widget.winfo_x() + int(deltaX)
                 new_x = min(max(0, cur_left), right_edge - 16)
                 new_w = max(16, right_edge - new_x)
                 self.widget.place(x=new_x, y=oy, width=new_w, height=oh)
@@ -715,9 +759,12 @@ class createWidget:
                 newY = self.widget.winfo_y() + int(deltaY)
                 self.x = max(0, newX)
                 self.y = max(0, newY)
-                self.widget.place(x=self.x, y=self.y,
-                                  width=self.widget.winfo_width(),
-                                  height=self.widget.winfo_height())
+                self.widget.place(
+                    x=self.x,
+                    y=self.y,
+                    width=self.widget.winfo_width(),
+                    height=self.widget.winfo_height(),
+                )
             self.lastX = x
             self.lastY = y
             return
@@ -732,9 +779,12 @@ class createWidget:
                 self.widget.pack_forget()
             except tk.TclError:
                 pass
-            self.widget.place(x=self.x, y=self.y,
-                              width=self.widget.winfo_width(),
-                              height=self.widget.winfo_height())
+            self.widget.place(
+                x=self.x,
+                y=self.y,
+                width=self.widget.winfo_width(),
+                height=self.widget.winfo_height(),
+            )
             self.lastX = x
             self.lastY = y
             return
@@ -768,7 +818,18 @@ class createWidget:
             self.y = int(placey) + int(deltaY)
 
         self.widget.place(x=self.x, y=self.y, width=width, height=height)
-        log.debug("self.dragType %s x = %s y = %s self.x %s y=self.y %s width %s height %s self.startX %s self.startY %s",self.dragType,x,y,self.x,self.y,width,height,self.startX,self.startY)
+        log.debug(
+            "self.dragType %s x = %s y = %s self.x %s y=self.y %s width %s height %s self.startX %s self.startY %s",
+            self.dragType,
+            x,
+            y,
+            self.x,
+            self.y,
+            width,
+            height,
+            self.startX,
+            self.startY,
+        )
         self.lastX = x
         self.lastY = y
 
@@ -777,7 +838,7 @@ class createWidget:
         pre = getattr(self, "_pre_drag", (self.x, self.y, self.width, self.height))
         ox, oy, ow, oh = pre
 
-        self._last_drag_type = self.dragType   # read before clearing
+        self._last_drag_type = self.dragType  # read before clearing
         self.dragType = ""
         newX = snapToClosest(self.x)
         newY = snapToClosest(self.y)
@@ -796,9 +857,20 @@ class createWidget:
         elif myVars.geomManager == "Grid":
             # Widget may be floating via .place() from drag — snap back to grid.
             drag_type = getattr(self, "_last_drag_type", "")
-            origin = getattr(self, "_span_drag_origin",
-                             (self.col, self.row, self.columnspan, self.rowspan,
-                              self.x, self.y, self.width, self.height))
+            origin = getattr(
+                self,
+                "_span_drag_origin",
+                (
+                    self.col,
+                    self.row,
+                    self.columnspan,
+                    self.rowspan,
+                    self.x,
+                    self.y,
+                    self.width,
+                    self.height,
+                ),
+            )
             anc_col, anc_row, _ocs, _ors, _ox, _oy, _ow, _oh = origin
             try:
                 self.widget.place_forget()
@@ -827,7 +899,8 @@ class createWidget:
                     # Left edge dragged: right col fixed, new start col moves left
                     right_col = anc_col + _ocs - 1
                     z_start = self.root.grid_location(
-                        self.widget.winfo_x(), self.widget.winfo_y())
+                        self.widget.winfo_x(), self.widget.winfo_y()
+                    )
                     new_col = min(max(0, int(z_start[0])), right_col)
                     self.col = new_col
                     self.columnspan = max(1, right_col - new_col + 1)
@@ -837,7 +910,8 @@ class createWidget:
                     # Top edge dragged: bottom row fixed, new start row moves up
                     bot_row = anc_row + _ors - 1
                     z_start = self.root.grid_location(
-                        self.widget.winfo_x(), self.widget.winfo_y())
+                        self.widget.winfo_x(), self.widget.winfo_y()
+                    )
                     new_row = min(max(0, int(z_start[1])), bot_row)
                     self.row = new_row
                     self.rowspan = max(1, bot_row - new_row + 1)
@@ -850,20 +924,32 @@ class createWidget:
                     self.row = max(0, int(z[1]))
                     self.col = max(0, int(z[0]))
                     self.columnspan = _ocs
-                    self.rowspan    = _ors
+                    self.rowspan = _ors
             except (tk.TclError, TypeError, ValueError):
                 pass
             # self.sticky / self.padx / self.pady are the authoritative values —
             # set by applyLayoutSettings or initialised in __init__.
             # Do NOT read grid_info() here: the widget may still be floating
             # via .place() and grid_info() would return stale or empty data.
-            self.widget.grid(row=self.row, column=self.col,
-                             columnspan=self.columnspan, rowspan=self.rowspan,
-                             padx=self.padx, pady=self.pady,
-                             ipadx=self.ipadx, ipady=self.ipady,
-                             sticky=self.sticky)
-            log.debug("Left Mouse Release -- col=%s row=%s cspan=%s rspan=%s sticky=%s",
-                      self.col, self.row, self.columnspan, self.rowspan, self.sticky)
+            self.widget.grid(
+                row=self.row,
+                column=self.col,
+                columnspan=self.columnspan,
+                rowspan=self.rowspan,
+                padx=self.padx,
+                pady=self.pady,
+                ipadx=self.ipadx,
+                ipady=self.ipady,
+                sticky=self.sticky,
+            )
+            log.debug(
+                "Left Mouse Release -- col=%s row=%s cspan=%s rspan=%s sticky=%s",
+                self.col,
+                self.row,
+                self.columnspan,
+                self.rowspan,
+                self.sticky,
+            )
             # Redraw grid lines so they reflect the updated cell boundaries
             if myVars.redrawGridLines is not None:
                 self.widget.after_idle(myVars.redrawGridLines)
@@ -880,26 +966,38 @@ class createWidget:
             slaves = parent.pack_slaves()
             # Remove self from the slave list (it was pack_forgotten during drag)
             other_slaves = [s for s in slaves if s is not self.widget]
-            insert_after = None   # None means insert at the front
+            insert_after = None  # None means insert at the front
             for sib in other_slaves:
                 sib_mid = sib.winfo_y() + sib.winfo_height() // 2
                 if self.y > sib_mid:
                     insert_after = sib
             try:
                 if insert_after is None:
-                    self.widget.pack(side=self.pack_side, fill=self.pack_fill,
-                                     expand=self.pack_expand,
-                                     padx=self.pack_padx, pady=self.pack_pady,
-                                     before=other_slaves[0] if other_slaves else None)
+                    self.widget.pack(
+                        side=self.pack_side,
+                        fill=self.pack_fill,
+                        expand=self.pack_expand,
+                        padx=self.pack_padx,
+                        pady=self.pack_pady,
+                        before=other_slaves[0] if other_slaves else None,
+                    )
                 else:
-                    self.widget.pack(side=self.pack_side, fill=self.pack_fill,
-                                     expand=self.pack_expand,
-                                     padx=self.pack_padx, pady=self.pack_pady,
-                                     after=insert_after)
+                    self.widget.pack(
+                        side=self.pack_side,
+                        fill=self.pack_fill,
+                        expand=self.pack_expand,
+                        padx=self.pack_padx,
+                        pady=self.pack_pady,
+                        after=insert_after,
+                    )
             except (tk.TclError, IndexError):
-                self.widget.pack(side=self.pack_side, fill=self.pack_fill,
-                                 expand=self.pack_expand,
-                                 padx=self.pack_padx, pady=self.pack_pady)
+                self.widget.pack(
+                    side=self.pack_side,
+                    fill=self.pack_fill,
+                    expand=self.pack_expand,
+                    padx=self.pack_padx,
+                    pady=self.pack_pady,
+                )
         else:
             log.error("Geometry Manager %s is TBD", myVars.geomManager)
         raiseChildren(self.pythonName)
@@ -910,4 +1008,3 @@ class createWidget:
             undoredo.stack.push_done(
                 undoredo.MoveCommand(self, ox, oy, ow, oh, nx, ny, nw, nh)
             )
-

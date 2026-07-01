@@ -7,32 +7,28 @@ import pickle
 import re
 import shutil
 import sys
-import textwrap
 import tkinter as tk
 from collections import defaultdict
 from functools import partial
 from tkinter.colorchooser import askcolor
 from typing import Any
-import tkfontchooser as tkfc
+
 import coloredlogs
+import tkfontchooser as tkfc
 import ttkbootstrap as tboot
-# import tkfilebrowser as tkfb
-# from tkfilebrowser import askopendirname
-from ttkbootstrap.dialogs import Messagebox
-from ttkbootstrap.dialogs import Querybox
-# FontDialog does not work correctly.
-# from ttkbootstrap.dialogs.dialogs import FontDialog
+from ttkbootstrap.dialogs import Messagebox, Querybox
+
+import cdefs as C
 import createWidget as cw
 import pytkguivars as myVars
-import cdefs as C
 import undoredo
-# This fixed a bug in ttkbootstrap
-# from PIL import Image
-# Image.CUBIC = Image.BICUBIC
+
+# FontDialog does not work correctly.
+# from ttkbootstrap.dialogs.dialogs import FontDialog
 
 # This will be from a project's default
 useTheme = "cyborg"
-rootWin = tboot.Window(themename=useTheme,iconphoto="snake.png")
+rootWin = tboot.Window(themename=useTheme, iconphoto="snake.png")
 rootWin.eval("tk::PlaceWindow . pointer")
 mainFrame = tboot.Frame()
 rootWin.title("Python Tk GUI Builder")
@@ -67,7 +63,7 @@ def Merge(dict1, dict2) -> dict:
     return res
 
 
-def createFileName(sa,sb,sc) -> str:
+def createFileName(sa, sb, sc) -> str:
     fileName = ""
     if sa is None:
         s1 = ""
@@ -87,7 +83,7 @@ def createFileName(sa,sb,sc) -> str:
     return fileName
 
 
-def openFile(fileName,mode):
+def openFile(fileName, mode):
     f: any
     try:
         f = open(fileName, mode, encoding="utf8")
@@ -141,16 +137,18 @@ def workOutWidgetCreationOrder() -> list:
                     finished = False
     return createdWidgetOrder
 
+
 def createCleanImageList() -> []:
     cleanFilenames: [] = []
     if myVars.widgetImageFilenames is None:
         return cleanFilenames
     for f in myVars.widgetImageFilenames:
-        c = [f[myVars.WIDGET],f[myVars.KEY] ,f[myVars.FILENAME],None]
+        c = [f[myVars.WIDGET], f[myVars.KEY], f[myVars.FILENAME], None]
         cleanFilenames.append(c)
-    log.debug("widgetImageFilenames %s",str(myVars.widgetImageFilenames))
-    log.debug("cleanFilenames %s",str(cleanFilenames))
+    log.debug("widgetImageFilenames %s", str(myVars.widgetImageFilenames))
+    log.debug("cleanFilenames %s", str(cleanFilenames))
     return cleanFilenames
+
 
 def saveProjectFile(fileName, fileType, projectData):
     """Save project data as a human-readable JSON file with rolling backups.
@@ -190,6 +188,7 @@ def saveProjectFile(fileName, fileType, projectData):
     except (TypeError, OSError) as e:
         log.error("Exception saving JSON %s", str(e))
         log.warning("Error in Project Data \n%s", str(projectData))
+
 
 def saveProject():
     widgetCount = 0
@@ -231,19 +230,20 @@ def saveProject():
     myVars.projectDict = projectData
     fileName = myVars.projectFileName
     log.debug("projectFileName ->%s<-", fileName)
-    saveProjectFile(fileName,myVars.fileType,projectData)
-    log.debug("projectData %s",projectData)
+    saveProjectFile(fileName, myVars.fileType, projectData)
+    log.debug("projectData %s", projectData)
     myVars.lastProjectSaved = myVars.projectFileName
     myVars.projectSaved = True
     # Store the last project saved
     # Store myVars.projectName in configPath
     configPath = getConfigPath()
-    name = createFileName(configPath,None,myVars.lastProjectFile)
+    name = createFileName(configPath, None, myVars.lastProjectFile)
     sys.stdout = open(name, "w", encoding="utf8")
     print(myVars.projectName)
     sys.stdout.close()
     sys.stdout = sys.__stdout__
     mainFrame.config(text=myVars.projectName)
+
 
 # ---------------------------------------------------------------------------
 # Smart code preservation helpers
@@ -255,10 +255,10 @@ _STUB_SENTINEL = "# AUTO-GENERATED STUB"
 
 # Marker written at the top of every generated section so the parser can
 # locate the boundaries reliably.
-_SEC_TKVARS   = "####### TK variables #######"
+_SEC_TKVARS = "####### TK variables #######"
 _SEC_FUNCTIONS = "####### Functions #######"
-_SEC_WIDGETS   = "####### Widgets #######"
-_SEC_MAIN      = "####### Main  #######"
+_SEC_WIDGETS = "####### Widgets #######"
+_SEC_MAIN = "####### Main  #######"
 
 
 def _parseExistingPython(filePath: str) -> tuple[dict, dict]:
@@ -303,23 +303,24 @@ def _parseExistingPython(filePath: str) -> tuple[dict, dict]:
     if sec_tkvars is not None:
         end = sec_functions if sec_functions is not None else len(lines)
         # pattern: <name> = tk.StringVar(rootWin, ...)
-        var_pat = re.compile(
-            r'^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*tk\.StringVar\s*\(.*\)'
-        )
+        var_pat = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*tk\.StringVar\s*\(.*\)")
         for line in lines[sec_tkvars + 1 : end]:
             m = var_pat.match(line.strip())
             if m:
                 var_name = m.group(1)
                 default_line = f"{var_name} = tk.StringVar(rootWin,'0.0')"
-                actual_line  = line.rstrip()
+                actual_line = line.rstrip()
                 if actual_line.strip() != default_line:
                     tkvar_lines[var_name] = actual_line.strip()
                     log.debug("_parseExistingPython: preserved tkvar %s", var_name)
 
     # ---- Extract user-modified function bodies ---------------------------
     if sec_functions is not None:
-        end = sec_widgets if sec_widgets is not None else (
-              sec_main   if sec_main   is not None else len(lines))
+        end = (
+            sec_widgets
+            if sec_widgets is not None
+            else (sec_main if sec_main is not None else len(lines))
+        )
         # Walk function definitions using the AST for reliability
         func_region = "".join(lines[sec_functions + 1 : end])
         try:
@@ -334,15 +335,13 @@ def _parseExistingPython(filePath: str) -> tuple[dict, dict]:
                     continue
                 name = node.name
                 # Grab source lines for this function
-                start = node.lineno - 1   # ast lines are 1-based
-                end_ln = node.end_lineno   # inclusive 1-based
+                start = node.lineno - 1  # ast lines are 1-based
+                end_ln = node.end_lineno  # inclusive 1-based
                 func_src = "".join(region_lines[start:end_ln])
                 # Check for stub sentinel anywhere in body
                 if _STUB_SENTINEL not in func_src:
                     func_bodies[name] = func_src
-                    log.debug(
-                        "_parseExistingPython: preserved user function %s", name
-                    )
+                    log.debug("_parseExistingPython: preserved user function %s", name)
     return func_bodies, tkvar_lines
 
 
@@ -363,13 +362,13 @@ def buildPython() -> str:
     fileName = configPath + "/" + "test.py"
 
     # ---- Load existing user edits (if any) from the last saved .py ------
-    _preserved_funcs, _preserved_tkvars = _parseExistingPython(
-        myVars.generatedPyFile
-    )
+    _preserved_funcs, _preserved_tkvars = _parseExistingPython(myVars.generatedPyFile)
     if _preserved_funcs or _preserved_tkvars:
         log.info(
             "buildPython: preserving %d function(s) and %d tkvar(s) from %s",
-            len(_preserved_funcs), len(_preserved_tkvars), myVars.generatedPyFile
+            len(_preserved_funcs),
+            len(_preserved_tkvars),
+            myVars.generatedPyFile,
         )
     # sys.stdout = open("/tmp/test.py", "w", encoding="utf8")
     sys.stdout = open(fileName, "w", encoding="utf8")
@@ -411,15 +410,15 @@ def buildPython() -> str:
 
                 if key == "command" or key == "postcommand":
                     if val > "":
-                        log.info("command ->%s<-",val)
+                        log.info("command ->%s<-", val)
                         functions.append(val)
                 if key == "textvariable":
                     if val > "":
-                        log.info("textvariable ->%s<-",val)
+                        log.info("textvariable ->%s<-", val)
                         tkvars.append(val)
                 if key == "variable":
                     if val > "":
-                        log.info("variable ->%s<-",val)
+                        log.info("variable ->%s<-", val)
                         tkvars.append(val)
 
     print("")
@@ -460,8 +459,7 @@ def buildPython() -> str:
             continue
         parentName = findWidgetsParent(widgetName)
         if len(parentName) < 2:
-            log.warning(
-                "widget %s has no parent. Has it been deleted?", widgetName)
+            log.warning("widget %s has no parent. Has it been deleted?", widgetName)
             continue
         # Get the parent Name
         wDict = runDict.get(widgetName)
@@ -473,7 +471,13 @@ def buildPython() -> str:
             keyCount = widgetName + "-KeyCount"
             widgetDef = widgetName + " = " + wType + "(" + parentName
             nKeys = wDict.get(keyCount)
-            specialKeys = ["postcommand","command","textvariable","variable","image"]
+            specialKeys = [
+                "postcommand",
+                "command",
+                "textvariable",
+                "variable",
+                "image",
+            ]
             for a in range(nKeys):
                 useValQuotes = True
                 attribute = "Attribute" + str(a)
@@ -488,8 +492,7 @@ def buildPython() -> str:
                     key = "from_"
                 if val.find("<") > -1:
                     # Typically, this a TK object that is in < xxx > format
-                    log.warning(
-                        "key ->%s<- value ->%s<- has a weird value", key, val)
+                    log.warning("key ->%s<- value ->%s<- has a weird value", key, val)
                     continue
                 if val.find("(") > -1:
                     # '(' is in lists for combo boxes
@@ -533,15 +536,15 @@ def buildPython() -> str:
                     f" bordermode='{bordermode}')"
                 )
             elif myVars.geomManager == "Grid":
-                row        = geomData.get("row",        "0")
-                col        = geomData.get("column",     "0")
+                row = geomData.get("row", "0")
+                col = geomData.get("column", "0")
                 columnspan = int(geomData.get("columnspan", 1))
-                rowspan    = int(geomData.get("rowspan",    1))
-                sticky     = geomData.get("sticky", "")
-                padx       = geomData.get("padx",   "2")
-                pady       = geomData.get("pady",   "2")
-                ipadx      = int(geomData.get("ipadx",  0))
-                ipady      = int(geomData.get("ipady",  0))
+                rowspan = int(geomData.get("rowspan", 1))
+                sticky = geomData.get("sticky", "")
+                padx = geomData.get("padx", "2")
+                pady = geomData.get("pady", "2")
+                ipadx = int(geomData.get("ipadx", 0))
+                ipady = int(geomData.get("ipady", 0))
                 extra_args = ""
                 if columnspan > 1:
                     extra_args += f", columnspan={columnspan}"
@@ -591,11 +594,13 @@ def buildPython() -> str:
     # os.system(cmd)
     return fileName
 
+
 def runMe():
     fileName = buildPython()
-    log.info("python fileName ->%s<-",fileName)
+    log.info("python fileName ->%s<-", fileName)
     cmd = "python3 " + fileName + " &"
     os.system(cmd)
+
 
 def generatePython():
     """Ask for a save path, generate Python and copy the file there.
@@ -605,14 +610,16 @@ def generatePython():
     """
     # If we already know a target file, pre-fill the dialog with it.
     home = os.environ["HOME"]
-    initialDir  = myVars.saveDirName if myVars.saveDirName else home
+    initialDir = myVars.saveDirName if myVars.saveDirName else home
     initialFile = (
         os.path.basename(myVars.generatedPyFile)
         if myVars.generatedPyFile
         else myVars.projectName + ".py"
     )
     newFile = tk.filedialog.asksaveasfilename(
-        initialdir=initialFile and os.path.dirname(myVars.generatedPyFile) or initialDir,
+        initialdir=initialFile
+        and os.path.dirname(myVars.generatedPyFile)
+        or initialDir,
         initialfile=initialFile,
         filetypes=[("Python file", "*.py")],
         defaultextension="py",
@@ -621,7 +628,7 @@ def generatePython():
         return  # user cancelled
 
     # Remember where the user is keeping their generated file.
-    myVars.saveDirName    = os.path.dirname(newFile)
+    myVars.saveDirName = os.path.dirname(newFile)
     myVars.generatedPyFile = newFile
     log.info("save dir %s saved file = %s", myVars.saveDirName, newFile)
 
@@ -632,8 +639,9 @@ def generatePython():
         log.info("Generated Python written to %s", newFile)
     except OSError as e:
         log.error("Failed to copy generated file: %s", e)
-        Messagebox.show_error(title="Generate Error",
-                              message=f"Could not write to {newFile}:\n{e}")
+        Messagebox.show_error(
+            title="Generate Error", message=f"Could not write to {newFile}:\n{e}"
+        )
 
 
 def deleteWidgetData():
@@ -804,17 +812,17 @@ def newProject():
     path = os.path.join(configPath, name)
     # Create directory only if it doesn't already exist
     os.makedirs(path, exist_ok=True)
-    log.info("configPath %s project name %s path %s",configPath,name,path)
+    log.info("configPath %s project name %s path %s", configPath, name, path)
     myVars.projectName = name
     myVars.projectPath = path
     projFileName = myVars.projectName
     fileName = os.path.join(myVars.projectPath, projFileName)
     myVars.projectFileName = fileName
-    log.info("projectFileName %s",myVars.projectFileName)
+    log.info("projectFileName %s", myVars.projectFileName)
 
     # Apply geometry manager (canvas is empty so setGeomManager will accept it)
     myVars.geomManager = geom_choice
-    if hasattr(rootWin, '_geomLabel'):
+    if hasattr(rootWin, "_geomLabel"):
         rootWin._geomLabel.config(text="Layout: " + geom_choice)
     _rebuild_canvas_for_geom()
     mainFrame.config(text=myVars.projectName)
@@ -837,34 +845,45 @@ def _askGeomManager() -> str:
     tw = top.winfo_reqwidth() or 380
     th = top.winfo_reqheight() or 200
     top.geometry(f"{tw}x{th}+{rx + (rw - tw)//2}+{ry + (rh - th)//2}")
-    tboot.Label(top,
-        text="Choose how widgets will be positioned:",
-        font="TkDefaultFont 10 bold").pack(pady=(16, 4), padx=16)
+    tboot.Label(
+        top, text="Choose how widgets will be positioned:", font="TkDefaultFont 10 bold"
+    ).pack(pady=(16, 4), padx=16)
 
+    # descriptions_x = {
+    #     "Place": "Free-form drag & drop (absolute x/y)  ← recommended",
+    #     "Grid":  "Row / column grid layout",
+    #     "Pack":  "Stack widgets top-to-bottom or left-to-right",
     descriptions = {
         "Place": "Free-form drag & drop (absolute x/y)  ← recommended",
-        "Grid":  "Row / column grid layout",
-        "Pack":  "Stack widgets top-to-bottom or left-to-right",
+        "Grid": "Row / column grid layout",
+        "Pack": "TBD -- Stack widgets top-to-bottom or left-to-right",
     }
     chosen = tk.StringVar(value="Place")
     for mgr, desc in descriptions.items():
-        tboot.Radiobutton(top, text=f"{mgr}  —  {desc}",
-                          variable=chosen, value=mgr).pack(
-            anchor="w", padx=24, pady=2)
+        tboot.Radiobutton(
+            top, text=f"{mgr}  —  {desc}", variable=chosen, value=mgr
+        ).pack(anchor="w", padx=24, pady=2)
 
     result = [""]
+
     def _ok():
         result[0] = chosen.get()
         top.destroy()
+
     def _cancel():
         top.destroy()
 
     bf = tboot.Frame(top)
     bf.pack(pady=(12, 16))
-    tboot.Button(bf, text="OK",     bootstyle="primary", command=_ok).pack(side=tk.LEFT, padx=8)
-    tboot.Button(bf, text="Cancel", bootstyle="secondary", command=_cancel).pack(side=tk.LEFT, padx=8)
+    tboot.Button(bf, text="OK", bootstyle="primary", command=_ok).pack(
+        side=tk.LEFT, padx=8
+    )
+    tboot.Button(bf, text="Cancel", bootstyle="secondary", command=_cancel).pack(
+        side=tk.LEFT, padx=8
+    )
     top.wait_window()
     return result[0]
+
 
 def getConfigPath() -> str:
     if "APPDATA" in os.environ:
@@ -875,8 +894,7 @@ def getConfigPath() -> str:
         confighome = os.path.join(os.environ["HOME"], ".config")
     configPath = os.path.join(confighome, myVars.programName)
     if os.path.isdir(configPath):
-        log.debug("Config Path %s %s %s", configPath,
-                  confighome, myVars.programName)
+        log.debug("Config Path %s %s %s", configPath, confighome, myVars.programName)
     else:
         os.mkdir(configPath)
         log.info("Creating configPath %s", configPath)
@@ -911,8 +929,14 @@ def openBackupFile():
         # Work out the probable project name
         projectPath = os.path.dirname(filePath)
         projectName = os.path.basename(projectPath)
-        log.debug("Selected File: %s \nProjectPath %s \nProject %s", filePath, projectPath, projectName)
+        log.debug(
+            "Selected File: %s \nProjectPath %s \nProject %s",
+            filePath,
+            projectPath,
+            projectName,
+        )
         loadProject(projectName, filePath)
+
 
 def _loadProjectData(fullFileName: str):
     """Return the project dict from *fullFileName*.
@@ -970,8 +994,9 @@ def loadProject(project, altFileName):
         if folder != configPath:
             myVars.projectName = os.path.basename(folder)
             myVars.projectPath = folder
-            log.info("Load Project ->%s<- ->%s<-",
-                     myVars.projectPath, myVars.projectName)
+            log.info(
+                "Load Project ->%s<- ->%s<-", myVars.projectPath, myVars.projectName
+            )
         else:
             log.warning("No project selected Try Again")
             Messagebox.show_error(
@@ -1003,13 +1028,12 @@ def loadProject(project, altFileName):
         projectPath = os.path.dirname(altFileName)
         # The project name is the *directory* name that contains the file,
         # which matches how newProject/loadProject create the folder layout.
-        myVars.projectName = os.path.basename(projectPath) or os.path.splitext(
-            os.path.basename(altFileName)
-        )[0]
-        myVars.projectPath = projectPath
-        myVars.projectFileName = os.path.join(
-            projectPath, myVars.projectName
+        myVars.projectName = (
+            os.path.basename(projectPath)
+            or os.path.splitext(os.path.basename(altFileName))[0]
         )
+        myVars.projectPath = projectPath
+        myVars.projectFileName = os.path.join(projectPath, myVars.projectName)
 
     mainFrame.config(text=myVars.projectName)
     deleteWidgetData()
@@ -1031,7 +1055,7 @@ def loadProject(project, altFileName):
         savedGeom = runDict.get("geomManager")
         if savedGeom and savedGeom in myVars.GEOM_MANAGERS:
             myVars.geomManager = savedGeom
-            if hasattr(rootWin, '_geomLabel'):
+            if hasattr(rootWin, "_geomLabel"):
                 rootWin._geomLabel.config(text="Layout: " + savedGeom)
         savedPyFile = runDict.get("generatedPyFile", "")
         if savedPyFile and os.path.isfile(savedPyFile):
@@ -1061,7 +1085,9 @@ def loadProject(project, altFileName):
             # Route to the correct parent for the active geometry manager.
             # The eval'd widget def uses 'mainFrame' as parent token — we shadow
             # it here so the widget is created inside geomWidgetFrame directly.
-            _load_parent = geomWidgetFrame if geomWidgetFrame is not None else mainCanvas
+            _load_parent = (
+                geomWidgetFrame if geomWidgetFrame is not None else mainCanvas
+            )
             try:
                 # widget = ast.literal_eval(widgetDef)
                 log.info("widgetDef ->%s<-", widgetDef)
@@ -1070,12 +1096,10 @@ def loadProject(project, altFileName):
                 # pylint: disable=eval-used
                 widget = eval(widgetDef, globals(), {"mainFrame": _load_parent})
             except NameError as e:
-                log.error("%d dict %s eval() NameError %s",
-                          n, str(wDict), str(e))
+                log.error("%d dict %s eval() NameError %s", n, str(wDict), str(e))
                 continue
             except TypeError as e:
-                log.error("%d dict %s eval() TypeError %s",
-                          n, str(wDict), str(e))
+                log.error("%d dict %s eval() TypeError %s", n, str(wDict), str(e))
                 continue
             w = cw.createWidget(_load_parent, widget)
 
@@ -1086,43 +1110,49 @@ def loadProject(project, altFileName):
                     log.debug(place)
                     w.addPlace(place)
             elif mgr == "Grid":
-                geomData   = wDict.get("GeomData") or {}
-                row        = int(geomData.get("row",        0))
-                col        = int(geomData.get("column",     0))
+                geomData = wDict.get("GeomData") or {}
+                row = int(geomData.get("row", 0))
+                col = int(geomData.get("column", 0))
                 columnspan = max(1, int(geomData.get("columnspan", 1)))
-                rowspan    = max(1, int(geomData.get("rowspan",    1)))
-                sticky     = geomData.get("sticky", "WE")
-                padx       = int(geomData.get("padx", 2))
-                pady       = int(geomData.get("pady", 2))
-                ipadx      = int(geomData.get("ipadx",      0))
-                ipady      = int(geomData.get("ipady",      0))
-                w.row        = row
-                w.col        = col
+                rowspan = max(1, int(geomData.get("rowspan", 1)))
+                sticky = geomData.get("sticky", "WE")
+                padx = int(geomData.get("padx", 2))
+                pady = int(geomData.get("pady", 2))
+                ipadx = int(geomData.get("ipadx", 0))
+                ipady = int(geomData.get("ipady", 0))
+                w.row = row
+                w.col = col
                 w.columnspan = columnspan
-                w.rowspan    = rowspan
-                w.sticky     = sticky
-                w.padx       = padx
-                w.pady       = pady
-                w.ipadx      = ipadx
-                w.ipady      = ipady
-                w.widget.grid(row=row, column=col,
-                              columnspan=columnspan, rowspan=rowspan,
-                              sticky=sticky, padx=padx, pady=pady,
-                              ipadx=ipadx, ipady=ipady)
+                w.rowspan = rowspan
+                w.sticky = sticky
+                w.padx = padx
+                w.pady = pady
+                w.ipadx = ipadx
+                w.ipady = ipady
+                w.widget.grid(
+                    row=row,
+                    column=col,
+                    columnspan=columnspan,
+                    rowspan=rowspan,
+                    sticky=sticky,
+                    padx=padx,
+                    pady=pady,
+                    ipadx=ipadx,
+                    ipady=ipady,
+                )
             elif mgr == "Pack":
                 geomData = wDict.get("GeomData") or {}
-                side   = geomData.get("side",   "top")
-                fill   = geomData.get("fill",   "none")
+                side = geomData.get("side", "top")
+                fill = geomData.get("fill", "none")
                 expand = int(geomData.get("expand", 0))
-                padx   = int(geomData.get("padx", 4))
-                pady   = int(geomData.get("pady", 4))
-                w.pack_side   = side
-                w.pack_fill   = fill
+                padx = int(geomData.get("padx", 4))
+                pady = int(geomData.get("pady", 4))
+                w.pack_side = side
+                w.pack_fill = fill
                 w.pack_expand = expand
-                w.pack_padx   = padx
-                w.pack_pady   = pady
-                w.widget.pack(side=side, fill=fill, expand=expand,
-                              padx=padx, pady=pady)
+                w.pack_padx = padx
+                w.pack_pady = pady
+                w.widget.pack(side=side, fill=fill, expand=expand, padx=padx, pady=pady)
             else:
                 log.error("Geometry Manager %s unknown", mgr)
         n += 1
@@ -1152,8 +1182,7 @@ def loadProject(project, altFileName):
                 log.debug("%s is the parent of %s", parent, name)
                 changeParentOfTo(name, parent)
         else:
-            log.warning("name %s parent %s children %s",
-                        name, parent, children)
+            log.warning("name %s parent %s children %s", name, parent, children)
             log.warning("widgetNameList %s", str(widgetNameList))
 
     checkWidgetNameList()
@@ -1164,21 +1193,24 @@ def loadProject(project, altFileName):
     # Clear undo history – actions from the old project aren't reachable
     undoredo.stack.clear()
 
+
 def loadLastProject():
     configPath = getConfigPath()
-    fileName = createFileName(configPath,None,myVars.lastProjectFile)
+    fileName = createFileName(configPath, None, myVars.lastProjectFile)
     # f = C.fopen(fileName,"r")
-    f = openFile(fileName,"r")
+    f = openFile(fileName, "r")
     project = f.read()
     f.close()
-    loadProject(project,None)
+    loadProject(project, None)
     mainFrame.config(text=myVars.projectName)
 
+
 def loadProjectWrapper():
-    loadProject(None,None)
+    loadProject(None, None)
+
 
 def exitApp():
-    mb = Messagebox.yesnocancel("Save project before exiting ?","Save Project")
+    mb = Messagebox.yesnocancel("Save project before exiting ?", "Save Project")
     if mb == "Cancel":
         return
     elif mb == "Yes":
@@ -1200,7 +1232,7 @@ def widgetTree():
         print("WidgetNameList", nl)
 
     for il in myVars.widgetImageFilenames:
-        print("widgetImageFilename %s",il)
+        print("widgetImageFilename %s", il)
 
 
 def chooseBackground():
@@ -1210,18 +1242,21 @@ def chooseBackground():
         mainCanvas.configure(bg=colors[1])
         mainCanvas.update()
         myVars.backgroundColor = colors[1]
+
+
 def welcome():
-    about = '''PyTkGui:
+    about = """PyTkGui:
     Chris McGowan 2024.
     A tool to build a simple TkInter GUI.
 	This tool uses ttkbootstrap widgets.
-	A website - youtube - pdf TBD.'''
+	A website - youtube - pdf TBD."""
 
     # remove leading whitespace from each line
     # this does not work on python 3.12
     # about2 = re.sub("\n\s*", "\n", about)
     about2 = about
-    Messagebox.show_info(message=about2,title="Welcome")
+    Messagebox.show_info(message=about2, title="Welcome")
+
 
 # ---------------------------------------------------------------------------
 # In-app Help window  (tabbed, scrollable)
@@ -1266,7 +1301,6 @@ PyTkQuickGui  –  Quick-start guide
     File > Generate Python  – choose where to save the .py file.
     File > Trial Run  – generate & run immediately.
 """,
-
     "Mouse & Keyboard": """
 Mouse Actions
 =============
@@ -1295,7 +1329,6 @@ Widget Context Menu
   Delete        Remove the widget
   Close         Dismiss the menu
 """,
-
     "Geometry Managers": """
 Geometry Managers
 ==================
@@ -1322,7 +1355,6 @@ Note: changing the geometry manager after placing widgets may
 cause the canvas to look different because existing widgets
 were placed with the old manager's rules.
 """,
-
     "Widgets": """
 ttkbootstrap Widgets
 ====================
@@ -1359,7 +1391,6 @@ Common attribute types:
   Button    →  font, foreground/background colour, image
   Entry     →  text, command, variable names, etc.
 """,
-
     "Project Files": """
 Project File Format  (JSON)
 ============================
@@ -1385,7 +1416,6 @@ the project will be re-saved as JSON next time you save.
 File > Open backup file allows you to load any .json or .pk1
 backup file directly.
 """,
-
     "Code Generation": """
 Generated Python File
 ======================
@@ -1458,7 +1488,6 @@ Tips
   - File > Trial Run generates + runs a temporary copy;
     it does NOT update the user's .py file.
 """,
-
     "Tips & Troubleshooting": """
 Useful Tips
 ===========
@@ -1541,9 +1570,11 @@ def helpMe():
     )
     close_btn.pack(pady=(0, 8))
 
+
 # ---------------------------------------------------------------------------
 # Group / Ungroup helpers (called from Edit menu)
 # ---------------------------------------------------------------------------
+
 
 def _groupSelected():
     """Create a named group from the current multi-selection."""
@@ -1555,7 +1586,8 @@ def _groupSelected():
         )
         return
     name = Querybox.get_string(
-        prompt="Group name:", title="Create Widget Group",
+        prompt="Group name:",
+        title="Create Widget Group",
         initialvalue=f"group{len(myVars.groups) + 1}",
     )
     if not name:
@@ -1573,11 +1605,13 @@ def _ungroupSelected():
             undoredo.stack.push(undoredo.UngroupCommand(gname))
             dissolved.append(gname)
     if dissolved:
-        Messagebox.show_info(title="Ungroup",
-                             message="Dissolved: " + ", ".join(dissolved))
+        Messagebox.show_info(
+            title="Ungroup", message="Dissolved: " + ", ".join(dissolved)
+        )
     else:
-        Messagebox.show_info(title="Ungroup",
-                             message="No groups found for the current selection.")
+        Messagebox.show_info(
+            title="Ungroup", message="No groups found for the current selection."
+        )
 
 
 def buildMenu():
@@ -1622,33 +1656,26 @@ def buildMenu():
     toolsMenu = tboot.Menu(menuBar, tearoff=0)
     toolsMenu.add_command(label="Hide Label Borders", command=hideLabelBorders)
     toolsMenu.add_command(label="Show Label Borders", command=showLabelBorders)
-    toolsMenu.add_command(
-        label="Set default bootstyle type", command=setThemeColor)
-    toolsMenu.add_command(label="Set default label font",
-                          command=setDefaultLabelFont)
-    toolsMenu.add_command(label="Set default style font",
-                          command=setDefaultStyleFont)
+    toolsMenu.add_command(label="Set default bootstyle type", command=setThemeColor)
+    toolsMenu.add_command(label="Set default label font", command=setDefaultLabelFont)
+    toolsMenu.add_command(label="Set default style font", command=setDefaultStyleFont)
     toolsMenu.add_command(label="Open backup file", command=openBackupFile)
     toolsMenu.add_command(label="Widget Tree", command=widgetTree)
 
     # ---- Edit menu (Undo / Redo) ----------------------------------------
     editMenu = tboot.Menu(menuBar, tearoff=0)
-    editMenu.add_command(label="Undo\tCtrl+Z",
-                         command=undoredo.stack.undo)
-    editMenu.add_command(label="Redo\tCtrl+Y",
-                         command=undoredo.stack.redo)
+    editMenu.add_command(label="Undo\tCtrl+Z", command=undoredo.stack.undo)
+    editMenu.add_command(label="Redo\tCtrl+Y", command=undoredo.stack.redo)
     editMenu.add_separator()
-    editMenu.add_command(label="Group Selected",
-                         command=_groupSelected)
-    editMenu.add_command(label="Ungroup",
-                         command=_ungroupSelected)
+    editMenu.add_command(label="Group Selected", command=_groupSelected)
+    editMenu.add_command(label="Ungroup", command=_ungroupSelected)
     menuBar.add_cascade(label="Edit", menu=editMenu, underline=0)
 
     # create the Help menu
     helpMenu = tboot.Menu(menuBar, tearoff=0)
 
-    helpMenu.add_command(label="Welcome",command=welcome)
-    helpMenu.add_command(label="Help",command=helpMe)
+    helpMenu.add_command(label="Welcome", command=welcome)
+    helpMenu.add_command(label="Help", command=helpMe)
 
     menuBar.add_cascade(label="Theme", menu=themeMenu, underline=0)
     # add the Help menu to the menuBar
@@ -1662,7 +1689,6 @@ def buildMenu():
 def doNothing():
     # Not sure what this is for . Delete later
     pass
-
 
 
 def _make_grid_overlay(frame: tboot.Frame) -> tk.Canvas:  # type: ignore[name-defined]
@@ -1705,10 +1731,14 @@ def drawGridLines():
       Pack mode   – nothing (Pack stacks automatically)
     """
     mainCanvas.update()
-    width  = mainCanvas.winfo_width()
+    width = mainCanvas.winfo_width()
     height = mainCanvas.winfo_height()
-    log.debug("drawGridLines Width %d height %d geomManager %s",
-              width, height, myVars.geomManager)
+    log.debug(
+        "drawGridLines Width %d height %d geomManager %s",
+        width,
+        height,
+        myVars.geomManager,
+    )
 
     # Remove old guide lines from mainCanvas (Place mode dot grid)
     mainCanvas.delete("gridline")
@@ -1722,8 +1752,7 @@ def drawGridLines():
         for gx in range(0, width, snap):
             for gy in range(0, height, snap):
                 mainCanvas.create_rectangle(
-                    gx, gy, gx + 1, gy + 1,
-                    fill=dot_color, outline="", tags="gridline"
+                    gx, gy, gx + 1, gy + 1, fill=dot_color, outline="", tags="gridline"
                 )
 
     elif mgr == "Grid":
@@ -1745,7 +1774,7 @@ def drawGridLines():
 
         oc.delete("gridline")
 
-        line_color  = "#c0c0c0"
+        line_color = "#c0c0c0"
         label_color = "#a0a0a0"
 
         # Collect unique column-boundary x-positions from grid_bbox
@@ -1792,36 +1821,37 @@ def drawGridLines():
 
         # Draw vertical column-boundary lines
         for gx in sorted(col_xs):
-            oc.create_line(
-                gx, 0, gx, oc_h,
-                fill=line_color, width=1, tags="gridline"
-            )
+            oc.create_line(gx, 0, gx, oc_h, fill=line_color, width=1, tags="gridline")
 
         # Draw horizontal row-boundary lines
         for gy in sorted(row_ys):
-            oc.create_line(
-                0, gy, oc_w, gy,
-                fill=line_color, width=1, tags="gridline"
-            )
+            oc.create_line(0, gy, oc_w, gy, fill=line_color, width=1, tags="gridline")
 
         # Column index labels just inside each column's left edge
         col_xs_sorted = sorted(col_xs)
         for i, gx in enumerate(col_xs_sorted[:-1]):
             oc.create_text(
-                gx + 3, 3, text=str(i), anchor="nw",
-                fill=label_color, font=("TkDefaultFont", 7),
-                tags="gridline"
+                gx + 3,
+                3,
+                text=str(i),
+                anchor="nw",
+                fill=label_color,
+                font=("TkDefaultFont", 7),
+                tags="gridline",
             )
 
         # Row index labels just below each row's top edge
         row_ys_sorted = sorted(row_ys)
         for i, gy in enumerate(row_ys_sorted[:-1]):
             oc.create_text(
-                3, gy + 3, text=str(i), anchor="nw",
-                fill=label_color, font=("TkDefaultFont", 7),
-                tags="gridline"
+                3,
+                gy + 3,
+                text=str(i),
+                anchor="nw",
+                fill=label_color,
+                font=("TkDefaultFont", 7),
+                tags="gridline",
             )
-
 
 
 def sizeGripRelease(event):
@@ -1894,10 +1924,12 @@ def createWidgetPopup(event, widgetName):
             cursor=defaultCursor,
             style=defaultStyle,
         )
+
     elif widgetName == "Button":
         w = tboot.Button(
             _parent, text=widgetName, cursor=defaultCursor, style=defaultStyle
         )
+
     elif widgetName == "Entry":
         w = tboot.Entry(_parent, cursor=defaultCursor, style=defaultStyle)
     elif widgetName == "Combobox":
@@ -1905,9 +1937,7 @@ def createWidgetPopup(event, widgetName):
     elif widgetName == "Notebook":
         w = tboot.Notebook(_parent, cursor=defaultCursor, style=defaultStyle)
     elif widgetName == "Canvas":
-        w = tboot.Canvas(
-            _parent, borderwidth=1, relief=tk.SOLID, cursor=defaultCursor
-        )
+        w = tboot.Canvas(_parent, borderwidth=1, relief=tk.SOLID, cursor=defaultCursor)
     elif widgetName == "Spinbox":
         w = tboot.Spinbox(_parent, cursor=defaultCursor, style=defaultStyle)
     elif widgetName == "Checkbutton":
@@ -1939,6 +1969,8 @@ def createWidgetPopup(event, widgetName):
             interactive=True,
         )
     # ---- Standard tk / ttk widgets -----------------------------------
+    elif widgetName == "tk.Button":
+        w = tk.Button(_parent, text=widgetName, cursor=defaultCursor)
     elif widgetName == "Text":
         w = tk.Text(
             _parent,
@@ -1986,13 +2018,11 @@ def rightMouseDown(event):
     popup = tboot.Menu(mainFrame, tearoff=0)
     for wName in myVars.containerWidgetsUsed:
         popup.add_command(
-            label=wName, command=lambda e=event, w=wName: createWidgetPopup(
-                e, w)
+            label=wName, command=lambda e=event, w=wName: createWidgetPopup(e, w)
         )
     for wName in myVars.widgetsUsed:
         popup.add_command(
-            label=wName, command=lambda e=event, w=wName: createWidgetPopup(
-                e, w)
+            label=wName, command=lambda e=event, w=wName: createWidgetPopup(e, w)
         )
     popup.add_separator()
     popup.add_command(label="Close", command=popup.destroy)
@@ -2030,23 +2060,26 @@ def buildGrid(rows, cols):
         for r in range(32):
             geomWidgetFrame.rowconfigure(r, weight=1, minsize=30)
         # Place the frame so it fills the whole canvas
-        mainCanvas.create_window(0, 0, window=geomWidgetFrame,
-                                 anchor="nw", tags="geomframe")
+        mainCanvas.create_window(
+            0, 0, window=geomWidgetFrame, anchor="nw", tags="geomframe"
+        )
         # Bug fix: right-click on empty frame background must reach rightMouseDown.
         # geomWidgetFrame covers the entire canvas so mainCanvas never sees the event.
         geomWidgetFrame.bind("<Button-3>", rightMouseDown)
         # Overlay canvas for grid guide-lines (drawn inside geomWidgetFrame so
         # they appear above the frame background but below child widgets).
         _make_grid_overlay(geomWidgetFrame)
+
         # Expand the window when the canvas is resized; also redraw guides
         def _resize_geom_frame(event):
-            mainCanvas.itemconfig("geomframe",
-                                  width=event.width, height=event.height)
+            mainCanvas.itemconfig("geomframe", width=event.width, height=event.height)
             if _gridOverlayCanvas is not None:
-                _gridOverlayCanvas.place(x=0, y=0,
-                                         width=event.width, height=event.height)
+                _gridOverlayCanvas.place(
+                    x=0, y=0, width=event.width, height=event.height
+                )
                 tk.Misc.lower(_gridOverlayCanvas)
             drawGridLines()
+
         mainCanvas.bind("<Configure>", _resize_geom_frame)
         cw.createWidget.baseRoot = geomWidgetFrame
     else:
@@ -2077,7 +2110,7 @@ def setGeomManager(mgr: str) -> None:
         return
     myVars.geomManager = mgr
     log.info("Geometry manager set to %s", mgr)
-    if hasattr(rootWin, '_geomLabel'):
+    if hasattr(rootWin, "_geomLabel"):
         rootWin._geomLabel.config(text="Layout: " + mgr)
     # Rebuild the canvas inner frame for the new manager
     _rebuild_canvas_for_geom()
@@ -2111,20 +2144,23 @@ def _rebuild_canvas_for_geom():
             geomWidgetFrame.columnconfigure(c, weight=1, minsize=60)
         for r in range(32):
             geomWidgetFrame.rowconfigure(r, weight=1, minsize=30)
-        mainCanvas.create_window(0, 0, window=geomWidgetFrame,
-                                 anchor="nw", tags="geomframe")
+        mainCanvas.create_window(
+            0, 0, window=geomWidgetFrame, anchor="nw", tags="geomframe"
+        )
         # Bug fix: right-click on empty frame background must reach rightMouseDown.
         geomWidgetFrame.bind("<Button-3>", rightMouseDown)
         # Overlay canvas for grid guide-lines
         _make_grid_overlay(geomWidgetFrame)
+
         def _resize_geom_frame(event):
-            mainCanvas.itemconfig("geomframe",
-                                  width=event.width, height=event.height)
+            mainCanvas.itemconfig("geomframe", width=event.width, height=event.height)
             if _gridOverlayCanvas is not None:
-                _gridOverlayCanvas.place(x=0, y=0,
-                                         width=event.width, height=event.height)
+                _gridOverlayCanvas.place(
+                    x=0, y=0, width=event.width, height=event.height
+                )
                 tk.Misc.lower(_gridOverlayCanvas)
             drawGridLines()
+
         mainCanvas.bind("<Configure>", _resize_geom_frame)
         cw.createWidget.baseRoot = geomWidgetFrame
     else:
@@ -2152,8 +2188,9 @@ def buildMainGui():
     rootWin._geomLabel = geomLabel
 
     # ---- Undo/Redo status label (right side of toolbar) ---------------
-    undoLabel = tboot.Label(toolbarFrame, text="", bootstyle="secondary",
-                            font=("TkDefaultFont", 8))
+    undoLabel = tboot.Label(
+        toolbarFrame, text="", bootstyle="secondary", font=("TkDefaultFont", 8)
+    )
     undoLabel.pack(side=tk.RIGHT, padx=(8, 4))
     rootWin._undoLabel = undoLabel
 
@@ -2189,7 +2226,7 @@ def buildMainGui():
     rootWin.geometry("900x820")
     rootWin.resizable(True, True)
     rootWin.columnconfigure(0, weight=1)
-    rootWin.rowconfigure(1, weight=1)   # row 1 is the canvas, let it expand
+    rootWin.rowconfigure(1, weight=1)  # row 1 is the canvas, let it expand
 
     buildGrid(24, 24)
 
@@ -2208,15 +2245,15 @@ if __name__ == "__main__":
     except IndexError:
         arg1 = "warn"
 
-    if arg1 == 'info':
+    if arg1 == "info":
         coloredlogs.set_level(logging.INFO)
-    elif arg1 == 'debug':
+    elif arg1 == "debug":
         coloredlogs.set_level(logging.DEBUG)
     else:
         coloredlogs.set_level(logging.WARN)
     myVars.initVars()
     myVars.theme = useTheme
-    log.info("mainFrame %s %s",mainFrame, str(mainFrame))
+    log.info("mainFrame %s %s", mainFrame, str(mainFrame))
 
     buildMainGui()
     myVars.style = tboot.Style()

@@ -44,7 +44,7 @@ import logging
 import tkinter as tk
 from typing import Any
 
-import ttkbootstrap as tboot
+# import ttkbootstrap as tboot
 
 log = logging.getLogger("mylogger")
 
@@ -57,6 +57,7 @@ log = logging.getLogger("mylogger")
 # Snapshot / restore helpers
 # ---------------------------------------------------------------------------
 
+
 def snapshot_widget(widgetName: str) -> dict:
     """Return a complete serialisable snapshot of *widgetName*.
 
@@ -64,6 +65,7 @@ def snapshot_widget(widgetName: str) -> dict:
     format is identical to what gets saved to the project JSON.
     """
     import pytkguivars as myVars  # local import to avoid circular deps
+
     snap = myVars.saveWidgetAsDict(widgetName)
     # saveWidgetAsDict returns  {widgetName: {...data...}}
     # Unwrap to  {widgetName: widgetName, data: {...}}  so we can recover the name.
@@ -75,8 +77,8 @@ def restore_widget(snapshot: dict, mainFrame) -> Any | None:
 
     Returns the new createWidget object, or None on failure.
     """
-    import pytkguivars as myVars
     import createWidget as cw
+    import pytkguivars as myVars
 
     widgetName = snapshot.get("widgetName")
     data = snapshot.get("data", {})
@@ -138,8 +140,9 @@ def restore_widget(snapshot: dict, mainFrame) -> Any | None:
                 parentWidget = parentNl[cw.WIDGET]
                 cw.changeParentOfTo(widget, parentWidget)
         except Exception as e:
-            log.warning("restore_widget: could not restore parent %s: %s",
-                        parentName, e)
+            log.warning(
+                "restore_widget: could not restore parent %s: %s", parentName, e
+            )
 
     log.info("restore_widget: restored %s", widgetName)
     return w
@@ -148,6 +151,7 @@ def restore_widget(snapshot: dict, mainFrame) -> Any | None:
 # ---------------------------------------------------------------------------
 # Base Command
 # ---------------------------------------------------------------------------
+
 
 class Command:
     """Abstract base for all undoable actions."""
@@ -168,6 +172,7 @@ class Command:
 # Move / Resize  (same data, different label)
 # ---------------------------------------------------------------------------
 
+
 class MoveCommand(Command):
     """Record a widget position/size change (move or resize)."""
 
@@ -179,14 +184,14 @@ class MoveCommand(Command):
 
     def _apply(self, x, y, w, h):
         import pytkguivars as myVars
+
         mgr = myVars.geomManager
         obj = self.cw_obj
         obj.x, obj.y, obj.width, obj.height = x, y, w, h
         if mgr == "Place":
             obj.widget.place(x=x, y=y, width=w, height=h)
         elif mgr == "Grid":
-            obj.widget.grid(row=obj.row, column=obj.col,
-                            padx=2, pady=2, sticky="WE")
+            obj.widget.grid(row=obj.row, column=obj.col, padx=2, pady=2, sticky="WE")
         elif mgr == "Pack":
             obj.widget.pack(padx=4, pady=4, anchor="nw")
 
@@ -197,12 +202,13 @@ class MoveCommand(Command):
         self._apply(*self.old)
 
 
-ResizeCommand = MoveCommand          # same data, semantic alias
+ResizeCommand = MoveCommand  # same data, semantic alias
 
 
 # ---------------------------------------------------------------------------
 # Move many (group move)
 # ---------------------------------------------------------------------------
+
 
 class MoveManyCommand(Command):
     """Move multiple widgets in one undoable step (group move)."""
@@ -226,6 +232,7 @@ class MoveManyCommand(Command):
 # Create
 # ---------------------------------------------------------------------------
 
+
 class CreateCommand(Command):
     """Record the creation of a new widget."""
 
@@ -241,6 +248,7 @@ class CreateCommand(Command):
 
     def undo(self):
         import createWidget as cw
+
         nl = cw.findPythonWidgetNameList(self.pythonName)
         if nl:
             widget = nl[cw.WIDGET]
@@ -255,6 +263,7 @@ class CreateCommand(Command):
 # Delete
 # ---------------------------------------------------------------------------
 
+
 class DeleteCommand(Command):
     """Record the deletion of a widget (so it can be restored)."""
 
@@ -265,12 +274,14 @@ class DeleteCommand(Command):
         self.snapshot = snapshot_widget(cw_obj.pythonName)
         # Also save the name-list entry for parent/children info
         import createWidget as cw
+
         nl = cw.findPythonWidgetNameList(self.pythonName)
         self.nl_copy = list(nl) if nl else []
         self.description = f"delete {self.pythonName}"
 
     def execute(self):
         import createWidget as cw
+
         nl = cw.findPythonWidgetNameList(self.pythonName)
         if nl:
             widget = nl[cw.WIDGET]
@@ -285,6 +296,7 @@ class DeleteCommand(Command):
 # ---------------------------------------------------------------------------
 # Edit attribute
 # ---------------------------------------------------------------------------
+
 
 class EditAttributeCommand(Command):
     """Record a single attribute change on a widget."""
@@ -302,8 +314,9 @@ class EditAttributeCommand(Command):
         try:
             self.widget.configure(**{self.key: val})
         except tk.TclError as e:
-            log.warning("EditAttributeCommand: configure %s=%s failed: %s",
-                        self.key, val, e)
+            log.warning(
+                "EditAttributeCommand: configure %s=%s failed: %s", self.key, val, e
+            )
 
     def execute(self):
         self._apply(self.new_val)
@@ -316,21 +329,23 @@ class EditAttributeCommand(Command):
 # Re-parent
 # ---------------------------------------------------------------------------
 
+
 class ReparentCommand(Command):
     """Record a widget being moved to a different parent container."""
 
-    def __init__(self, cw_obj, old_parent_name: str, new_parent_name: str,
-                 main_frame):
+    def __init__(self, cw_obj, old_parent_name: str, new_parent_name: str, main_frame):
         self.pythonName = cw_obj.pythonName
         self.old_parent = old_parent_name
         self.new_parent = new_parent_name
         self.main_frame = main_frame
-        self.description = (f"reparent {self.pythonName} "
-                             f"{old_parent_name} → {new_parent_name}")
+        self.description = (
+            f"reparent {self.pythonName} " f"{old_parent_name} → {new_parent_name}"
+        )
 
     def _reparent_to(self, target_name: str):
-        import pytkguivars as myVars
         import createWidget as cw
+        import pytkguivars as myVars
+
         nl = cw.findPythonWidgetNameList(self.pythonName)
         if not nl:
             log.warning("ReparentCommand: %s not found", self.pythonName)
@@ -357,6 +372,7 @@ class ReparentCommand(Command):
 # Group / Ungroup
 # ---------------------------------------------------------------------------
 
+
 class GroupCommand(Command):
     """Create a named logical group from a list of widget names."""
 
@@ -367,12 +383,15 @@ class GroupCommand(Command):
 
     def execute(self):
         import pytkguivars as myVars
+
         myVars.groups[self.group_name] = list(self.member_names)
-        log.info("GroupCommand: created group '%s' %s",
-                 self.group_name, self.member_names)
+        log.info(
+            "GroupCommand: created group '%s' %s", self.group_name, self.member_names
+        )
 
     def undo(self):
         import pytkguivars as myVars
+
         myVars.groups.pop(self.group_name, None)
         log.info("GroupCommand.undo: removed group '%s'", self.group_name)
 
@@ -382,22 +401,26 @@ class UngroupCommand(Command):
 
     def __init__(self, group_name: str):
         import pytkguivars as myVars
+
         self.group_name = group_name
         self.member_names = list(myVars.groups.get(group_name, []))
         self.description = f"ungroup '{group_name}'"
 
     def execute(self):
         import pytkguivars as myVars
+
         myVars.groups.pop(self.group_name, None)
 
     def undo(self):
         import pytkguivars as myVars
+
         myVars.groups[self.group_name] = list(self.member_names)
 
 
 # ---------------------------------------------------------------------------
 # Compound command  (batch several commands into one undo step)
 # ---------------------------------------------------------------------------
+
 
 class CompoundCommand(Command):
     """Wrap several commands so they undo/redo as a single step."""
@@ -418,6 +441,7 @@ class CompoundCommand(Command):
 # ---------------------------------------------------------------------------
 # Undo Stack
 # ---------------------------------------------------------------------------
+
 
 class UndoStack:
     """Central undo/redo manager.
@@ -450,7 +474,7 @@ class UndoStack:
         self._undo.append(cmd)
         if len(self._undo) > self._max:
             self._undo.pop(0)
-        self._redo.clear()          # any new action wipes the redo stack
+        self._redo.clear()  # any new action wipes the redo stack
         log.debug("UndoStack.push: %s  (depth=%d)", cmd, len(self._undo))
         self._notify()
 

@@ -1,18 +1,14 @@
 import logging as log
 import tkinter as tk
 import tkinter.filedialog as filedialog
-
-# import urllib.request
 import webbrowser
 from typing import Any
 
 import ttkbootstrap as tboot
 from PIL import ImageTk
 from tkfontchooser import askfont
-from ttkbootstrap.dialogs.colorchooser import ColorChooserDialog
-
-# from ttkbootstrap.dialogs.dialogs import FontDialog
 from ttkbootstrap import Entry, Labelframe
+from ttkbootstrap.dialogs.colorchooser import ColorChooserDialog
 
 import createWidget as cw
 import pytkguivars as myVars
@@ -254,7 +250,7 @@ class widgetEditPopup:
         filename = filedialog.askopenfilename(filetypes=f_types)
         myVars.imageTest = ImageTk.PhotoImage(file=filename)
         imageTk = myVars.imageTest
-        log.info("image %s",str(imageTk))
+        log.info("image %s", str(imageTk))
         filePath = key + "filename"
         self.addToStringDict(key, imageTk)
         self.addToStringDict(filePath, filename)
@@ -270,10 +266,9 @@ class widgetEditPopup:
                     f[myVars.PHOTOIMAGE] = myVars.imageTest
                     found = True
         if found is False:
-            f = [self.widgetName,key,filename,myVars.imageTest]
-            log.debug("Adding f %s",str(f))
+            f = [self.widgetName, key, filename, myVars.imageTest]
+            log.debug("Adding f %s", str(f))
             myVars.widgetImageFilenames.append(f)
-
 
     def applyLayoutSettings(self) -> None:
         """
@@ -287,32 +282,41 @@ class widgetEditPopup:
         if myVars.geomManager == "Grid":
             cwo = cw.findCreateWidgetObject(self.widgetName)
             try:
-                row        = int(self.stringDict.get("row",        0))
-                col        = int(self.stringDict.get("column",     0))
+                row = int(self.stringDict.get("row", 0))
+                col = int(self.stringDict.get("column", 0))
                 columnspan = max(1, int(self.stringDict.get("columnspan", 1)))
-                rowspan    = max(1, int(self.stringDict.get("rowspan",    1)))
-                padx       = int(self.stringDict.get("padx",       2))
-                pady       = int(self.stringDict.get("pady",       2))
-                ipadx      = int(self.stringDict.get("ipadx",      0))
-                ipady      = int(self.stringDict.get("ipady",      0))
-                sticky     = str(self.stringDict.get("sticky",     "ew"))
-                self.widget.grid(row=row, column=col,
-                                 columnspan=columnspan, rowspan=rowspan,
-                                 padx=padx, pady=pady,
-                                 ipadx=ipadx, ipady=ipady,
-                                 sticky=sticky)
+                rowspan = max(1, int(self.stringDict.get("rowspan", 1)))
+                padx = int(self.stringDict.get("padx", 2))
+                pady = int(self.stringDict.get("pady", 2))
+                ipadx = int(self.stringDict.get("ipadx", 0))
+                ipady = int(self.stringDict.get("ipady", 0))
+                sticky = str(self.stringDict.get("sticky", "nsew"))
+                self.widget.grid(
+                    row=row,
+                    column=col,
+                    columnspan=columnspan,
+                    rowspan=rowspan,
+                    padx=padx,
+                    pady=pady,
+                    ipadx=ipadx,
+                    ipady=ipady,
+                    sticky=sticky,
+                )
                 if cwo:
-                    cwo.row        = row
-                    cwo.col        = col
+                    cwo.row = row
+                    cwo.col = col
                     cwo.columnspan = columnspan
-                    cwo.rowspan    = rowspan
-                    cwo.sticky     = sticky
-                    cwo.padx       = padx
-                    cwo.pady       = pady
-                    cwo.ipadx      = ipadx
-                    cwo.ipady      = ipady
-                log.debug(logString, "grid",
-                          f"row={row} col={col} cspan={columnspan} rspan={rowspan} sticky={sticky}")
+                    cwo.rowspan = rowspan
+                    cwo.sticky = sticky
+                    cwo.padx = padx
+                    cwo.pady = pady
+                    cwo.ipadx = ipadx
+                    cwo.ipady = ipady
+                log.debug(
+                    logString,
+                    "grid",
+                    f"row={row} col={col} cspan={columnspan} rspan={rowspan} sticky={sticky}",
+                )
             except (tk.TclError, ValueError) as e:
                 log.error("applyLayoutSettings Grid: %s", e)
             return
@@ -320,21 +324,21 @@ class widgetEditPopup:
         if myVars.geomManager == "Pack":
             cwo = cw.findCreateWidgetObject(self.widgetName)
             try:
-                side   = str(self.stringDict.get("side",   "top"))
-                fill   = str(self.stringDict.get("fill",   "none"))
+                side = str(self.stringDict.get("side", "top"))
+                fill = str(self.stringDict.get("fill", "none"))
                 expand = int(self.stringDict.get("expand", 0))
-                padx   = int(self.stringDict.get("padx",   4))
-                pady   = int(self.stringDict.get("pady",   4))
-                self.widget.pack(side=side, fill=fill, expand=expand,
-                                 padx=padx, pady=pady)
+                padx = int(self.stringDict.get("padx", 4))
+                pady = int(self.stringDict.get("pady", 4))
+                self.widget.pack(
+                    side=side, fill=fill, expand=expand, padx=padx, pady=pady
+                )
                 if cwo:
-                    cwo.pack_side   = side
-                    cwo.pack_fill   = fill
+                    cwo.pack_side = side
+                    cwo.pack_fill = fill
                     cwo.pack_expand = expand
-                    cwo.pack_padx   = padx
-                    cwo.pack_pady   = pady
-                log.debug(logString, "pack",
-                          f"side={side} fill={fill} expand={expand}")
+                    cwo.pack_padx = padx
+                    cwo.pack_pady = pady
+                log.debug(logString, "pack", f"side={side} fill={fill} expand={expand}")
             except (tk.TclError, ValueError) as e:
                 log.error("applyLayoutSettings Pack: %s", e)
             return
@@ -486,7 +490,7 @@ class widgetEditPopup:
         :return: a list of the reformatted values
         """
         v = str(values)
-        log.info('Values ' + v)
+        log.info("Values " + v)
         # There is possibly a better way to do this
         # configure does not work for lists. change directly ...
         # It needs a string list like this .
@@ -500,7 +504,7 @@ class widgetEditPopup:
             newVal: str = val.replace("'", "")
             return newVal
         except tk.TclError as e:
-            log.error("reformartValues values=%s exception %s",str(values), str(e))
+            log.error("reformartValues values=%s exception %s", str(values), str(e))
             return []
 
     def createDragPoint(self, rootFrame, dragType) -> None:
@@ -526,8 +530,12 @@ class widgetEditPopup:
         else:
             clickCanvas.create_oval(1, 1, 20, 20, fill="yellow")
         # Spacer label fills the rest of the header — also draggable
-        spacer = tboot.Label(headerRow, text="  drag here  ",
-                             foreground="#888", font=("TkDefaultFont", 8))
+        spacer = tboot.Label(
+            headerRow,
+            text="  drag here  ",
+            foreground="#888",
+            font=("TkDefaultFont", 8),
+        )
         spacer.pack(side=tk.LEFT, fill=tk.X, expand=True)
         # Bind drag on all header children
         for w in (clickCanvas, spacer, headerRow):
@@ -570,6 +578,7 @@ class widgetEditPopup:
                 gi = {}
             # Try to find the createWidget object to read row/col
             cwo = cw.findCreateWidgetObject(self.widgetName)
+
             # cwo fields are the authoritative user-set values; gi is a fallback
             # only when there is no cwo (e.g. non-tracked widgets).
             def _gi_int(key, cwo_val, default=0):
@@ -579,19 +588,35 @@ class widgetEditPopup:
                 if raw is None:
                     return default
                 return int(str(raw).split()[0])
+
             grid_fields = [
-                ("row",        _gi_int("row",        cwo.row        if cwo else None, 0), 0, 31, 1),
-                ("column",     _gi_int("column",     cwo.col        if cwo else None, 0), 0, 31, 1),
-                ("columnspan", _gi_int("columnspan", cwo.columnspan if cwo else None, 1), 1, 32, 1),
-                ("rowspan",    _gi_int("rowspan",    cwo.rowspan    if cwo else None, 1), 1, 32, 1),
-                ("padx",       _gi_int("padx",       cwo.padx       if cwo else None, 2), 0, 50, 1),
-                ("pady",       _gi_int("pady",       cwo.pady       if cwo else None, 2), 0, 50, 1),
-                ("ipadx",      _gi_int("ipadx",      cwo.ipadx      if cwo else None, 0), 0, 500, 1),
-                ("ipady",      _gi_int("ipady",      cwo.ipady      if cwo else None, 0), 0, 500, 1),
+                ("row", _gi_int("row", cwo.row if cwo else None, 0), 0, 31, 1),
+                ("column", _gi_int("column", cwo.col if cwo else None, 0), 0, 31, 1),
+                (
+                    "columnspan",
+                    _gi_int("columnspan", cwo.columnspan if cwo else None, 1),
+                    1,
+                    32,
+                    1,
+                ),
+                (
+                    "rowspan",
+                    _gi_int("rowspan", cwo.rowspan if cwo else None, 1),
+                    1,
+                    32,
+                    1,
+                ),
+                ("padx", _gi_int("padx", cwo.padx if cwo else None, 2), 0, 50, 1),
+                ("pady", _gi_int("pady", cwo.pady if cwo else None, 2), 0, 50, 1),
+                ("ipadx", _gi_int("ipadx", cwo.ipadx if cwo else None, 0), 0, 500, 1),
+                ("ipady", _gi_int("ipady", cwo.ipady if cwo else None, 0), 0, 500, 1),
             ]
             # sticky: prefer cwo.sticky (user-set), fall back to gi, then "ew"
-            sticky_val = (cwo.sticky if cwo and hasattr(cwo, "sticky") else None) \
-                         or str(gi.get("sticky", "")) or "ew"
+            sticky_val = (
+                (cwo.sticky if cwo and hasattr(cwo, "sticky") else None)
+                or str(gi.get("sticky", ""))
+                or "nsew"
+            )
             for p, val, frm, to, inc in grid_fields:
                 gridRow += 1
                 lab1 = tboot.Label(layoutPopupFrame, text=p)
@@ -619,7 +644,20 @@ class widgetEditPopup:
             lab1 = tboot.Label(layoutPopupFrame, text="sticky")
             stickyCombo = tboot.Combobox(
                 layoutPopupFrame,
-                values=["ew", "ns", "nsew", "n", "s", "e", "w", "ne", "nw", "se", "sw", ""],
+                values=[
+                    "ew",
+                    "ns",
+                    "nsew",
+                    "n",
+                    "s",
+                    "e",
+                    "w",
+                    "ne",
+                    "nw",
+                    "se",
+                    "sw",
+                    "",
+                ],
                 width=6,
                 validate="focusout",
                 validatecommand=lambda: self.popupCallback("sticky"),
@@ -637,19 +675,22 @@ class widgetEditPopup:
                 pi = self.widget.pack_info()
             except tk.TclError:
                 pi = {}
+
             def _pi(key, cwo_val, default):
                 if cwo_val is not None:
                     return cwo_val
                 return pi.get(key, default)
-            side_val   = _pi("side",   cwo.pack_side   if cwo else None, "top")
-            fill_val   = _pi("fill",   cwo.pack_fill   if cwo else None, "none")
+
+            side_val = _pi("side", cwo.pack_side if cwo else None, "top")
+            fill_val = _pi("fill", cwo.pack_fill if cwo else None, "none")
             expand_val = int(_pi("expand", cwo.pack_expand if cwo else None, 0))
-            padx_val   = int(_pi("padx",   cwo.pack_padx   if cwo else None, 4))
-            pady_val   = int(_pi("pady",   cwo.pack_pady   if cwo else None, 4))
+            padx_val = int(_pi("padx", cwo.pack_padx if cwo else None, 4))
+            pady_val = int(_pi("pady", cwo.pack_pady if cwo else None, 4))
             # side combobox
             gridRow += 1
             tboot.Label(layoutPopupFrame, text="side").grid(
-                row=gridRow, column=0, sticky=tk.NE)
+                row=gridRow, column=0, sticky=tk.NSEW
+            )
             sideCombo = tboot.Combobox(
                 layoutPopupFrame,
                 values=["top", "bottom", "left", "right"],
@@ -665,7 +706,8 @@ class widgetEditPopup:
             # fill combobox
             gridRow += 1
             tboot.Label(layoutPopupFrame, text="fill").grid(
-                row=gridRow, column=0, sticky=tk.NE)
+                row=gridRow, column=0, sticky=tk.NE
+            )
             fillCombo = tboot.Combobox(
                 layoutPopupFrame,
                 values=["none", "x", "y", "both"],
@@ -681,9 +723,14 @@ class widgetEditPopup:
             # expand spinbox
             gridRow += 1
             tboot.Label(layoutPopupFrame, text="expand").grid(
-                row=gridRow, column=0, sticky=tk.NE)
+                row=gridRow, column=0, sticky=tk.NE
+            )
             expandSpin = tboot.Spinbox(
-                layoutPopupFrame, width=5, from_=0, to=1, increment=1,
+                layoutPopupFrame,
+                width=5,
+                from_=0,
+                to=1,
+                increment=1,
                 validate="focusout",
                 validatecommand=lambda: self.popupCallback("expand"),
             )
@@ -696,9 +743,14 @@ class widgetEditPopup:
             for pname, pval in (("padx", padx_val), ("pady", pady_val)):
                 gridRow += 1
                 tboot.Label(layoutPopupFrame, text=pname).grid(
-                    row=gridRow, column=0, sticky=tk.NE)
+                    row=gridRow, column=0, sticky=tk.NE
+                )
                 pspin = tboot.Spinbox(
-                    layoutPopupFrame, width=5, from_=0, to=50, increment=1,
+                    layoutPopupFrame,
+                    width=5,
+                    from_=0,
+                    to=50,
+                    increment=1,
                     validate="focusout",
                     validatecommand=lambda pp=pname: self.popupCallback(pp),
                 )
@@ -811,7 +863,7 @@ class widgetEditPopup:
         labelCol = 0
         controlCol = 3
         val: str = ""
-    # Some widgets will need extra 'keys'
+        # Some widgets will need extra 'keys'
         if wName == "notebook":
             # self.specialKeys("Tabs")
             log.warning("TBD -- Adding Tabs for notebook")
@@ -843,8 +895,7 @@ class widgetEditPopup:
                     width=buttonWidth,
                     command=lambda kk=k: self.fontChange(kk),
                 )
-                w.grid(row=gridRow, column=controlCol,
-                       columnspan=3, sticky=tk.SW)
+                w.grid(row=gridRow, column=controlCol, columnspan=3, sticky=tk.SW)
             ###############################
             # spinbox integer tags
             ###############################
@@ -869,8 +920,7 @@ class widgetEditPopup:
                 )
                 widgetKey = k + "Widget"
                 self.addToStringDict(widgetKey, w)
-                w.grid(row=gridRow, column=controlCol,
-                       columnspan=3, sticky=tk.SW)
+                w.grid(row=gridRow, column=controlCol, columnspan=3, sticky=tk.SW)
                 w.set(val)
             ###############################
             # Combobox fields
@@ -888,8 +938,7 @@ class widgetEditPopup:
                 widgetKey = k + "Widget"
                 self.addToStringDict(widgetKey, w)
                 w.set(val)
-                w.grid(row=gridRow, column=controlCol,
-                       columnspan=3, sticky=tk.SW)
+                w.grid(row=gridRow, column=controlCol, columnspan=3, sticky=tk.SW)
             elif k == "justify":
                 self.addToStringDict(k, val)
                 w = tboot.Combobox(
@@ -903,8 +952,7 @@ class widgetEditPopup:
                 widgetKey = k + "Widget"
                 self.addToStringDict(widgetKey, w)
                 w.set(val)
-                w.grid(row=gridRow, column=controlCol,
-                       columnspan=3, sticky=tk.SW)
+                w.grid(row=gridRow, column=controlCol, columnspan=3, sticky=tk.SW)
             elif k == "relief":
                 self.addToStringDict(k, val)
                 w = tboot.Combobox(
@@ -918,8 +966,7 @@ class widgetEditPopup:
                 widgetKey = k + "Widget"
                 self.addToStringDict(widgetKey, w)
                 w.set(val)
-                w.grid(row=gridRow, column=controlCol,
-                       columnspan=3, sticky=tk.SW)
+                w.grid(row=gridRow, column=controlCol, columnspan=3, sticky=tk.SW)
             elif k == "compound":
                 self.addToStringDict(k, val)
                 w = tboot.Combobox(
@@ -933,8 +980,7 @@ class widgetEditPopup:
                 widgetKey = k + "Widget"
                 self.addToStringDict(widgetKey, w)
                 w.set(val)
-                w.grid(row=gridRow, column=controlCol,
-                       columnspan=3, sticky=tk.SW)
+                w.grid(row=gridRow, column=controlCol, columnspan=3, sticky=tk.SW)
             elif k == "cursor":
                 self.addToStringDict(k, val)
                 w = tboot.Combobox(
@@ -948,8 +994,7 @@ class widgetEditPopup:
                 widgetKey = k + "Widget"
                 self.addToStringDict(widgetKey, w)
                 w.set(val)
-                w.grid(row=gridRow, column=controlCol,
-                       columnspan=3, sticky=tk.SW)
+                w.grid(row=gridRow, column=controlCol, columnspan=3, sticky=tk.SW)
             elif k == "orient":
                 self.addToStringDict(k, val)
                 w = tboot.Combobox(
@@ -963,8 +1008,7 @@ class widgetEditPopup:
                 widgetKey = k + "Widget"
                 self.addToStringDict(widgetKey, w)
                 w.set(val)
-                w.grid(row=gridRow, column=controlCol,
-                       columnspan=3, sticky=tk.SW)
+                w.grid(row=gridRow, column=controlCol, columnspan=3, sticky=tk.SW)
             ###############################
             # Style is tricky -- using ttkbootstrap
             ###############################
@@ -1013,13 +1057,11 @@ class widgetEditPopup:
                     else:
                         val = bvalList[0]
                 except tk.TclError as e:
-                    log.error("Style parsing val %s got Exception %s",
-                              str(val), str(e))
+                    log.error("Style parsing val %s got Exception %s", str(val), str(e))
                 # self.addToStringDict(k, val)
                 self.addToStringDict("bootstyle", val)
                 w.set(val)
-                w.grid(row=gridRow, column=controlCol,
-                       columnspan=4, sticky=tk.SW)
+                w.grid(row=gridRow, column=controlCol, columnspan=4, sticky=tk.SW)
             ###############################
             # Image need work TBD Does not get saved correctly
             ###############################
@@ -1033,8 +1075,7 @@ class widgetEditPopup:
                     width=buttonWidth,
                     command=lambda kk=k: self.selectImage(kk),
                 )
-                w.grid(row=gridRow, column=controlCol,
-                       columnspan=3, sticky=tk.SW)
+                w.grid(row=gridRow, column=controlCol, columnspan=3, sticky=tk.SW)
             ###############################
             # Colour selection possibly a canvas with the colour
             ###############################
@@ -1047,8 +1088,7 @@ class widgetEditPopup:
                     width=buttonWidth,
                     command=lambda kk=k: self.changeColour(kk),
                 )
-                w.grid(row=gridRow, column=controlCol,
-                       columnspan=3, sticky=tk.SW)
+                w.grid(row=gridRow, column=controlCol, columnspan=3, sticky=tk.SW)
             ###############################
             # The Default --- use and entry widget for all other tags
             ###############################
@@ -1064,8 +1104,7 @@ class widgetEditPopup:
                 widgetKey = k + "Widget"
                 self.addToStringDict(widgetKey, w)
                 w.insert(tk.END, val)
-                w.grid(row=gridRow, column=controlCol,
-                       columnspan=3, sticky=tk.SW)
+                w.grid(row=gridRow, column=controlCol, columnspan=3, sticky=tk.SW)
 
             # if stringUsed[row]:
             l1.grid(row=gridRow, column=labelCol, columnspan=3, sticky=tk.E)
@@ -1078,18 +1117,22 @@ class widgetEditPopup:
                 try:
                     widgetName = k.widgetName
                 except AttributeError as e:
-                    log.warning(
-                        "child widget ->%s<- got exception %s", str(k), str(e))
+                    log.warning("child widget ->%s<- got exception %s", str(k), str(e))
                     continue
                 log.debug(widgetName)
-                l0 = tboot.Label(
-                    editPopupFrame,
-                    text=widgetName,
-                    borderwidth=1,
-                    border=tk.SOLID,
-                    justify=tk.CENTER,
-                )
-                l0.grid(row=gridRow, column=1, columnspan=5, sticky=tk.EW)
+                l0 = tboot.Label()
+                try:
+                    l0 = tboot.Label(
+                        editPopupFrame,
+                        text=widgetName,
+                        borderwidth=1,
+                        # border=tk.SOLID,
+                        justify=tk.CENTER,
+                    )
+                    l0.grid(row=gridRow, column=1, columnspan=5, sticky=tk.EW)
+                except tk.TclError as e:
+                    log.error("widget ->%s<- got exception %s", str(l0), str(e))
+
                 row += 1
                 gridRow += 1
                 if widgetName == "ttk::notebook":
@@ -1115,8 +1158,7 @@ class widgetEditPopup:
             for k in scrollbars:
                 gridRow += 1
                 sb = tboot.Label(editPopupFrame, text=k)
-                sb.grid(row=gridRow, column=labelCol,
-                        columnspan=3, sticky=tk.E)
+                sb.grid(row=gridRow, column=labelCol, columnspan=3, sticky=tk.E)
                 self.addToStringDict(k, val)
                 if k == "vertical_scrollbar":
                     w = tboot.Combobox(
@@ -1136,8 +1178,7 @@ class widgetEditPopup:
                     )
                 widgetKey = k + "Widget"
                 self.addToStringDict(widgetKey, w)
-                w.grid(row=gridRow, column=controlCol,
-                       columnspan=3, sticky=tk.SW)
+                w.grid(row=gridRow, column=controlCol, columnspan=3, sticky=tk.SW)
             gridRow += 1
         if myVars.geomManager == "Grid" and wName in ("notebook"):
             gridRow += 1

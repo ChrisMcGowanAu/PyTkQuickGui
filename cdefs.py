@@ -1,9 +1,11 @@
-import sys
 import logging as log
+import sys
 
 #########################################################
-# This is a set of 'c' like interfaces that are more intuitive for me
+# This is a set of 'c' like interfaces that are
+# more intuitive for me
 #########################################################
+
 
 def index(buf: str, search: str) -> int:
     # returns -1 if ch not found
@@ -19,15 +21,15 @@ def fprintf(fp, fmt: str, *args):
     fp.write(fmt % args)
 
 
-def sprintf(buf,fmt, *args) -> str:
+def sprintf(buf, fmt, *args) -> str:
     tmpStr: str = buf
     tmpStr.format(fmt % args)
     # tmpStr.write(fmt % args)
-    log.info("sprintf: ->%s<- fmt ->%s<-",tmpStr,fmt)
+    log.info("sprintf: ->%s<- fmt ->%s<-", tmpStr, fmt)
     return tmpStr
 
 
-def fopen(fileName,mode):
+def fopen(fileName, mode):
     f: any
     # Possibly, if mode has a 'b' in it, then drop the encoding
     try:
