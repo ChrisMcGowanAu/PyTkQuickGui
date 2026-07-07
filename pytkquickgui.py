@@ -1843,6 +1843,7 @@ def _grid_overlay_btn1(event):
     for i, gy in enumerate(row_ys[1:], 1):
         cx, cy = _ADD_MARGIN, gy
         if abs(ex - cx) <= _ADD_RADIUS + 2 and abs(ey - cy) <= _ADD_RADIUS + 2:
+            log.info("Before _grid_insert_row i=%d",i)
             _grid_insert_row(i - 1)
             return
 
@@ -1933,6 +1934,11 @@ def _grid_insert_col(after_col: int):
     # How many columns currently exist?
     n_cols = 0
     while True:
+        # Gets into an infinite loop here.....
+        if n_cols > 1000:  # Sanity check
+            log.error("n_cols too big ? n_cols=%d makeing it 5", n_cols)
+            n_cols = 5
+            break
         try:
             b = geomWidgetFrame.grid_bbox(n_cols, 0)
             if b is None:
@@ -1973,6 +1979,11 @@ def _grid_insert_row(after_row: int):
     n_rows = 0
     while True:
         try:
+            # Gets into an infinite loop here.....
+            if n_rows > 1000:  # Sanity check
+                log.error("n_rows too big ? n_rows=%d making it 5", n_rows)
+                n_rows = 5
+                break
             b = geomWidgetFrame.grid_bbox(0, n_rows)
             if b is None:
                 break
@@ -1989,11 +2000,15 @@ def _grid_insert_row(after_row: int):
             src_size = 30
         geomWidgetFrame.rowconfigure(r, minsize=src_size, weight=1)
 
+    log.info("n_rows=%d after_row=%d minsize=%d",n_rows,after_row,half)
     geomWidgetFrame.rowconfigure(after_row,     minsize=half, weight=1)
     geomWidgetFrame.rowconfigure(after_row + 1, minsize=half, weight=1)
 
+    log.info("Before update_idletasks")
     geomWidgetFrame.update_idletasks()
+    log.info("After update_idletasks")
     drawGridLines()
+    log.info("After drawGridLines")
 
 
 def drawGridLines():
