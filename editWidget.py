@@ -324,21 +324,23 @@ class widgetEditPopup:
         if myVars.geomManager == "Pack":
             cwo = cw.findCreateWidgetObject(self.widgetName)
             try:
-                side = str(self.stringDict.get("side", "top"))
-                fill = str(self.stringDict.get("fill", "none"))
+                side   = str(self.stringDict.get("side",   "top"))
+                fill   = str(self.stringDict.get("fill",   "none"))
                 expand = int(self.stringDict.get("expand", 0))
-                padx = int(self.stringDict.get("padx", 4))
-                pady = int(self.stringDict.get("pady", 4))
-                self.widget.pack(
-                    side=side, fill=fill, expand=expand, padx=padx, pady=pady
-                )
+                padx   = int(self.stringDict.get("padx",   4))
+                pady   = int(self.stringDict.get("pady",   4))
+                anchor = str(self.stringDict.get("anchor", "center"))
+                self.widget.pack(side=side, fill=fill, expand=expand,
+                                 padx=padx, pady=pady, anchor=anchor)
                 if cwo:
-                    cwo.pack_side = side
-                    cwo.pack_fill = fill
+                    cwo.pack_side   = side
+                    cwo.pack_fill   = fill
                     cwo.pack_expand = expand
-                    cwo.pack_padx = padx
-                    cwo.pack_pady = pady
-                log.debug(logString, "pack", f"side={side} fill={fill} expand={expand}")
+                    cwo.pack_padx   = padx
+                    cwo.pack_pady   = pady
+                    cwo.pack_anchor = anchor
+                log.debug(logString, "pack",
+                          f"side={side} fill={fill} expand={expand} anchor={anchor}")
             except (tk.TclError, ValueError) as e:
                 log.error("applyLayoutSettings Pack: %s", e)
             return
@@ -759,6 +761,24 @@ class widgetEditPopup:
                 self.addToStringDict(pname + "Widget", pspin)
                 pspin.set(pval)
                 pspin.grid(row=gridRow, column=3, sticky=tk.SW)
+            # anchor combobox
+            anchor_val = _pi("anchor", cwo.pack_anchor if cwo else None, "center")
+            gridRow += 1
+            tboot.Label(layoutPopupFrame, text="anchor").grid(
+                row=gridRow, column=0, sticky=tk.NE
+            )
+            anchorCombo = tboot.Combobox(
+                layoutPopupFrame,
+                values=["center", "n", "ne", "e", "se", "s", "sw", "w", "nw"],
+                width=6,
+                validate="focusout",
+                validatecommand=lambda: self.popupCallback("anchor"),
+            )
+            self.addToStringDict("anchor", anchor_val)
+            self.addToStringDict("anchorOrig", anchor_val)
+            self.addToStringDict("anchorWidget", anchorCombo)
+            anchorCombo.set(anchor_val)
+            anchorCombo.grid(row=gridRow, column=3, sticky=tk.SW)
         else:
             # ---- Place layout fields ----------------------------------
             place = self.widget.place_info()
@@ -811,28 +831,59 @@ class widgetEditPopup:
         b1.grid(row=gridRow, column=0)
         b2.grid(row=gridRow, column=3)
 
+    # Map each widget's lower-case tcl name (after fixWidgetName) to the best
+    # available docs URL.  ttkbootstrap widgets go to the ttkbootstrap API docs;
+    # plain tk widgets go to the standard tkinter reference.
+    _HELP_URLS: dict = {
+        # ttkbootstrap widgets
+        "label":        "https://ttkbootstrap.readthedocs.io/en/latest/api/widgets/label/",
+        "button":       "https://ttkbootstrap.readthedocs.io/en/latest/api/widgets/button/",
+        "entry":        "https://ttkbootstrap.readthedocs.io/en/latest/api/widgets/entry/",
+        "combobox":     "https://ttkbootstrap.readthedocs.io/en/latest/api/widgets/combobox/",
+        "spinbox":      "https://ttkbootstrap.readthedocs.io/en/latest/api/widgets/spinbox/",
+        "checkbutton":  "https://ttkbootstrap.readthedocs.io/en/latest/api/widgets/checkbutton/",
+        "radiobutton":  "https://ttkbootstrap.readthedocs.io/en/latest/api/widgets/radiobutton/",
+        "progressbar":  "https://ttkbootstrap.readthedocs.io/en/latest/api/widgets/progressbar/",
+        "scale":        "https://ttkbootstrap.readthedocs.io/en/latest/api/widgets/scale/",
+        "scrollbar":    "https://ttkbootstrap.readthedocs.io/en/latest/api/widgets/scrollbar/",
+        "separator":    "https://ttkbootstrap.readthedocs.io/en/latest/api/widgets/separator/",
+        "sizegrip":     "https://ttkbootstrap.readthedocs.io/en/latest/api/widgets/sizegrip/",
+        "notebook":     "https://ttkbootstrap.readthedocs.io/en/latest/api/widgets/notebook/",
+        "treeview":     "https://ttkbootstrap.readthedocs.io/en/latest/api/widgets/treeview/",
+        "frame":        "https://ttkbootstrap.readthedocs.io/en/latest/api/widgets/frame/",
+        "labelframe":   "https://ttkbootstrap.readthedocs.io/en/latest/api/widgets/labelframe/",
+        "panedwindow":  "https://ttkbootstrap.readthedocs.io/en/latest/api/widgets/panedwindow/",
+        "scrolledtext": "https://ttkbootstrap.readthedocs.io/en/latest/api/widgets/scrolledtext/",
+        "floodgauge":   "https://ttkbootstrap.readthedocs.io/en/latest/api/widgets/floodgauge/",
+        "meter":        "https://ttkbootstrap.readthedocs.io/en/latest/api/widgets/meter/",
+        # Standard tk widgets (no ttkbootstrap page)
+        "canvas":   "https://docs.python.org/3/library/tkinter.html#tkinter.Canvas",
+        "text":     "https://docs.python.org/3/library/tkinter.html#tkinter.Text",
+        "listbox":  "https://docs.python.org/3/library/tkinter.html#tkinter.Listbox",
+    }
+
     def getHelp(self):
         """
-        should take a user to the documentation for the widget
+        Open the documentation page for the current widget type in the browser.
         :return: None
         """
         try:
-            wName = myVars.fixWidgetName(self.widget.widgetName)
-            if wName == "label":
-                webbrowser.open(
-                    "https://docs.python.org/3/library/tkinter.tboot.html#label-options"
-                )
-            else:
-                webbrowser.open(
-                    "https://docs.python.org/3/library/tkinter.tboot.html#ttk-widgets"
-                )
-            print(wName)
-        except tk.TclError as e:
-            log.error("getHelp got am exception %s", str(e))
+            wName = myVars.fixWidgetName(self.widget.widgetName).lower()
+            url = self._HELP_URLS.get(
+                wName,
+                "https://ttkbootstrap.readthedocs.io/en/latest/",
+            )
+            log.info("getHelp: widget=%s url=%s", wName, url)
+            webbrowser.open(url)
+        except Exception as e:  # pylint: disable=broad-except
+            log.error("getHelp got an exception %s", str(e))
 
     def createEditPopup(self) -> None:
         """
-        Popup to edit the tags/attributes for the Widget
+        Popup to edit the tags/attributes for the Widget.
+        Content rows live in a scrollable inner frame so that widgets with
+        many attributes (e.g. tk.Button) don't push the Apply/Close buttons
+        off the screen.
         """
         row = 0
         gridRow = 0
@@ -851,8 +902,37 @@ class widgetEditPopup:
         )
         editPopupFrame.place(x=300, y=10)
         self.createDragPoint(editPopupFrame, "triangle")
-        # w = tboot.Label(editPopupFrame, text='Edit ' + wName, justify=tk.CENTER, anchor=tk.CENTER)
-        # w.grid(row=gridRow, column=1, columnspan=3, sticky=tk.NS)
+
+        # ---- Scrollable content area ------------------------------------
+        # A fixed-height canvas + vertical scrollbar; all attribute rows go
+        # into scrollContent (a Frame embedded in the canvas).  The Close /
+        # Help / Apply buttons sit below the canvas in editPopupFrame so
+        # they are always visible regardless of how many rows there are.
+        _scroll_h = 420   # maximum visible height in pixels
+        _scroll_w = 320
+        scrollCanvas = tk.Canvas(
+            editPopupFrame, width=_scroll_w, height=_scroll_h,
+            highlightthickness=0, bd=0
+        )
+        vscroll = tboot.Scrollbar(
+            editPopupFrame, orient="vertical", command=scrollCanvas.yview
+        )
+        scrollCanvas.configure(yscrollcommand=vscroll.set)
+        scrollCanvas.grid(row=1, column=0, columnspan=6, sticky="nsew")
+        vscroll.grid(row=1, column=6, sticky="ns")
+        scrollContent = tboot.Frame(scrollCanvas)
+        _win_id = scrollCanvas.create_window((0, 0), window=scrollContent, anchor="nw")
+        def _on_frame_configure(_evt):
+            scrollCanvas.configure(scrollregion=scrollCanvas.bbox("all"))
+            # Also resize the inner frame to fill the canvas width
+            scrollCanvas.itemconfig(_win_id, width=scrollCanvas.winfo_width())
+        scrollContent.bind("<Configure>", _on_frame_configure)
+        # Mouse-wheel scrolling
+        def _on_mousewheel(evt):
+            scrollCanvas.yview_scroll(int(-1 * (evt.delta / 120)), "units")
+        scrollCanvas.bind("<MouseWheel>", _on_mousewheel)
+        scrollContent.bind("<MouseWheel>", _on_mousewheel)
+        # -------------------------------------------------------------------
         gridRow += 1
         keys = self.widget.keys()
         if keys == {}:
@@ -879,7 +959,7 @@ class widgetEditPopup:
                 val = child_widget.cget(k)
             else:
                 val = self.widget.cget(k)
-            l1 = tboot.Label(editPopupFrame, text=k)
+            l1 = tboot.Label(scrollContent, text=k)
             uniqueName = k + str(row)
             if k in ignoredKeys:
                 continue
@@ -889,7 +969,7 @@ class widgetEditPopup:
             elif k == "font":
                 self.addToStringDict(k, val)
                 w = tboot.Button(
-                    editPopupFrame,
+                    scrollContent,
                     name=uniqueName,
                     text="Select a Font",
                     width=buttonWidth,
@@ -909,7 +989,7 @@ class widgetEditPopup:
             ):
                 self.addToStringDict(k, val)
                 w = tboot.Spinbox(
-                    editPopupFrame,
+                    scrollContent,
                     width=spinboxWidth,
                     name=uniqueName,
                     from_=0,
@@ -928,7 +1008,7 @@ class widgetEditPopup:
             elif k == "anchor" or k == "labelanchor":
                 self.addToStringDict(k, val)
                 w = tboot.Combobox(
-                    editPopupFrame,
+                    scrollContent,
                     values=anchorVals,
                     width=comboWidth,
                     name=uniqueName,
@@ -942,7 +1022,7 @@ class widgetEditPopup:
             elif k == "justify":
                 self.addToStringDict(k, val)
                 w = tboot.Combobox(
-                    editPopupFrame,
+                    scrollContent,
                     values=justifyVals,
                     width=comboWidth,
                     name=uniqueName,
@@ -956,7 +1036,7 @@ class widgetEditPopup:
             elif k == "relief":
                 self.addToStringDict(k, val)
                 w = tboot.Combobox(
-                    editPopupFrame,
+                    scrollContent,
                     values=reliefVals,
                     width=comboWidth,
                     name=uniqueName,
@@ -970,7 +1050,7 @@ class widgetEditPopup:
             elif k == "compound":
                 self.addToStringDict(k, val)
                 w = tboot.Combobox(
-                    editPopupFrame,
+                    scrollContent,
                     values=compoundVals,
                     width=comboWidth,
                     name=uniqueName,
@@ -984,7 +1064,7 @@ class widgetEditPopup:
             elif k == "cursor":
                 self.addToStringDict(k, val)
                 w = tboot.Combobox(
-                    editPopupFrame,
+                    scrollContent,
                     values=cursorVals,
                     width=comboWidth,
                     name=uniqueName,
@@ -998,7 +1078,7 @@ class widgetEditPopup:
             elif k == "orient":
                 self.addToStringDict(k, val)
                 w = tboot.Combobox(
-                    editPopupFrame,
+                    scrollContent,
                     values=orientVals,
                     width=comboWidth,
                     name=uniqueName,
@@ -1037,7 +1117,7 @@ class widgetEditPopup:
                         for alt in altList:
                             colours.append(color_label + "." + alt)
                 w = tboot.Combobox(
-                    editPopupFrame,
+                    scrollContent,
                     values=colours,
                     width=comboWidth,
                     name=uniqueName,
@@ -1069,7 +1149,7 @@ class widgetEditPopup:
                 # thisRow1 = row
                 self.addToStringDict(k, val)
                 w = tboot.Button(
-                    editPopupFrame,
+                    scrollContent,
                     name=uniqueName,
                     text="Select Image",
                     width=buttonWidth,
@@ -1082,7 +1162,7 @@ class widgetEditPopup:
             elif k == "fg" or k == "bg" or k == "foreground" or k == "background":
                 self.addToStringDict(k, val)
                 w = tboot.Button(
-                    editPopupFrame,
+                    scrollContent,
                     name=uniqueName,
                     text="Select Color",
                     width=buttonWidth,
@@ -1095,7 +1175,7 @@ class widgetEditPopup:
             else:
                 self.addToStringDict(k, val)
                 w = Entry(
-                    editPopupFrame,
+                    scrollContent,
                     name=uniqueName,
                     width=entryWidth,
                     validate="focusout",
@@ -1123,7 +1203,7 @@ class widgetEditPopup:
                 l0 = tboot.Label()
                 try:
                     l0 = tboot.Label(
-                        editPopupFrame,
+                        scrollContent,
                         text=widgetName,
                         borderwidth=1,
                         # border=tk.SOLID,
@@ -1157,12 +1237,12 @@ class widgetEditPopup:
             log.info("Creating scrollbar stuff for %s", wName)
             for k in scrollbars:
                 gridRow += 1
-                sb = tboot.Label(editPopupFrame, text=k)
+                sb = tboot.Label(scrollContent, text=k)
                 sb.grid(row=gridRow, column=labelCol, columnspan=3, sticky=tk.E)
                 self.addToStringDict(k, val)
                 if k == "vertical_scrollbar":
                     w = tboot.Combobox(
-                        editPopupFrame,
+                        scrollContent,
                         values=verticalValues,
                         width=comboWidth,
                         validate="focusout",
@@ -1170,7 +1250,7 @@ class widgetEditPopup:
                     )
                 else:
                     w = tboot.Combobox(
-                        editPopupFrame,
+                        scrollContent,
                         values=horizontalValues,
                         width=comboWidth,
                         validate="focusout",
@@ -1186,11 +1266,11 @@ class widgetEditPopup:
             val = self.stringDict.get(key)
             if val is None or val == "":
                 val = "0"
-            sb = tboot.Label(editPopupFrame, text=key)
+            sb = tboot.Label(scrollContent, text=key)
             sb.grid(row=gridRow, column=labelCol, columnspan=3, sticky=tk.E)
             self.addToStringDict(key, val)
             w = tboot.Spinbox(
-                editPopupFrame,
+                scrollContent,
                 width=spinboxWidth,
                 name=uniqueName,
                 from_=0,

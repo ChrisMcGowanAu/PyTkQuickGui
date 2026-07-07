@@ -241,11 +241,12 @@ class createWidget:
         self.ipadx = 0  # grid ipadx (internal padding / extra width)
         self.ipady = 0  # grid ipady (internal padding / extra height)
         # Pack geometry fields — authoritative user-set values
-        self.pack_side = "top"  # pack side
-        self.pack_fill = "none"  # pack fill
-        self.pack_expand = 0  # pack expand (0 or 1)
-        self.pack_padx = 4  # pack padx
-        self.pack_pady = 4  # pack pady
+        self.pack_side   = "top"    # pack side
+        self.pack_fill   = "none"   # pack fill
+        self.pack_expand = 0        # pack expand (0 or 1)
+        self.pack_padx   = 4        # pack padx
+        self.pack_pady   = 4        # pack pady
+        self.pack_anchor = "center" # pack anchor
         self.x_root = self.x
         self.y_root = self.y
         self.start_x = self.x  # Set start_x on mouse down
@@ -301,6 +302,7 @@ class createWidget:
                 expand=self.pack_expand,
                 padx=self.pack_padx,
                 pady=self.pack_pady,
+                anchor=self.pack_anchor,
             )
         else:
             log.error("Geometry Manager %s is TBD", myVars.geomManager)
@@ -979,6 +981,7 @@ class createWidget:
                         expand=self.pack_expand,
                         padx=self.pack_padx,
                         pady=self.pack_pady,
+                        anchor=self.pack_anchor,
                         before=other_slaves[0] if other_slaves else None,
                     )
                 else:
@@ -988,6 +991,7 @@ class createWidget:
                         expand=self.pack_expand,
                         padx=self.pack_padx,
                         pady=self.pack_pady,
+                        anchor=self.pack_anchor,
                         after=insert_after,
                     )
             except (tk.TclError, IndexError):
@@ -997,6 +1001,7 @@ class createWidget:
                     expand=self.pack_expand,
                     padx=self.pack_padx,
                     pady=self.pack_pady,
+                    anchor=self.pack_anchor,
                 )
         else:
             log.error("Geometry Manager %s is TBD", myVars.geomManager)

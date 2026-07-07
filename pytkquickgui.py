@@ -560,14 +560,16 @@ def buildPython() -> str:
                     f" sticky='{sticky}', padx={padx}, pady={pady})"
                 )
             elif myVars.geomManager == "Pack":
-                side = geomData.get("side", "top")
-                fill = geomData.get("fill", "none")
+                side   = geomData.get("side",   "top")
+                fill   = geomData.get("fill",   "none")
                 expand = geomData.get("expand", "0")
-                padx = geomData.get("padx", "2")
-                pady = geomData.get("pady", "2")
+                padx   = geomData.get("padx",   "2")
+                pady   = geomData.get("pady",   "2")
+                anchor = geomData.get("anchor", "center")
                 print(
                     f"{widgetName}.pack(side='{side}', fill='{fill}',"
-                    f" expand={expand}, padx={padx}, pady={pady})"
+                    f" expand={expand}, padx={padx}, pady={pady},"
+                    f" anchor='{anchor}')"
                 )
             else:
                 log.error("Unknown geometry manager %s", myVars.geomManager)
@@ -703,7 +705,19 @@ def changeParentOfTo(widgetName, parentName):
             col = gi.get("column", 0)
         except tk.TclError:
             row, col = 0, 0
-        widget.grid(in_=parent, row=row, column=col, padx=2, pady=2, sticky="WE")
+        # Read current cwo values so we preserve span/sticky from last edit
+        cwo_r = cw.findCreateWidgetObject(widgetName)
+        col_span = cwo_r.columnspan if cwo_r is not None else 2
+        row_span = cwo_r.rowspan    if cwo_r is not None else 2
+        sticky_r = cwo_r.sticky    if cwo_r is not None else "nsew"
+        widget.grid(
+            in_=parent, row=row, column=col,
+            columnspan=col_span, rowspan=row_span,
+            padx=2, pady=2, sticky=sticky_r,
+        )
+        if cwo_r is not None:
+            cwo_r.col = col
+            cwo_r.row = row
     elif mgr == "Pack":
         widget.pack(in_=parent, padx=4, pady=4, anchor="nw")
     else:
@@ -1143,17 +1157,20 @@ def loadProject(project, altFileName):
                 )
             elif mgr == "Pack":
                 geomData = wDict.get("GeomData") or {}
-                side = geomData.get("side", "top")
-                fill = geomData.get("fill", "none")
+                side   = geomData.get("side",   "top")
+                fill   = geomData.get("fill",   "none")
                 expand = int(geomData.get("expand", 0))
-                padx = int(geomData.get("padx", 4))
-                pady = int(geomData.get("pady", 4))
-                w.pack_side = side
-                w.pack_fill = fill
+                padx   = int(geomData.get("padx", 4))
+                pady   = int(geomData.get("pady", 4))
+                anchor = geomData.get("anchor", "center")
+                w.pack_side   = side
+                w.pack_fill   = fill
                 w.pack_expand = expand
-                w.pack_padx = padx
-                w.pack_pady = pady
-                w.widget.pack(side=side, fill=fill, expand=expand, padx=padx, pady=pady)
+                w.pack_padx   = padx
+                w.pack_pady   = pady
+                w.pack_anchor = anchor
+                w.widget.pack(side=side, fill=fill, expand=expand,
+                              padx=padx, pady=pady, anchor=anchor)
             else:
                 log.error("Geometry Manager %s unknown", mgr)
         n += 1
@@ -1866,19 +1883,40 @@ def _placeNewWidget(w, x: int, y: int, width: int = 72, height: int = 32) -> Non
     if mgr == "Place":
         w.place(x=x, y=y, width=width, height=height)
     elif mgr == "Grid":
-        # Estimate grid cell from pixel coordinates.
-        # geomWidgetFrame must exist; fall back gracefully if not.
+        # Map pixel click to grid cell using grid_location (exact) or fallback.
         parent = geomWidgetFrame if geomWidgetFrame is not None else mainCanvas
-        cell = 32
-        col = max(0, x // cell)
-        row = max(0, y // cell)
-        w.grid(in_=parent, row=row, column=col, padx=2, pady=2, sticky="WE")
+        try:
+            col, row = parent.grid_location(x, y)
+            col = max(0, col)
+            row = max(0, row)
+        except tk.TclError:
+            cell = 60
+            col = max(0, x // cell)
+            row = max(0, y // cell)
+        # Default: span 2 columns and 2 rows, fill the cells completely.
+        col_span = 2
+        row_span = 2
+        new_sticky = "nsew"
+        w.grid(in_=parent, row=row, column=col,
+               columnspan=col_span, rowspan=row_span,
+               padx=2, pady=2, sticky=new_sticky)
+        # Sync the authoritative cwo fields so drags and popups see the defaults.
+        cwo = cw.findCreateWidgetObject(
+            w.pythonName if hasattr(w, "pythonName") else ""
+        )
+        if cwo is not None:
+            cwo.col        = col
+            cwo.row        = row
+            cwo.columnspan = col_span
+            cwo.rowspan    = row_span
+            cwo.sticky     = new_sticky
         # Re-lower the overlay canvas so it stays behind the new widget
         if _gridOverlayCanvas is not None:
             try:
                 tk.Misc.lower(_gridOverlayCanvas)
             except tk.TclError:
                 pass
+        w.after_idle(drawGridLines)
     elif mgr == "Pack":
         parent = geomWidgetFrame if geomWidgetFrame is not None else mainCanvas
         w.pack(in_=parent, padx=4, pady=4, anchor="nw")
@@ -1945,13 +1983,21 @@ def createWidgetPopup(event, widgetName):
     elif widgetName == "Spinbox":
         w = tboot.Spinbox(_parent, cursor=defaultCursor, style=defaultStyle)
     elif widgetName == "Checkbutton":
+        # Each Checkbutton needs its own IntVar so it renders and saves correctly.
+        _cbv = tk.IntVar(rootWin, 0)
         w = tboot.Checkbutton(
-            _parent, text=widgetName, cursor=defaultCursor, style=defaultStyle
+            _parent, text=widgetName, cursor=defaultCursor, style=defaultStyle,
+            variable=_cbv,
         )
+        w._tkvar = _cbv   # keep a reference so the var isn't garbage-collected
     elif widgetName == "Radiobutton":
+        # Each Radiobutton group shares a variable; give each a unique default.
+        _rbv = tk.IntVar(rootWin, 0)
         w = tboot.Radiobutton(
-            _parent, text=widgetName, cursor=defaultCursor, style=defaultStyle
+            _parent, text=widgetName, cursor=defaultCursor, style=defaultStyle,
+            variable=_rbv, value=0,
         )
+        w._tkvar = _rbv
     elif widgetName == "Scale":
         w = tboot.Scale(_parent, cursor=defaultCursor, style=defaultStyle)
     elif widgetName == "Progressbar":
@@ -2005,7 +2051,9 @@ def createWidgetPopup(event, widgetName):
     elif widgetName == "Scrollbar":
         w = tboot.Scrollbar(_parent, orient=tk.VERTICAL, style=defaultStyle)
     elif widgetName == "Separator":
-        w = tboot.Separator(_parent, orient=tk.HORIZONTAL, style=defaultStyle)
+        # Separator requires a fully-qualified style name: orient is baked in.
+        sep_style = f"{defaultStyle}.Horizontal.TSeparator"
+        w = tboot.Separator(_parent, orient=tk.HORIZONTAL, style=sep_style)
     elif widgetName == "Sizegrip":
         w = tboot.Sizegrip(_parent, style=defaultStyle)
     else:
