@@ -17,7 +17,8 @@ import coloredlogs
 import tkfontchooser as tkfc
 import ttkbootstrap as tboot
 from ttkbootstrap.dialogs import Messagebox, Querybox
-
+from ttkbootstrap.constants import *
+from ttkbootstrap.widgets.scrolled import ScrolledFrame, ScrolledText
 import cdefs as C
 import createWidget as cw
 import pytkguivars as myVars
@@ -1924,7 +1925,10 @@ def createWidgetPopup(event, widgetName):
             cursor=defaultCursor,
             style=defaultStyle,
         )
-
+    elif widgetName == "ScrolledText":
+        w = ScrolledText(_parent, padding=5, height=20 ,autohide=True)
+    elif widgetName == "ScrolledFrame":
+        w = ScrolledFrame(_parent, padding=5, height=20, autohide=True)
     elif widgetName == "Button":
         w = tboot.Button(
             _parent, text=widgetName, cursor=defaultCursor, style=defaultStyle

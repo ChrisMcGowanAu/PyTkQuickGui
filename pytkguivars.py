@@ -58,22 +58,25 @@ widgetsUsed = (
     "Button",
     "Entry",
     "Combobox",
-    "Notebook",
-    "Canvas",
+    # "Notebook", # Raises tcl errors
     "Spinbox",
     "Checkbutton",
     "Radiobutton",
-    "Scale",
+    # "Scale",
     "Progressbar",
-    "Floodgauge",
-    "Meter",
+    # "Floodgauge",
+    # "Meter",
+    "ScrolledText",
+    # "ScrolledFrame", # Weird behaviour
     # Standard tk/ttk widgets
+    "Canvas",
+    "tk.Button",
     "Text",
     "Listbox",
-    "Treeview",
+    # "Treeview", Also needs looking at, more default config
     "Scrollbar",
     "Separator",
-    "Sizegrip",
+    # "Sizegrip", This is Tricky, it needs to attach itself to a widget
 )
 
 # ---- Geometry manager ---------------------------------------------------
