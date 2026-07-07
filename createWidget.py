@@ -96,32 +96,36 @@ def reparentWidget(pythonName, w):
     # NAME: int = 0 PARENT: int = 1 WIDGET: int = 2 CHILDREN: int = 3
     nl = findPythonWidgetNameList(pythonName)
     log.debug("w %s baseRoot %s", w, createWidget.baseRoot)
+
+    # Remove this widget from its current parent's children list first.
+    for nl1 in createWidget.widgetNameList:
+        if pythonName in nl1[CHILDREN] and nl1[WIDGET] is not w:
+            nl1[CHILDREN].remove(pythonName)
+
     if str(w) == str(createWidget.baseRoot):
-        nl[PARENT] = myVars.rootWidgetName
-        # remove pythonName out of any childen
-        for nl1 in createWidget.widgetNameList:
-            log.info("nl1 %s", nl1)
-            if pythonName in nl1[CHILDREN]:
-                nl1[CHILDREN].remove(pythonName)
+        # Re-parenting back to the root canvas/frame
+        if nl:
+            nl[PARENT] = myVars.rootWidgetName
         return
+
     if nl:
-        # Replace the parent
-        ParentName = ""
+        # Find the new parent in widgetNameList by widget object identity
         found = False
         for nl2 in createWidget.widgetNameList:
-            # print(nl)
-            if nl2[WIDGET] == w:
-                ParentName = nl2[NAME]
-                # Check if the child is already there
+            if nl2[WIDGET] is w:
+                new_parent_name = nl2[NAME]
                 if pythonName not in nl2[CHILDREN]:
                     nl2[CHILDREN].append(pythonName)
+                nl[PARENT] = new_parent_name
                 found = True
                 break
         if not found:
-            log.error("Unable to locate widget ->%s<-", str(w))
-            # log.error("createWidget.widgetNameList %s", str(createWidget.widgetNameList))
-        else:
-            nl[PARENT] = ParentName
+            # w is not a tracked widget (e.g. geomWidgetFrame itself) —
+            # treat as root-level.
+            log.debug(
+                "reparentWidget: %s not in widgetNameList, treating as root", str(w)
+            )
+            nl[PARENT] = myVars.rootWidgetName
 
 
 def deleteWidgetFromLists(pythonName, widget):
@@ -398,20 +402,70 @@ class createWidget:
                         return w
         return self.root
 
+    def _find_grid_container(self):
+        """Return the smallest container sibling whose screen bbox encloses this
+        widget's centre, or None if no container qualifies.
+
+        Used by reParent() in Grid/Pack mode to auto-detect the target parent
+        when the user clicks Re-Parent without specifying one explicitly.
+        """
+        cx = self.widget.winfo_rootx() + self.widget.winfo_width()  // 2
+        cy = self.widget.winfo_rooty() + self.widget.winfo_height() // 2
+        best = None
+        best_area = float("inf")
+        for nl in createWidget.widgetNameList:
+            candidate = nl[WIDGET]
+            if candidate is self.widget:
+                continue
+            # Only consider container widget types
+            if not hasattr(candidate, "widgetName"):
+                continue
+            wn = myVars.fixWidgetName(candidate.widgetName).lower()
+            if wn not in ("frame", "labelframe", "panedwindow"):
+                continue
+            try:
+                rx = candidate.winfo_rootx()
+                ry = candidate.winfo_rooty()
+                rw = candidate.winfo_width()
+                rh = candidate.winfo_height()
+            except tk.TclError:
+                continue
+            if rw < 4 or rh < 4:
+                continue
+            if rx <= cx <= rx + rw and ry <= cy <= ry + rh:
+                area = rw * rh
+                if area < best_area:
+                    best_area = area
+                    best = candidate
+        return best
+
     def reParent(self, parentWidget):
         """Re-parent this widget.
 
-        In Place mode the widget is also auto-contained into whichever sibling
-        it physically overlaps.  In Grid/Pack mode we just do a straight
-        reparent into the root (or the supplied parentWidget) because
-        containment is controlled by the user through drag-and-drop.
+        In Place mode the widget is auto-contained into whichever sibling it
+        physically overlaps (pixel bounding-box test).
+        In Grid/Pack mode we find the smallest container Frame/Labelframe whose
+        screen bbox contains this widget's centre point; if none qualifies we
+        re-parent back to the root frame.
         """
         # Record old parent name before reparenting
         nl = findPythonWidgetNameList(self.pythonName)
         old_parent_name = nl[PARENT] if nl else myVars.rootWidgetName
 
         if parentWidget is not None:
+            # Caller supplied an explicit target — use it directly.
             changeParentOfTo(self.widget, parentWidget)
+        elif myVars.geomManager in ("Grid", "Pack"):
+            # Auto-detect: find the innermost container that encloses this widget.
+            target = self._find_grid_container()
+            if target is not None:
+                changeParentOfTo(self.widget, target)
+                parentWidget = target
+            else:
+                # No container found — re-parent to geomWidgetFrame (root frame).
+                # changeParentOfTo handles None → self.root case; pass root here.
+                changeParentOfTo(self.widget, self.root)
+                parentWidget = self.root
         else:
             changeParentOfTo(self.widget, self.root)
             parentWidget = self.root
@@ -426,7 +480,7 @@ class createWidget:
                 )
             )
 
-        # Place mode only: auto-contain into the first sibling that encloses us.
+        # Place mode only: also auto-contain into the first sibling that encloses us.
         if myVars.geomManager != "Place":
             return
 
