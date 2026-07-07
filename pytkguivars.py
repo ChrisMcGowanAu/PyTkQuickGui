@@ -74,7 +74,7 @@ widgetsUsed = (
     "Text",
     "Listbox",
     # "Treeview", Also needs looking at, more default config
-    "Scrollbar",
+    # "Scrollbar",  # needs wiring to a target widget — use Edit popup instead
     "Separator",
     # "Sizegrip", This is Tricky, it needs to attach itself to a widget
 )
@@ -226,11 +226,12 @@ def saveWidgetAsDict(widgetName) -> dict:
             elif geomManager == "Pack":
                 pi = w.pack_info()
                 geomData = {
-                    "side": str(pi.get("side", "top")),
-                    "fill": str(pi.get("fill", "none")),
+                    "side":   str(pi.get("side",   "top")),
+                    "fill":   str(pi.get("fill",   "none")),
                     "expand": str(pi.get("expand", 0)),
-                    "padx": str(pi.get("padx", 2)),
-                    "pady": str(pi.get("pady", 2)),
+                    "padx":   str(pi.get("padx",   2)),
+                    "pady":   str(pi.get("pady",   2)),
+                    "anchor": str(pi.get("anchor", "center")),
                 }
         except tk.TclError:
             pass
