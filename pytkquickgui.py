@@ -42,6 +42,9 @@ geomWidgetFrame = None
 # _gridOverlayCanvas: transparent tk.Canvas placed *inside* geomWidgetFrame
 # so grid guide-lines are drawn on top of the frame background but below widgets.
 _gridOverlayCanvas = None
+# Grid divider drag state: (axis, index, start_pixel, original_minsize)
+# axis: "col" or "row";  index: column or row index being dragged
+_grid_drag_state: dict = {}
 log = logging.getLogger(name="mylogger")
 
 
@@ -1124,6 +1127,13 @@ def loadProject(project, altFileName):
                 continue
             w = cw.createWidget(_load_parent, widget)
 
+            # In Grid mode, container widgets need their own row/column
+            # configuration so child widgets can be reparented into them.
+            if myVars.geomManager == "Grid":
+                wn = wDict.get("WidgetName", "")
+                if wn in myVars.containerWidgetsUsed:
+                    _configure_container_grid(widget)
+
             mgr = myVars.geomManager
             if mgr == "Place":
                 place = wDict.get("Place") or {}
@@ -1748,8 +1758,242 @@ def _make_grid_overlay(frame: tboot.Frame) -> tk.Canvas:  # type: ignore[name-de
     tk.Misc.lower(oc)
     # Right-clicks on the overlay canvas must still open the widget-creation menu
     oc.bind("<Button-3>", rightMouseDown)
+    oc.bind("<Button-1>",        _grid_overlay_btn1)
+    oc.bind("<B1-Motion>",       _grid_overlay_drag)
+    oc.bind("<ButtonRelease-1>", _grid_overlay_release)
     _gridOverlayCanvas = oc
     return oc
+
+
+# ---------------------------------------------------------------------------
+# Grid overlay interaction helpers
+# ---------------------------------------------------------------------------
+# Visual constants for the overlay
+_HANDLE_HALF  = 5   # px — half-size of the draggable handle square on each divider
+_ADD_RADIUS   = 7   # px — radius of the "+" add-column/row circle
+_ADD_MARGIN   = 14  # px — how far from the edge the "+" circles sit
+
+
+def _grid_collect_lines(frame, oc_w, oc_h):
+    """Return (col_xs_sorted, row_ys_sorted) from grid_bbox, capped to overlay size."""
+    col_xs = {0}
+    col = 0
+    while col <= 64:
+        try:
+            bbox = frame.grid_bbox(col, 0)
+        except tk.TclError:
+            break
+        if bbox is None:
+            break
+        x, _y, w, _h = bbox
+        if x >= oc_w:
+            break
+        col_xs.add(x)
+        if w > 0:
+            col_xs.add(min(x + w, oc_w))
+        col += 1
+
+    row_ys = {0}
+    row = 0
+    while row <= 64:
+        try:
+            bbox = frame.grid_bbox(0, row)
+        except tk.TclError:
+            break
+        if bbox is None:
+            break
+        _x, y, _w, h = bbox
+        if y >= oc_h:
+            break
+        row_ys.add(y)
+        if h > 0:
+            row_ys.add(min(y + h, oc_h))
+        row += 1
+
+    return sorted(col_xs), sorted(row_ys)
+
+
+def _grid_overlay_btn1(event):
+    """Handle left-click on the grid overlay canvas.
+
+    • Clicking a "+" add-column circle  → insert a new column at that position
+    • Clicking a "+" add-row circle     → insert a new row at that position
+    • Clicking a divider handle         → start a drag to resize that column/row
+    """
+    global _grid_drag_state
+    if geomWidgetFrame is None:
+        return
+    oc = _gridOverlayCanvas
+    if oc is None:
+        return
+    oc_w = oc.winfo_width()
+    oc_h = oc.winfo_height()
+    col_xs, row_ys = _grid_collect_lines(geomWidgetFrame, oc_w, oc_h)
+    ex, ey = event.x, event.y
+
+    # --- Check "+" add-column circles (drawn at top, centred on each divider x) ---
+    for i, gx in enumerate(col_xs[1:], 1):   # skip x=0 boundary
+        cx, cy = gx, _ADD_MARGIN
+        if abs(ex - cx) <= _ADD_RADIUS + 2 and abs(ey - cy) <= _ADD_RADIUS + 2:
+            # Insert a new column AFTER index (i-1) by pushing minsize up
+            _grid_insert_col(i - 1)
+            return
+
+    # --- Check "+" add-row circles (drawn at left, centred on each divider y) ---
+    for i, gy in enumerate(row_ys[1:], 1):
+        cx, cy = _ADD_MARGIN, gy
+        if abs(ex - cx) <= _ADD_RADIUS + 2 and abs(ey - cy) <= _ADD_RADIUS + 2:
+            _grid_insert_row(i - 1)
+            return
+
+    # --- Check draggable divider handles on interior col lines ---
+    for i, gx in enumerate(col_xs[1:-1], 1):   # skip first and last boundary
+        if abs(ex - gx) <= _HANDLE_HALF + 2:
+            # Determine which column index this right-hand boundary belongs to
+            col_idx = i - 1
+            try:
+                bbox = geomWidgetFrame.grid_bbox(col_idx, 0)
+                orig_size = bbox[2] if bbox else 60
+            except tk.TclError:
+                orig_size = 60
+            _grid_drag_state = {
+                "axis":      "col",
+                "index":     col_idx,
+                "start_px":  ex,
+                "orig_size": orig_size,
+            }
+            oc.configure(cursor="sb_h_double_arrow")
+            return
+
+    # --- Check draggable divider handles on interior row lines ---
+    for i, gy in enumerate(row_ys[1:-1], 1):
+        if abs(ey - gy) <= _HANDLE_HALF + 2:
+            row_idx = i - 1
+            try:
+                bbox = geomWidgetFrame.grid_bbox(0, row_idx)
+                orig_size = bbox[3] if bbox else 30
+            except tk.TclError:
+                orig_size = 30
+            _grid_drag_state = {
+                "axis":      "row",
+                "index":     row_idx,
+                "start_px":  ey,
+                "orig_size": orig_size,
+            }
+            oc.configure(cursor="sb_v_double_arrow")
+            return
+
+
+def _grid_overlay_drag(event):
+    """Resize a column or row while the user drags a divider handle."""
+    if not _grid_drag_state or geomWidgetFrame is None:
+        return
+    axis      = _grid_drag_state.get("axis")
+    idx       = _grid_drag_state.get("index")
+    start_px  = _grid_drag_state.get("start_px", 0)
+    orig_size = _grid_drag_state.get("orig_size", 40)
+
+    if axis == "col":
+        delta     = event.x - start_px
+        new_size  = max(20, orig_size + delta)
+        geomWidgetFrame.columnconfigure(idx, minsize=new_size, weight=1)
+    elif axis == "row":
+        delta     = event.y - start_px
+        new_size  = max(12, orig_size + delta)
+        geomWidgetFrame.rowconfigure(idx, minsize=new_size, weight=1)
+
+    geomWidgetFrame.update_idletasks()
+    drawGridLines()
+
+
+def _grid_overlay_release(_event):
+    """Finish a divider drag and restore the cursor."""
+    global _grid_drag_state
+    _grid_drag_state = {}
+    if _gridOverlayCanvas is not None:
+        try:
+            _gridOverlayCanvas.configure(cursor="")
+        except tk.TclError:
+            pass
+    drawGridLines()
+
+
+def _grid_insert_col(after_col: int):
+    """Insert a new column after *after_col* by splitting its minsize in two."""
+    if geomWidgetFrame is None:
+        return
+    # Find current minsize of the column being split
+    try:
+        bbox = geomWidgetFrame.grid_bbox(after_col, 0)
+        cur_size = bbox[2] if bbox else 60
+    except tk.TclError:
+        cur_size = 60
+    half = max(20, cur_size // 2)
+
+    # How many columns currently exist?
+    n_cols = 0
+    while True:
+        try:
+            b = geomWidgetFrame.grid_bbox(n_cols, 0)
+            if b is None:
+                break
+        except tk.TclError:
+            break
+        n_cols += 1
+    n_cols = max(n_cols, after_col + 2)
+
+    # Shift all columns after the insertion point right by one
+    for c in range(n_cols, after_col, -1):
+        try:
+            src = geomWidgetFrame.grid_bbox(c - 1, 0)
+            src_size = src[2] if src else 60
+        except tk.TclError:
+            src_size = 60
+        geomWidgetFrame.columnconfigure(c, minsize=src_size, weight=1)
+
+    # Resize the split column and the new one
+    geomWidgetFrame.columnconfigure(after_col,     minsize=half, weight=1)
+    geomWidgetFrame.columnconfigure(after_col + 1, minsize=half, weight=1)
+
+    geomWidgetFrame.update_idletasks()
+    drawGridLines()
+
+
+def _grid_insert_row(after_row: int):
+    """Insert a new row after *after_row* by splitting its minsize in two."""
+    if geomWidgetFrame is None:
+        return
+    try:
+        bbox = geomWidgetFrame.grid_bbox(0, after_row)
+        cur_size = bbox[3] if bbox else 30
+    except tk.TclError:
+        cur_size = 30
+    half = max(12, cur_size // 2)
+
+    n_rows = 0
+    while True:
+        try:
+            b = geomWidgetFrame.grid_bbox(0, n_rows)
+            if b is None:
+                break
+        except tk.TclError:
+            break
+        n_rows += 1
+    n_rows = max(n_rows, after_row + 2)
+
+    for r in range(n_rows, after_row, -1):
+        try:
+            src = geomWidgetFrame.grid_bbox(0, r - 1)
+            src_size = src[3] if src else 30
+        except tk.TclError:
+            src_size = 30
+        geomWidgetFrame.rowconfigure(r, minsize=src_size, weight=1)
+
+    geomWidgetFrame.rowconfigure(after_row,     minsize=half, weight=1)
+    geomWidgetFrame.rowconfigure(after_row + 1, minsize=half, weight=1)
+
+    geomWidgetFrame.update_idletasks()
+    drawGridLines()
 
 
 def drawGridLines():
@@ -1757,7 +2001,8 @@ def drawGridLines():
 
     Lines are drawn on:
       Place mode  – mainCanvas (dot grid, faint grey, snapTo spacing)
-      Grid mode   – _gridOverlayCanvas inside geomWidgetFrame (thin grey lines)
+      Grid mode   – _gridOverlayCanvas inside geomWidgetFrame (thin grey lines
+                    with draggable resize handles and +add buttons)
       Pack mode   – nothing (Pack stacks automatically)
     """
     mainCanvas.update()
@@ -1804,65 +2049,25 @@ def drawGridLines():
 
         oc.delete("gridline")
 
-        line_color = "#c0c0c0"
-        label_color = "#a0a0a0"
+        line_color   = "#c0c0c0"
+        label_color  = "#a0a0a0"
+        handle_color = "#7090c0"   # blue-grey handles on interior dividers
+        add_color    = "#50b050"   # green "+" add buttons
 
-        # Collect unique column-boundary x-positions from grid_bbox
-        col_xs = set()
-        col_xs.add(0)
-        col = 0
-        while True:
-            try:
-                bbox = geomWidgetFrame.grid_bbox(col, 0)
-            except tk.TclError:
-                break
-            if bbox is None:
-                break
-            x, _y, w, _h = bbox
-            if x >= oc_w:
-                break
-            col_xs.add(x)
-            if w > 0:
-                col_xs.add(min(x + w, oc_w))
-            col += 1
-            if col > 64:
-                break
+        col_xs, row_ys = _grid_collect_lines(geomWidgetFrame, oc_w, oc_h)
 
-        # Collect unique row-boundary y-positions from grid_bbox
-        row_ys = set()
-        row_ys.add(0)
-        row = 0
-        while True:
-            try:
-                bbox = geomWidgetFrame.grid_bbox(0, row)
-            except tk.TclError:
-                break
-            if bbox is None:
-                break
-            _x, y, _w, h = bbox
-            if y >= oc_h:
-                break
-            row_ys.add(y)
-            if h > 0:
-                row_ys.add(min(y + h, oc_h))
-            row += 1
-            if row > 64:
-                break
-
-        # Draw vertical column-boundary lines
-        for gx in sorted(col_xs):
+        # --- Draw vertical column-boundary lines ---
+        for gx in col_xs:
             oc.create_line(gx, 0, gx, oc_h, fill=line_color, width=1, tags="gridline")
 
-        # Draw horizontal row-boundary lines
-        for gy in sorted(row_ys):
+        # --- Draw horizontal row-boundary lines ---
+        for gy in row_ys:
             oc.create_line(0, gy, oc_w, gy, fill=line_color, width=1, tags="gridline")
 
-        # Column index labels just inside each column's left edge
-        col_xs_sorted = sorted(col_xs)
-        for i, gx in enumerate(col_xs_sorted[:-1]):
+        # --- Column index labels just inside each column's left edge ---
+        for i, gx in enumerate(col_xs[:-1]):
             oc.create_text(
-                gx + 3,
-                3,
+                gx + 3, 3,
                 text=str(i),
                 anchor="nw",
                 fill=label_color,
@@ -1870,23 +2075,87 @@ def drawGridLines():
                 tags="gridline",
             )
 
-        # Row index labels just below each row's top edge
-        row_ys_sorted = sorted(row_ys)
-        for i, gy in enumerate(row_ys_sorted[:-1]):
+        # --- Row index labels just below each row's top edge ---
+        for i, gy in enumerate(row_ys[:-1]):
             oc.create_text(
-                3,
-                gy + 3,
+                3, gy + 3,
                 text=str(i),
                 anchor="nw",
                 fill=label_color,
                 font=("TkDefaultFont", 7),
                 tags="gridline",
             )
+
+        # --- Draggable resize handles: small rectangles on interior col dividers ---
+        # (skip index 0 = left edge and last = right edge)
+        mid_y = oc_h // 2
+        for gx in col_xs[1:-1]:
+            hx1, hx2 = gx - _HANDLE_HALF, gx + _HANDLE_HALF
+            hy1, hy2 = mid_y - _HANDLE_HALF, mid_y + _HANDLE_HALF
+            oc.create_rectangle(
+                hx1, hy1, hx2, hy2,
+                fill=handle_color, outline="white", width=1,
+                tags="gridline",
+            )
+
+        # --- Draggable resize handles: small rectangles on interior row dividers ---
+        mid_x = oc_w // 2
+        for gy in row_ys[1:-1]:
+            hx1, hx2 = mid_x - _HANDLE_HALF, mid_x + _HANDLE_HALF
+            hy1, hy2 = gy - _HANDLE_HALF, gy + _HANDLE_HALF
+            oc.create_rectangle(
+                hx1, hy1, hx2, hy2,
+                fill=handle_color, outline="white", width=1,
+                tags="gridline",
+            )
+
+        # --- "+" add-column circles: centred on each interior col divider at top ---
+        for gx in col_xs[1:-1]:
+            cx, cy = gx, _ADD_MARGIN
+            r = _ADD_RADIUS
+            oc.create_oval(
+                cx - r, cy - r, cx + r, cy + r,
+                fill=add_color, outline="white", width=1,
+                tags="gridline",
+            )
+            oc.create_text(cx, cy, text="+", fill="white",
+                           font=("TkDefaultFont", 8, "bold"), tags="gridline")
+
+        # --- "+" add-row circles: centred on each interior row divider at left ---
+        for gy in row_ys[1:-1]:
+            cx, cy = _ADD_MARGIN, gy
+            r = _ADD_RADIUS
+            oc.create_oval(
+                cx - r, cy - r, cx + r, cy + r,
+                fill=add_color, outline="white", width=1,
+                tags="gridline",
+            )
+            oc.create_text(cx, cy, text="+", fill="white",
+                           font=("TkDefaultFont", 8, "bold"), tags="gridline")
 
 
 def sizeGripRelease(event):
     log.debug(event)
     drawGridLines()
+
+
+# ---- Grid layout: number of rows/columns pre-configured in each container ----
+_CONTAINER_GRID_COLS = 16
+_CONTAINER_GRID_ROWS = 16
+
+
+def _configure_container_grid(widget):
+    """Give a container widget its own internal grid so child widgets can
+    be reparented into it using Grid layout.
+
+    Called whenever a Frame / Labelframe / Panedwindow is created in Grid mode.
+    Without this, grid(in_=container) raises a TclError because the container
+    has no column/row configuration.
+    """
+    for c in range(_CONTAINER_GRID_COLS):
+        widget.columnconfigure(c, weight=1, minsize=40)
+    for r in range(_CONTAINER_GRID_ROWS):
+        widget.rowconfigure(r, weight=1, minsize=24)
 
 
 def _placeNewWidget(w, x: int, y: int, width: int = 72, height: int = 32) -> None:
@@ -1959,6 +2228,8 @@ def createWidgetPopup(event, widgetName):
     # ---- Container widgets -------------------------------------------
     if widgetName == "Frame":
         w = tboot.Frame(_parent, cursor=defaultCursor, style=defaultStyle)
+        if myVars.geomManager == "Grid":
+            _configure_container_grid(w)
     elif widgetName == "Labelframe":
         w = tboot.Labelframe(
             _parent,
@@ -1969,8 +2240,12 @@ def createWidgetPopup(event, widgetName):
             cursor=defaultCursor,
             style=defaultStyle,
         )
+        if myVars.geomManager == "Grid":
+            _configure_container_grid(w)
     elif widgetName == "Panedwindow":
         w = tboot.Panedwindow(_parent, cursor=defaultCursor, style=defaultStyle)
+        if myVars.geomManager == "Grid":
+            _configure_container_grid(w)
     # ---- ttkbootstrap widgets ----------------------------------------
     elif widgetName == "Label":
         w = tboot.Label(

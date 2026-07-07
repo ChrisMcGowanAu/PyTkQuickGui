@@ -153,14 +153,41 @@ def deleteWidgetFromLists(pythonName, widget):
 
 
 def changeParentOfTo(widget, newParentWidget):
-    widget.place(in_=newParentWidget)
+    """Re-parent *widget* into *newParentWidget* using the active geometry manager."""
+    mgr = myVars.geomManager
+    if mgr == "Grid":
+        # Preserve grid position if already gridded, else start at 0,0
+        try:
+            gi = widget.grid_info()
+            row = int(gi.get("row", 0))
+            col = int(gi.get("column", 0))
+        except (tk.TclError, TypeError):
+            row, col = 0, 0
+        # Look up cwo for span/sticky
+        py_name = findPythonWidgetNameFromWidget(widget)
+        cwo = findCreateWidgetObject(py_name) if py_name else None
+        col_span = cwo.columnspan if cwo is not None else 2
+        row_span = cwo.rowspan    if cwo is not None else 2
+        sticky   = cwo.sticky    if cwo is not None else "nsew"
+        widget.grid(
+            in_=newParentWidget,
+            row=row, column=col,
+            columnspan=col_span, rowspan=row_span,
+            padx=2, pady=2, sticky=sticky,
+        )
+        if cwo is not None:
+            cwo.col = col
+            cwo.row = row
+    elif mgr == "Pack":
+        widget.pack(in_=newParentWidget, padx=4, pady=4, anchor="nw")
+    else:
+        # Place mode (default)
+        widget.place(in_=newParentWidget)
     pythonName = findPythonWidgetNameFromWidget(widget)
     if pythonName is None:
         return
     reparentWidget(pythonName, newParentWidget)
     widget.parent = newParentWidget
-    # This might be the cause of the parent not clipping the child
-    # .... need more info
     tk.Misc.lift(widget, aboveThis=None)
     widget.update()
     newParentWidget.update()
@@ -372,17 +399,24 @@ class createWidget:
         return self.root
 
     def reParent(self, parentWidget):
-        name0 = self.widget.widgetName
-        place = self.widget.place_info()
+        """Re-parent this widget.
+
+        In Place mode the widget is also auto-contained into whichever sibling
+        it physically overlaps.  In Grid/Pack mode we just do a straight
+        reparent into the root (or the supplied parentWidget) because
+        containment is controlled by the user through drag-and-drop.
+        """
         # Record old parent name before reparenting
         nl = findPythonWidgetNameList(self.pythonName)
         old_parent_name = nl[PARENT] if nl else myVars.rootWidgetName
+
         if parentWidget is not None:
             changeParentOfTo(self.widget, parentWidget)
         else:
             changeParentOfTo(self.widget, self.root)
             parentWidget = self.root
-        # Determine new parent name after reparenting
+
+        # Record undo
         nl2 = findPythonWidgetNameList(self.pythonName)
         new_parent_name = nl2[PARENT] if nl2 else myVars.rootWidgetName
         if old_parent_name != new_parent_name:
@@ -391,33 +425,52 @@ class createWidget:
                     self, old_parent_name, new_parent_name, self.root
                 )
             )
-        x1 = int(place.get("x"))
-        y1 = int(place.get("y"))
-        w = int(place.get("width"))
-        h = int(place.get("height"))
+
+        # Place mode only: auto-contain into the first sibling that encloses us.
+        if myVars.geomManager != "Place":
+            return
+
+        place = self.widget.place_info()
+        x_str = place.get("x")
+        y_str = place.get("y")
+        w_str = place.get("width")
+        h_str = place.get("height")
+        if None in (x_str, y_str, w_str, h_str):
+            # Widget is not placed yet — nothing to auto-contain
+            return
+        try:
+            x1 = int(x_str)
+            y1 = int(y_str)
+            w = int(w_str)
+            h = int(h_str)
+        except (ValueError, TypeError) as e:
+            log.warning("reParent: could not parse place_info: %s", e)
+            return
         x2 = x1 + w
         y2 = y1 + h
-        for w in createWidget.widgetList:
-            if w is not None and w != self.widget:
-                name = w.widgetName
-                place = w.place_info()
-                wx1 = int(place.get("x"))
-                wy1 = int(place.get("y"))
-                try:
-                    width = int(place.get("width"))
-                    height = int(place.get("height"))
-                except ValueError as e:
-                    log.error(e)
-                    width = 10
-                    height = 10
-                wx2 = wx1 + width
-                wy2 = wy1 + height
-                if x1 >= wx1 and y1 >= wy1 and x2 <= wx2 and y2 <= wy2:
-                    log.debug("Match Name %s fits inside %s", name0, name)
-                    newX = x1 - wx1
-                    newY = y1 - wy1
-                    changeParentOfTo(self.widget, w)
-                    self.widget.place(x=newX, y=newY)
+        name0 = self.widget.widgetName
+        for sib in createWidget.widgetList:
+            if sib is None or sib is self.widget:
+                continue
+            sib_place = sib.place_info()
+            wx_str = sib_place.get("x")
+            wy_str = sib_place.get("y")
+            if wx_str is None or wy_str is None:
+                continue
+            try:
+                wx1 = int(wx_str)
+                wy1 = int(wy_str)
+                width  = int(sib_place.get("width",  10))
+                height = int(sib_place.get("height", 10))
+            except (ValueError, TypeError) as e:
+                log.error("reParent sibling parse error: %s", e)
+                continue
+            wx2 = wx1 + width
+            wy2 = wy1 + height
+            if x1 >= wx1 and y1 >= wy1 and x2 <= wx2 and y2 <= wy2:
+                log.debug("Match Name %s fits inside %s", name0, sib.widgetName)
+                changeParentOfTo(self.widget, sib)
+                self.widget.place(x=x1 - wx1, y=y1 - wy1)
 
     def clone(self, offsetx, offsety):
         mainFrame = self.root
