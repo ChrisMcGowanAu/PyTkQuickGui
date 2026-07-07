@@ -16,9 +16,10 @@ from typing import Any
 import coloredlogs
 import tkfontchooser as tkfc
 import ttkbootstrap as tboot
-from ttkbootstrap.dialogs import Messagebox, Querybox
 from ttkbootstrap.constants import *
+from ttkbootstrap.dialogs import Messagebox, Querybox
 from ttkbootstrap.widgets.scrolled import ScrolledFrame, ScrolledText
+
 import cdefs as C
 import createWidget as cw
 import pytkguivars as myVars
@@ -560,11 +561,11 @@ def buildPython() -> str:
                     f" sticky='{sticky}', padx={padx}, pady={pady})"
                 )
             elif myVars.geomManager == "Pack":
-                side   = geomData.get("side",   "top")
-                fill   = geomData.get("fill",   "none")
+                side = geomData.get("side", "top")
+                fill = geomData.get("fill", "none")
                 expand = geomData.get("expand", "0")
-                padx   = geomData.get("padx",   "2")
-                pady   = geomData.get("pady",   "2")
+                padx = geomData.get("padx", "2")
+                pady = geomData.get("pady", "2")
                 anchor = geomData.get("anchor", "center")
                 print(
                     f"{widgetName}.pack(side='{side}', fill='{fill}',"
@@ -708,12 +709,17 @@ def changeParentOfTo(widgetName, parentName):
         # Read current cwo values so we preserve span/sticky from last edit
         cwo_r = cw.findCreateWidgetObject(widgetName)
         col_span = cwo_r.columnspan if cwo_r is not None else 2
-        row_span = cwo_r.rowspan    if cwo_r is not None else 2
-        sticky_r = cwo_r.sticky    if cwo_r is not None else "nsew"
+        row_span = cwo_r.rowspan if cwo_r is not None else 2
+        sticky_r = cwo_r.sticky if cwo_r is not None else "nsew"
         widget.grid(
-            in_=parent, row=row, column=col,
-            columnspan=col_span, rowspan=row_span,
-            padx=2, pady=2, sticky=sticky_r,
+            in_=parent,
+            row=row,
+            column=col,
+            columnspan=col_span,
+            rowspan=row_span,
+            padx=2,
+            pady=2,
+            sticky=sticky_r,
         )
         if cwo_r is not None:
             cwo_r.col = col
@@ -1007,7 +1013,7 @@ def loadProject(project, altFileName):
             )
         log.info("Load Project ->%s<-", folder)
         if folder != configPath:
-            myVars.projectName = os.path.basename(folder)
+            myVars.projectName = os.path.basename(str(folder))
             myVars.projectPath = folder
             log.info(
                 "Load Project ->%s<- ->%s<-", myVars.projectPath, myVars.projectName
@@ -1157,20 +1163,26 @@ def loadProject(project, altFileName):
                 )
             elif mgr == "Pack":
                 geomData = wDict.get("GeomData") or {}
-                side   = geomData.get("side",   "top")
-                fill   = geomData.get("fill",   "none")
+                side = geomData.get("side", "top")
+                fill = geomData.get("fill", "none")
                 expand = int(geomData.get("expand", 0))
-                padx   = int(geomData.get("padx", 4))
-                pady   = int(geomData.get("pady", 4))
+                padx = int(geomData.get("padx", 4))
+                pady = int(geomData.get("pady", 4))
                 anchor = geomData.get("anchor", "center")
-                w.pack_side   = side
-                w.pack_fill   = fill
+                w.pack_side = side
+                w.pack_fill = fill
                 w.pack_expand = expand
-                w.pack_padx   = padx
-                w.pack_pady   = pady
+                w.pack_padx = padx
+                w.pack_pady = pady
                 w.pack_anchor = anchor
-                w.widget.pack(side=side, fill=fill, expand=expand,
-                              padx=padx, pady=pady, anchor=anchor)
+                w.widget.pack(
+                    side=side,
+                    fill=fill,
+                    expand=expand,
+                    padx=padx,
+                    pady=pady,
+                    anchor=anchor,
+                )
             else:
                 log.error("Geometry Manager %s unknown", mgr)
         n += 1
@@ -1897,19 +1909,26 @@ def _placeNewWidget(w, x: int, y: int, width: int = 72, height: int = 32) -> Non
         col_span = 2
         row_span = 2
         new_sticky = "nsew"
-        w.grid(in_=parent, row=row, column=col,
-               columnspan=col_span, rowspan=row_span,
-               padx=2, pady=2, sticky=new_sticky)
+        w.grid(
+            in_=parent,
+            row=row,
+            column=col,
+            columnspan=col_span,
+            rowspan=row_span,
+            padx=2,
+            pady=2,
+            sticky=new_sticky,
+        )
         # Sync the authoritative cwo fields so drags and popups see the defaults.
         cwo = cw.findCreateWidgetObject(
             w.pythonName if hasattr(w, "pythonName") else ""
         )
         if cwo is not None:
-            cwo.col        = col
-            cwo.row        = row
+            cwo.col = col
+            cwo.row = row
             cwo.columnspan = col_span
-            cwo.rowspan    = row_span
-            cwo.sticky     = new_sticky
+            cwo.rowspan = row_span
+            cwo.sticky = new_sticky
         # Re-lower the overlay canvas so it stays behind the new widget
         if _gridOverlayCanvas is not None:
             try:
@@ -1964,7 +1983,7 @@ def createWidgetPopup(event, widgetName):
             style=defaultStyle,
         )
     elif widgetName == "ScrolledText":
-        w = ScrolledText(_parent, padding=5, height=20 ,autohide=True)
+        w = ScrolledText(_parent, padding=5, height=20, autohide=True)
     elif widgetName == "ScrolledFrame":
         w = ScrolledFrame(_parent, padding=5, height=20, autohide=True)
     elif widgetName == "Button":
@@ -1986,16 +2005,23 @@ def createWidgetPopup(event, widgetName):
         # Each Checkbutton needs its own IntVar so it renders and saves correctly.
         _cbv = tk.IntVar(rootWin, 0)
         w = tboot.Checkbutton(
-            _parent, text=widgetName, cursor=defaultCursor, style=defaultStyle,
+            _parent,
+            text=widgetName,
+            cursor=defaultCursor,
+            style=defaultStyle,
             variable=_cbv,
         )
-        w._tkvar = _cbv   # keep a reference so the var isn't garbage-collected
+        w._tkvar = _cbv  # keep a reference so the var isn't garbage-collected
     elif widgetName == "Radiobutton":
         # Each Radiobutton group shares a variable; give each a unique default.
         _rbv = tk.IntVar(rootWin, 0)
         w = tboot.Radiobutton(
-            _parent, text=widgetName, cursor=defaultCursor, style=defaultStyle,
-            variable=_rbv, value=0,
+            _parent,
+            text=widgetName,
+            cursor=defaultCursor,
+            style=defaultStyle,
+            variable=_rbv,
+            value=0,
         )
         w._tkvar = _rbv
     elif widgetName == "Scale":
@@ -2295,7 +2321,8 @@ if __name__ == "__main__":
     try:
         arg1 = sys.argv[1]
     except IndexError:
-        arg1 = "warn"
+        # arg1 = "warn"
+        arg1 = "info"
 
     if arg1 == "info":
         coloredlogs.set_level(logging.INFO)

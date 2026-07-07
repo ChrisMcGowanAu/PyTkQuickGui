@@ -226,11 +226,11 @@ def saveWidgetAsDict(widgetName) -> dict:
             elif geomManager == "Pack":
                 pi = w.pack_info()
                 geomData = {
-                    "side":   str(pi.get("side",   "top")),
-                    "fill":   str(pi.get("fill",   "none")),
+                    "side": str(pi.get("side", "top")),
+                    "fill": str(pi.get("fill", "none")),
                     "expand": str(pi.get("expand", 0)),
-                    "padx":   str(pi.get("padx",   2)),
-                    "pady":   str(pi.get("pady",   2)),
+                    "padx": str(pi.get("padx", 2)),
+                    "pady": str(pi.get("pady", 2)),
                     "anchor": str(pi.get("anchor", "center")),
                 }
         except tk.TclError:
