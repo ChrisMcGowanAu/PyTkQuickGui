@@ -1775,10 +1775,18 @@ _ADD_MARGIN   = 14  # px — how far from the edge the "+" circles sit
 
 
 def _grid_collect_lines(frame, oc_w, oc_h):
-    """Return (col_xs_sorted, row_ys_sorted) from grid_bbox, capped to overlay size."""
+    """Return (col_xs_sorted, row_ys_sorted) from grid_bbox, capped to overlay size.
+
+    Uses grid_size() to get the configured column/row count so we never loop
+    more times than the grid actually has cells.
+    """
+    try:
+        n_cols, n_rows = frame.grid_size()
+    except tk.TclError:
+        n_cols, n_rows = 0, 0
+
     col_xs = {0}
-    col = 0
-    while col <= 64:
+    for col in range(n_cols):
         try:
             bbox = frame.grid_bbox(col, 0)
         except tk.TclError:
@@ -1791,11 +1799,9 @@ def _grid_collect_lines(frame, oc_w, oc_h):
         col_xs.add(x)
         if w > 0:
             col_xs.add(min(x + w, oc_w))
-        col += 1
 
     row_ys = {0}
-    row = 0
-    while row <= 64:
+    for row in range(n_rows):
         try:
             bbox = frame.grid_bbox(0, row)
         except tk.TclError:
@@ -1808,7 +1814,6 @@ def _grid_collect_lines(frame, oc_w, oc_h):
         row_ys.add(y)
         if h > 0:
             row_ys.add(min(y + h, oc_h))
-        row += 1
 
     return sorted(col_xs), sorted(row_ys)
 
@@ -1923,7 +1928,7 @@ def _grid_insert_col(after_col: int):
     """Insert a new column after *after_col* by splitting its minsize in two."""
     if geomWidgetFrame is None:
         return
-    # Find current minsize of the column being split
+    # Find current pixel width of the column being split via grid_bbox
     try:
         bbox = geomWidgetFrame.grid_bbox(after_col, 0)
         cur_size = bbox[2] if bbox else 60
@@ -1931,33 +1936,26 @@ def _grid_insert_col(after_col: int):
         cur_size = 60
     half = max(20, cur_size // 2)
 
-    # How many columns currently exist?
-    n_cols = 0
-    while True:
-        # Gets into an infinite loop here.....
-        if n_cols > 1000:  # Sanity check
-            log.error("n_cols too big ? n_cols=%d makeing it 5", n_cols)
-            n_cols = 5
-            break
-        try:
-            b = geomWidgetFrame.grid_bbox(n_cols, 0)
-            if b is None:
-                break
-        except tk.TclError:
-            break
-        n_cols += 1
+    # grid_size() returns (cols, rows) — the exact configured grid dimensions.
+    # This avoids polling grid_bbox() in a loop (which never returns None on a
+    # pre-configured frame and caused an infinite loop).
+    try:
+        n_cols, _ = geomWidgetFrame.grid_size()
+    except tk.TclError:
+        n_cols = _CONTAINER_GRID_COLS
     n_cols = max(n_cols, after_col + 2)
 
-    # Shift all columns after the insertion point right by one
+    # Shift all columns after the insertion point right by one, reading each
+    # column's current minsize from columnconfigure before overwriting it.
     for c in range(n_cols, after_col, -1):
         try:
-            src = geomWidgetFrame.grid_bbox(c - 1, 0)
-            src_size = src[2] if src else 60
-        except tk.TclError:
+            info = geomWidgetFrame.columnconfigure(c - 1)
+            src_size = int(info.get("minsize", 60))
+        except (tk.TclError, TypeError, ValueError):
             src_size = 60
         geomWidgetFrame.columnconfigure(c, minsize=src_size, weight=1)
 
-    # Resize the split column and the new one
+    # Resize the split column and the new insertion slot
     geomWidgetFrame.columnconfigure(after_col,     minsize=half, weight=1)
     geomWidgetFrame.columnconfigure(after_col + 1, minsize=half, weight=1)
 
@@ -1976,39 +1974,26 @@ def _grid_insert_row(after_row: int):
         cur_size = 30
     half = max(12, cur_size // 2)
 
-    n_rows = 0
-    while True:
-        try:
-            # Gets into an infinite loop here.....
-            if n_rows > 1000:  # Sanity check
-                log.error("n_rows too big ? n_rows=%d making it 5", n_rows)
-                n_rows = 5
-                break
-            b = geomWidgetFrame.grid_bbox(0, n_rows)
-            if b is None:
-                break
-        except tk.TclError:
-            break
-        n_rows += 1
+    # grid_size() returns (cols, rows) — exact configured dimensions, no loop needed.
+    try:
+        _, n_rows = geomWidgetFrame.grid_size()
+    except tk.TclError:
+        n_rows = _CONTAINER_GRID_ROWS
     n_rows = max(n_rows, after_row + 2)
 
     for r in range(n_rows, after_row, -1):
         try:
-            src = geomWidgetFrame.grid_bbox(0, r - 1)
-            src_size = src[3] if src else 30
-        except tk.TclError:
+            info = geomWidgetFrame.rowconfigure(r - 1)
+            src_size = int(info.get("minsize", 30))
+        except (tk.TclError, TypeError, ValueError):
             src_size = 30
         geomWidgetFrame.rowconfigure(r, minsize=src_size, weight=1)
 
-    log.info("n_rows=%d after_row=%d minsize=%d",n_rows,after_row,half)
     geomWidgetFrame.rowconfigure(after_row,     minsize=half, weight=1)
     geomWidgetFrame.rowconfigure(after_row + 1, minsize=half, weight=1)
 
-    log.info("Before update_idletasks")
     geomWidgetFrame.update_idletasks()
-    log.info("After update_idletasks")
     drawGridLines()
-    log.info("After drawGridLines")
 
 
 def drawGridLines():
