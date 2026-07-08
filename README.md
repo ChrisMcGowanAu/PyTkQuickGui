@@ -1,5 +1,7 @@
 # PyTkQuickGui
 
+Note: This is in active development. It is "alpha" code with quite a few knows glitches and errors. At this stage it is usefull enough to try out and do simple tasks.
+
 **A visual drag-and-drop GUI builder for Python / ttkbootstrap applications.**
 
 PyTkQuickGui lets you lay out tkinter widgets by dragging, resizing, and editing them on a live canvas, then generates a complete, ready-to-run Python file with all the boilerplate already written.  You fill in the business logic; PyTkQuickGui handles the widget creation and placement code.
