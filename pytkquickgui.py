@@ -25,11 +25,65 @@ import createWidget as cw
 import pytkguivars as myVars
 import undoredo
 
-# FontDialog does not work correctly.
-# from ttkbootstrap.dialogs.dialogs import FontDialog
+log = logging.getLogger(name="mylogger")
 
-# This will be from a project's default
-useTheme = "cyborg"
+def getConfigPath() -> str:
+    if "APPDATA" in os.environ:
+        confighome = os.environ["APPDATA"]
+    elif "XDG_CONFIG_HOME" in os.environ:
+        confighome = os.environ["XDG_CONFIG_HOME"]
+    else:
+        confighome = os.path.join(os.environ["HOME"], ".config")
+    configPath = os.path.join(confighome, myVars.programName)
+    if os.path.isdir(configPath):
+        log.debug("Config Path %s %s %s", configPath, confighome, myVars.programName)
+    else:
+        os.mkdir(configPath)
+        log.info("Creating configPath %s", configPath)
+    return configPath
+
+def getDefaultTheme() -> str:
+    theme = "cyborg"
+    configPath = getConfigPath()
+    log.info("configPath %s", configPath)
+    fileName = createFileName(configPath, None, myVars.defaultToolTheme)
+    log.info("fileName %s", fileName)
+    f = openFile(fileName, "r")
+    if f is not None:
+          theme = f.read()
+          f.close()
+    return theme
+
+def openFile(fileName, mode):
+    f: Any = None
+    try:
+        f = open(fileName, mode, encoding="utf8")
+    except FileNotFoundError as e:
+        log.warning("File not found %s exception %s", fileName, str(e))
+        # crap code ----f = open(fileName, "x", encoding="utf8")
+    return f
+
+def createFileName(sa, sb, sc) -> str:
+    fileName = ""
+    if sa is None:
+        s1 = ""
+    else:
+        s1 = sa.strip()
+    if sc is None:
+        s3 = ""
+    else:
+        s3 = sc.strip()
+    if sb is None:
+        fileName = s1 + "/" + s3
+    else:
+        s2 = sb.rstrip()
+        fileName = s1 + "/" + s2 + "/" + s3
+    # For the weirdness of Windows, does nothing in Mac,Linux,Unix
+    os.path.normcase(fileName)
+    return fileName
+
+# This will be from a project's defaultdict
+useTheme = getDefaultTheme()
 rootWin = tboot.Window(themename=useTheme, iconphoto="snake.png")
 rootWin.eval("tk::PlaceWindow . pointer")
 mainFrame = tboot.Frame()
@@ -45,7 +99,6 @@ _gridOverlayCanvas = None
 # Grid divider drag state: (axis, index, start_pixel, original_minsize)
 # axis: "col" or "row";  index: column or row index being dragged
 _grid_drag_state: dict = {}
-log = logging.getLogger(name="mylogger")
 
 
 def setTheme(theme: object):
@@ -68,34 +121,8 @@ def Merge(dict1, dict2) -> dict:
     return res
 
 
-def createFileName(sa, sb, sc) -> str:
-    fileName = ""
-    if sa is None:
-        s1 = ""
-    else:
-        s1 = sa.strip()
-    if sc is None:
-        s3 = ""
-    else:
-        s3 = sc.strip()
-    if sb is None:
-        fileName = s1 + "/" + s3
-    else:
-        s2 = sb.rstrip()
-        fileName = s1 + "/" + s2 + "/" + s3
-    # For the weirdness of Windows, does nothing in Mac,Linux,Unix
-    os.path.normcase(fileName)
-    return fileName
 
 
-def openFile(fileName, mode):
-    f: any
-    try:
-        f = open(fileName, mode, encoding="utf8")
-    except FileNotFoundError as e:
-        log.warning("File not found %s exception %s", fileName, str(e))
-        f = open(fileName, "x", encoding="utf8")
-    return f
 
 
 def createCleanNameList() -> list:
@@ -764,6 +791,21 @@ def setThemeColor():
                 log.error("%s raised exceptopn %s", w, e)
 
 
+
+
+def setDefaultToolTheme():
+    # Use the current theme as the tools default
+    configPath = getConfigPath()
+    log.info("configPath %s", configPath)
+    fileName = createFileName(configPath, None, myVars.defaultToolTheme)
+    log.info("fileName %s", fileName)
+    f = openFile(fileName, "w+")
+    if f is not None:
+        f.write(myVars.theme)
+        f.close()
+
+
+
 def setDefaultStyleFont():
     setDefaultFont("style")
 
@@ -909,21 +951,6 @@ def _askGeomManager() -> str:
     return result[0]
 
 
-def getConfigPath() -> str:
-    if "APPDATA" in os.environ:
-        confighome = os.environ["APPDATA"]
-    elif "XDG_CONFIG_HOME" in os.environ:
-        confighome = os.environ["XDG_CONFIG_HOME"]
-    else:
-        confighome = os.path.join(os.environ["HOME"], ".config")
-    configPath = os.path.join(confighome, myVars.programName)
-    if os.path.isdir(configPath):
-        log.debug("Config Path %s %s %s", configPath, confighome, myVars.programName)
-    else:
-        os.mkdir(configPath)
-        log.info("Creating configPath %s", configPath)
-
-    return configPath
 
 
 def closeProject():
@@ -1239,10 +1266,11 @@ def loadLastProject():
     fileName = createFileName(configPath, None, myVars.lastProjectFile)
     # f = C.fopen(fileName,"r")
     f = openFile(fileName, "r")
-    project = f.read()
-    f.close()
-    loadProject(project, None)
-    mainFrame.config(text=myVars.projectName)
+    if f is not None:
+        project = f.read()
+        f.close()
+        loadProject(project, None)
+        mainFrame.config(text=myVars.projectName)
 
 
 def loadProjectWrapper():
@@ -1696,6 +1724,7 @@ def buildMenu():
     toolsMenu = tboot.Menu(menuBar, tearoff=0)
     toolsMenu.add_command(label="Hide Label Borders", command=hideLabelBorders)
     toolsMenu.add_command(label="Show Label Borders", command=showLabelBorders)
+    toolsMenu.add_command(label="Set tools default Theme", command=setDefaultToolTheme)
     toolsMenu.add_command(label="Set default bootstyle type", command=setThemeColor)
     toolsMenu.add_command(label="Set default label font", command=setDefaultLabelFont)
     toolsMenu.add_command(label="Set default style font", command=setDefaultStyleFont)

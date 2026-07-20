@@ -45,6 +45,7 @@ projectFileName: str = "/tmp/pytkquickgui"
 fileType: str = ".json"
 legacyFileType: str = ".pk1"  # kept so old saves can still be opened
 lastProjectFile: str = "lastProject.txt"
+defaultToolTheme: str = "defaultTheme.txt"
 lastProjectSaved: str = ""
 projectSaved: bool = False
 # Path to the most-recently user-saved generated Python file.
@@ -66,7 +67,7 @@ widgetsUsed = (
     "Progressbar",
     # "Floodgauge",
     # "Meter",
-    "ScrolledText",
+    # "ScrolledText",  # Cannot get edit or layout
     # "ScrolledFrame", # Weird behaviour
     # Standard tk/ttk widgets
     "Canvas",
