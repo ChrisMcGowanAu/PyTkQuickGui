@@ -8,6 +8,7 @@ import re
 import shutil
 import sys
 import tkinter as tk
+import tkinter.ttk as ttk
 from collections import defaultdict
 from functools import partial
 from tkinter.colorchooser import askcolor
@@ -104,6 +105,9 @@ _gridOverlayCanvas = None
 # Grid divider drag state: (axis, index, start_pixel, original_minsize)
 # axis: "col" or "row";  index: column or row index being dragged
 _grid_drag_state: dict = {}
+# Re-entrancy guard: prevents drawGridLines() from triggering itself via
+# mainCanvas.update() → <Configure> → drawGridLines() → recursion.
+_drawing_grid_lines: bool = False
 
 
 def setTheme(theme: object):
@@ -605,6 +609,26 @@ def buildPython() -> str:
                 )
             else:
                 log.error("Unknown geometry manager %s", myVars.geomManager)
+    # For Grid mode the Place-coord accumulation above produces zeros/wrong
+    # values.  Use the actual geomWidgetFrame size instead.
+    if myVars.geomManager == "Grid" and geomWidgetFrame is not None:
+        try:
+            geomWidgetFrame.update_idletasks()
+            ncols, nrows = geomWidgetFrame.grid_size()
+            gw, gh = 0, 0
+            if ncols > 0 and nrows > 0:
+                # grid_bbox(col, row) → (x, y, w, h) of that cell
+                bbox = geomWidgetFrame.grid_bbox(ncols - 1, nrows - 1)
+                if bbox:
+                    gw = bbox[0] + bbox[2]   # x + width of last col
+                    gh = bbox[1] + bbox[3]   # y + height of last row
+            if gw > 100:
+                largestWidth = gw
+            if gh > 100:
+                largestHeight = gh
+        except (tk.TclError, ValueError) as _ge:
+            log.warning("Grid geometry estimation failed: %s", _ge)
+
     largestWidth += 20
     largestHeight += 20
     geom = str(largestWidth) + "x" + str(largestHeight)
@@ -920,13 +944,16 @@ def _askGeomManager() -> str:
     descriptions = {
         "Place": "Free-form drag & drop (absolute x/y)  ← recommended",
         "Grid": "Row / column grid layout",
-        "Pack": "TBD -- Stack widgets top-to-bottom or left-to-right",
+        "Pack": "Stack widgets top-to-bottom or left-to-right  (coming soon)",
     }
     chosen = tk.StringVar(value="Place")
     for mgr, desc in descriptions.items():
-        tboot.Radiobutton(
+        rb = tboot.Radiobutton(
             top, text=f"{mgr}  —  {desc}", variable=chosen, value=mgr
-        ).pack(anchor="w", padx=24, pady=2)
+        )
+        if mgr == "Pack":
+            rb.configure(state="disabled")
+        rb.pack(anchor="w", padx=24, pady=2)
 
     result = [""]
 
@@ -1678,6 +1705,17 @@ def _ungroupSelected():
         )
 
 
+def _changeLayoutManager() -> None:
+    """Menu command: let the user switch geometry manager on a blank canvas.
+
+    Delegates to setGeomManager() which already blocks the change if any
+    widgets exist and rebuilds the canvas when the canvas is empty.
+    """
+    mgr = _askGeomManager()
+    if mgr:
+        setGeomManager(mgr)
+
+
 def buildMenu():
     # global rootWin
     menuBar = tboot.Menu(rootWin)
@@ -1726,6 +1764,11 @@ def buildMenu():
     toolsMenu.add_command(label="Set default style font", command=setDefaultStyleFont)
     toolsMenu.add_command(label="Open backup file", command=openBackupFile)
     toolsMenu.add_command(label="Widget Tree", command=widgetTree)
+    toolsMenu.add_separator()
+    toolsMenu.add_command(
+        label="Change Layout Manager",
+        command=_changeLayoutManager,
+    )
 
     # ---- Edit menu (Undo / Redo) ----------------------------------------
     editMenu = tboot.Menu(menuBar, tearoff=0)
@@ -2030,6 +2073,18 @@ def drawGridLines():
                     with draggable resize handles and +add buttons)
       Pack mode   – nothing (Pack stacks automatically)
     """
+    global _drawing_grid_lines
+    if _drawing_grid_lines:
+        return  # Re-entrancy guard: update() can fire <Configure> → us again
+    _drawing_grid_lines = True
+    try:
+        _drawGridLines_impl()
+    finally:
+        _drawing_grid_lines = False
+
+
+def _drawGridLines_impl():
+    """Internal implementation called only from drawGridLines()."""
     mainCanvas.update()
     width = mainCanvas.winfo_width()
     height = mainCanvas.winfo_height()
@@ -2233,9 +2288,16 @@ def _placeNewWidget(w, x: int, y: int, width: int = 72, height: int = 32) -> Non
             cell = 60
             col = max(0, x // cell)
             row = max(0, y // cell)
-        # Default: span 2 columns and 2 rows, fill the cells completely.
-        col_span = 2
-        row_span = 2
+        # Determine whether this widget is a container (Frame / Labelframe /
+        # Panedwindow).  Containers get a 2×2 default span; leaf widgets get 1×1.
+        _wname = (
+            myVars.fixWidgetName(w.widgetName).lower()
+            if hasattr(w, "widgetName")
+            else ""
+        )
+        _is_container = _wname in ("frame", "labelframe", "panedwindow")
+        col_span = 2 if _is_container else 1
+        row_span = 2 if _is_container else 1
         new_sticky = "nsew"
         w.grid(
             in_=parent,
@@ -2416,6 +2478,26 @@ def createWidgetPopup(event, widgetName):
         w = tboot.Separator(_parent, orient=tk.HORIZONTAL, style=sep_style)
     elif widgetName == "Sizegrip":
         w = tboot.Sizegrip(_parent, style=defaultStyle)
+    # ---- Standard ttk widgets (no ttkbootstrap extras) ------------------
+    elif widgetName == "ttk.Scale":
+        w = ttk.Scale(_parent, orient=tk.HORIZONTAL, from_=0, to=100)
+    elif widgetName == "ttk.Treeview":
+        w = ttk.Treeview(_parent, columns=("col1",), show="headings")
+        w.heading("col1", text="Column 1")
+    elif widgetName == "ttk.Combobox":
+        w = ttk.Combobox(_parent, values=("option1", "option2"))
+    elif widgetName == "ttk.Spinbox":
+        w = ttk.Spinbox(_parent, from_=0, to=100)
+    elif widgetName == "ttk.Progressbar":
+        w = ttk.Progressbar(_parent, orient=tk.HORIZONTAL, value=50)
+    elif widgetName == "ttk.Separator":
+        w = ttk.Separator(_parent, orient=tk.HORIZONTAL)
+    elif widgetName == "ttk.Scrollbar":
+        w = ttk.Scrollbar(_parent, orient=tk.VERTICAL)
+    elif widgetName == "ttk.Notebook":
+        w = ttk.Notebook(_parent)
+    elif widgetName == "ttk.PanedWindow":
+        w = ttk.PanedWindow(_parent, orient=tk.HORIZONTAL)
     else:
         log.warning("Widget %s not implemented", widgetName)
         return
