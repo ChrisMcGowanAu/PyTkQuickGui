@@ -171,13 +171,17 @@ def changeParentOfTo(widget, newParentWidget):
         py_name = findPythonWidgetNameFromWidget(widget)
         cwo = findCreateWidgetObject(py_name) if py_name else None
         col_span = cwo.columnspan if cwo is not None else 2
-        row_span = cwo.rowspan    if cwo is not None else 2
-        sticky   = cwo.sticky    if cwo is not None else "nsew"
+        row_span = cwo.rowspan if cwo is not None else 2
+        sticky = cwo.sticky if cwo is not None else "nsew"
         widget.grid(
             in_=newParentWidget,
-            row=row, column=col,
-            columnspan=col_span, rowspan=row_span,
-            padx=2, pady=2, sticky=sticky,
+            row=row,
+            column=col,
+            columnspan=col_span,
+            rowspan=row_span,
+            padx=2,
+            pady=2,
+            sticky=sticky,
         )
         if cwo is not None:
             cwo.col = col
@@ -409,7 +413,7 @@ class createWidget:
         Used by reParent() in Grid/Pack mode to auto-detect the target parent
         when the user clicks Re-Parent without specifying one explicitly.
         """
-        cx = self.widget.winfo_rootx() + self.widget.winfo_width()  // 2
+        cx = self.widget.winfo_rootx() + self.widget.winfo_width() // 2
         cy = self.widget.winfo_rooty() + self.widget.winfo_height() // 2
         best = None
         best_area = float("inf")
@@ -514,7 +518,7 @@ class createWidget:
             try:
                 wx1 = int(wx_str)
                 wy1 = int(wy_str)
-                width  = int(sib_place.get("width",  10))
+                width = int(sib_place.get("width", 10))
                 height = int(sib_place.get("height", 10))
             except (ValueError, TypeError) as e:
                 log.error("reParent sibling parse error: %s", e)

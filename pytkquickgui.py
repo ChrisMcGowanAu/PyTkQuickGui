@@ -27,6 +27,7 @@ import undoredo
 
 log = logging.getLogger(name="mylogger")
 
+
 def getConfigPath() -> str:
     if "APPDATA" in os.environ:
         confighome = os.environ["APPDATA"]
@@ -42,6 +43,7 @@ def getConfigPath() -> str:
         log.info("Creating configPath %s", configPath)
     return configPath
 
+
 def getDefaultTheme() -> str:
     theme = "cyborg"
     configPath = getConfigPath()
@@ -50,9 +52,10 @@ def getDefaultTheme() -> str:
     log.info("fileName %s", fileName)
     f = openFile(fileName, "r")
     if f is not None:
-          theme = f.read()
-          f.close()
+        theme = f.read()
+        f.close()
     return theme
+
 
 def openFile(fileName, mode):
     f: Any = None
@@ -62,6 +65,7 @@ def openFile(fileName, mode):
         log.warning("File not found %s exception %s", fileName, str(e))
         # crap code ----f = open(fileName, "x", encoding="utf8")
     return f
+
 
 def createFileName(sa, sb, sc) -> str:
     fileName = ""
@@ -81,6 +85,7 @@ def createFileName(sa, sb, sc) -> str:
     # For the weirdness of Windows, does nothing in Mac,Linux,Unix
     os.path.normcase(fileName)
     return fileName
+
 
 # This will be from a project's defaultdict
 useTheme = getDefaultTheme()
@@ -119,10 +124,6 @@ def tree():
 def Merge(dict1, dict2) -> dict:
     res = {**dict1, **dict2}
     return res
-
-
-
-
 
 
 def createCleanNameList() -> list:
@@ -791,8 +792,6 @@ def setThemeColor():
                 log.error("%s raised exceptopn %s", w, e)
 
 
-
-
 def setDefaultToolTheme():
     # Use the current theme as the tools default
     configPath = getConfigPath()
@@ -803,7 +802,6 @@ def setDefaultToolTheme():
     if f is not None:
         f.write(myVars.theme)
         f.close()
-
 
 
 def setDefaultStyleFont():
@@ -949,8 +947,6 @@ def _askGeomManager() -> str:
     )
     top.wait_window()
     return result[0]
-
-
 
 
 def closeProject():
@@ -1787,8 +1783,8 @@ def _make_grid_overlay(frame: tboot.Frame) -> tk.Canvas:  # type: ignore[name-de
     tk.Misc.lower(oc)
     # Right-clicks on the overlay canvas must still open the widget-creation menu
     oc.bind("<Button-3>", rightMouseDown)
-    oc.bind("<Button-1>",        _grid_overlay_btn1)
-    oc.bind("<B1-Motion>",       _grid_overlay_drag)
+    oc.bind("<Button-1>", _grid_overlay_btn1)
+    oc.bind("<B1-Motion>", _grid_overlay_drag)
     oc.bind("<ButtonRelease-1>", _grid_overlay_release)
     _gridOverlayCanvas = oc
     return oc
@@ -1798,9 +1794,9 @@ def _make_grid_overlay(frame: tboot.Frame) -> tk.Canvas:  # type: ignore[name-de
 # Grid overlay interaction helpers
 # ---------------------------------------------------------------------------
 # Visual constants for the overlay
-_HANDLE_HALF  = 5   # px — half-size of the draggable handle square on each divider
-_ADD_RADIUS   = 7   # px — radius of the "+" add-column/row circle
-_ADD_MARGIN   = 14  # px — how far from the edge the "+" circles sit
+_HANDLE_HALF = 5  # px — half-size of the draggable handle square on each divider
+_ADD_RADIUS = 7  # px — radius of the "+" add-column/row circle
+_ADD_MARGIN = 14  # px — how far from the edge the "+" circles sit
 
 
 def _grid_collect_lines(frame, oc_w, oc_h):
@@ -1866,7 +1862,7 @@ def _grid_overlay_btn1(event):
     ex, ey = event.x, event.y
 
     # --- Check "+" add-column circles (drawn at top, centred on each divider x) ---
-    for i, gx in enumerate(col_xs[1:], 1):   # skip x=0 boundary
+    for i, gx in enumerate(col_xs[1:], 1):  # skip x=0 boundary
         cx, cy = gx, _ADD_MARGIN
         if abs(ex - cx) <= _ADD_RADIUS + 2 and abs(ey - cy) <= _ADD_RADIUS + 2:
             # Insert a new column AFTER index (i-1) by pushing minsize up
@@ -1877,12 +1873,12 @@ def _grid_overlay_btn1(event):
     for i, gy in enumerate(row_ys[1:], 1):
         cx, cy = _ADD_MARGIN, gy
         if abs(ex - cx) <= _ADD_RADIUS + 2 and abs(ey - cy) <= _ADD_RADIUS + 2:
-            log.info("Before _grid_insert_row i=%d",i)
+            log.info("Before _grid_insert_row i=%d", i)
             _grid_insert_row(i - 1)
             return
 
     # --- Check draggable divider handles on interior col lines ---
-    for i, gx in enumerate(col_xs[1:-1], 1):   # skip first and last boundary
+    for i, gx in enumerate(col_xs[1:-1], 1):  # skip first and last boundary
         if abs(ex - gx) <= _HANDLE_HALF + 2:
             # Determine which column index this right-hand boundary belongs to
             col_idx = i - 1
@@ -1892,9 +1888,9 @@ def _grid_overlay_btn1(event):
             except tk.TclError:
                 orig_size = 60
             _grid_drag_state = {
-                "axis":      "col",
-                "index":     col_idx,
-                "start_px":  ex,
+                "axis": "col",
+                "index": col_idx,
+                "start_px": ex,
                 "orig_size": orig_size,
             }
             oc.configure(cursor="sb_h_double_arrow")
@@ -1910,9 +1906,9 @@ def _grid_overlay_btn1(event):
             except tk.TclError:
                 orig_size = 30
             _grid_drag_state = {
-                "axis":      "row",
-                "index":     row_idx,
-                "start_px":  ey,
+                "axis": "row",
+                "index": row_idx,
+                "start_px": ey,
                 "orig_size": orig_size,
             }
             oc.configure(cursor="sb_v_double_arrow")
@@ -1923,18 +1919,18 @@ def _grid_overlay_drag(event):
     """Resize a column or row while the user drags a divider handle."""
     if not _grid_drag_state or geomWidgetFrame is None:
         return
-    axis      = _grid_drag_state.get("axis")
-    idx       = _grid_drag_state.get("index")
-    start_px  = _grid_drag_state.get("start_px", 0)
+    axis = _grid_drag_state.get("axis")
+    idx = _grid_drag_state.get("index")
+    start_px = _grid_drag_state.get("start_px", 0)
     orig_size = _grid_drag_state.get("orig_size", 40)
 
     if axis == "col":
-        delta     = event.x - start_px
-        new_size  = max(20, orig_size + delta)
+        delta = event.x - start_px
+        new_size = max(20, orig_size + delta)
         geomWidgetFrame.columnconfigure(idx, minsize=new_size, weight=1)
     elif axis == "row":
-        delta     = event.y - start_px
-        new_size  = max(12, orig_size + delta)
+        delta = event.y - start_px
+        new_size = max(12, orig_size + delta)
         geomWidgetFrame.rowconfigure(idx, minsize=new_size, weight=1)
 
     geomWidgetFrame.update_idletasks()
@@ -1985,7 +1981,7 @@ def _grid_insert_col(after_col: int):
         geomWidgetFrame.columnconfigure(c, minsize=src_size, weight=1)
 
     # Resize the split column and the new insertion slot
-    geomWidgetFrame.columnconfigure(after_col,     minsize=half, weight=1)
+    geomWidgetFrame.columnconfigure(after_col, minsize=half, weight=1)
     geomWidgetFrame.columnconfigure(after_col + 1, minsize=half, weight=1)
 
     geomWidgetFrame.update_idletasks()
@@ -2018,7 +2014,7 @@ def _grid_insert_row(after_row: int):
             src_size = 30
         geomWidgetFrame.rowconfigure(r, minsize=src_size, weight=1)
 
-    geomWidgetFrame.rowconfigure(after_row,     minsize=half, weight=1)
+    geomWidgetFrame.rowconfigure(after_row, minsize=half, weight=1)
     geomWidgetFrame.rowconfigure(after_row + 1, minsize=half, weight=1)
 
     geomWidgetFrame.update_idletasks()
@@ -2078,10 +2074,10 @@ def drawGridLines():
 
         oc.delete("gridline")
 
-        line_color   = "#c0c0c0"
-        label_color  = "#a0a0a0"
-        handle_color = "#7090c0"   # blue-grey handles on interior dividers
-        add_color    = "#50b050"   # green "+" add buttons
+        line_color = "#c0c0c0"
+        label_color = "#a0a0a0"
+        handle_color = "#7090c0"  # blue-grey handles on interior dividers
+        add_color = "#50b050"  # green "+" add buttons
 
         col_xs, row_ys = _grid_collect_lines(geomWidgetFrame, oc_w, oc_h)
 
@@ -2096,7 +2092,8 @@ def drawGridLines():
         # --- Column index labels just inside each column's left edge ---
         for i, gx in enumerate(col_xs[:-1]):
             oc.create_text(
-                gx + 3, 3,
+                gx + 3,
+                3,
                 text=str(i),
                 anchor="nw",
                 fill=label_color,
@@ -2107,7 +2104,8 @@ def drawGridLines():
         # --- Row index labels just below each row's top edge ---
         for i, gy in enumerate(row_ys[:-1]):
             oc.create_text(
-                3, gy + 3,
+                3,
+                gy + 3,
                 text=str(i),
                 anchor="nw",
                 fill=label_color,
@@ -2122,8 +2120,13 @@ def drawGridLines():
             hx1, hx2 = gx - _HANDLE_HALF, gx + _HANDLE_HALF
             hy1, hy2 = mid_y - _HANDLE_HALF, mid_y + _HANDLE_HALF
             oc.create_rectangle(
-                hx1, hy1, hx2, hy2,
-                fill=handle_color, outline="white", width=1,
+                hx1,
+                hy1,
+                hx2,
+                hy2,
+                fill=handle_color,
+                outline="white",
+                width=1,
                 tags="gridline",
             )
 
@@ -2133,8 +2136,13 @@ def drawGridLines():
             hx1, hx2 = mid_x - _HANDLE_HALF, mid_x + _HANDLE_HALF
             hy1, hy2 = gy - _HANDLE_HALF, gy + _HANDLE_HALF
             oc.create_rectangle(
-                hx1, hy1, hx2, hy2,
-                fill=handle_color, outline="white", width=1,
+                hx1,
+                hy1,
+                hx2,
+                hy2,
+                fill=handle_color,
+                outline="white",
+                width=1,
                 tags="gridline",
             )
 
@@ -2143,24 +2151,46 @@ def drawGridLines():
             cx, cy = gx, _ADD_MARGIN
             r = _ADD_RADIUS
             oc.create_oval(
-                cx - r, cy - r, cx + r, cy + r,
-                fill=add_color, outline="white", width=1,
+                cx - r,
+                cy - r,
+                cx + r,
+                cy + r,
+                fill=add_color,
+                outline="white",
+                width=1,
                 tags="gridline",
             )
-            oc.create_text(cx, cy, text="+", fill="white",
-                           font=("TkDefaultFont", 8, "bold"), tags="gridline")
+            oc.create_text(
+                cx,
+                cy,
+                text="+",
+                fill="white",
+                font=("TkDefaultFont", 8, "bold"),
+                tags="gridline",
+            )
 
         # --- "+" add-row circles: centred on each interior row divider at left ---
         for gy in row_ys[1:-1]:
             cx, cy = _ADD_MARGIN, gy
             r = _ADD_RADIUS
             oc.create_oval(
-                cx - r, cy - r, cx + r, cy + r,
-                fill=add_color, outline="white", width=1,
+                cx - r,
+                cy - r,
+                cx + r,
+                cy + r,
+                fill=add_color,
+                outline="white",
+                width=1,
                 tags="gridline",
             )
-            oc.create_text(cx, cy, text="+", fill="white",
-                           font=("TkDefaultFont", 8, "bold"), tags="gridline")
+            oc.create_text(
+                cx,
+                cy,
+                text="+",
+                fill="white",
+                font=("TkDefaultFont", 8, "bold"),
+                tags="gridline",
+            )
 
 
 def sizeGripRelease(event):
