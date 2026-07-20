@@ -1,6 +1,6 @@
 # PyTkQuickGui
 
-Note: This is in active development. It is "alpha" code with quite a few knows glitches and errors. At this stage it is usefull enough to try out and do simple tasks.
+Note: This is in active development. It is "alpha" code with quite a few knows glitches and errors. At this stage it is usefull enough to try out and do simple tasks. At present some widgest are not included as there are issues to resolve. Only two grid methods are available, the "Place" gridder being the most stable, "Grid" works reasonably well but re-parenting is an issue.  "Pack" is greayed out for now, this will be tackeked later.
 
 **A visual drag-and-drop GUI builder for Python / ttkbootstrap applications.**
 
