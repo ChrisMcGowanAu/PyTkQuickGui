@@ -915,12 +915,20 @@ class widgetEditPopup:
         self.createDragPoint(editPopupFrame, "triangle")
 
         # ---- Scrollable content area ------------------------------------
-        # A fixed-height canvas + vertical scrollbar; all attribute rows go
-        # into scrollContent (a Frame embedded in the canvas).  The Close /
-        # Help / Apply buttons sit below the canvas in editPopupFrame so
-        # they are always visible regardless of how many rows there are.
-        _scroll_h = 420  # maximum visible height in pixels
+        # Height is computed from the number of attribute rows so there is
+        # no wasted gap at the bottom.  A vertical scrollbar is shown only
+        # when the content is taller than the maximum visible height.
+        _ROW_PX = 26        # approximate pixels per attribute row
+        _MAX_H  = 480       # maximum visible height before scrolling starts
         _scroll_w = 320
+
+        # Estimate row count: widget keys + any child-widget extra keys.
+        # A precise count comes later but this is close enough for sizing.
+        _est_keys = self.widget.keys()
+        _est_rows = max(4, len(_est_keys) + 2)   # +2 for padding / children header
+        _content_h = _est_rows * _ROW_PX
+        _scroll_h = min(_content_h, _MAX_H)       # clip to maximum
+
         scrollCanvas = tk.Canvas(
             editPopupFrame,
             width=_scroll_w,
@@ -928,19 +936,31 @@ class widgetEditPopup:
             highlightthickness=0,
             bd=0,
         )
+        # Show scrollbar only when content is taller than the visible area
+        _need_scroll = _content_h > _MAX_H
         vscroll = tboot.Scrollbar(
             editPopupFrame, orient="vertical", command=scrollCanvas.yview
         )
         scrollCanvas.configure(yscrollcommand=vscroll.set)
         scrollCanvas.grid(row=1, column=0, columnspan=6, sticky="nsew")
-        vscroll.grid(row=1, column=6, sticky="ns")
+        if _need_scroll:
+            vscroll.grid(row=1, column=6, sticky="ns")
         scrollContent = tboot.Frame(scrollCanvas)
         _win_id = scrollCanvas.create_window((0, 0), window=scrollContent, anchor="nw")
 
         def _on_frame_configure(_evt):
             scrollCanvas.configure(scrollregion=scrollCanvas.bbox("all"))
-            # Also resize the inner frame to fill the canvas width
+            # Resize inner frame to fill canvas width
             scrollCanvas.itemconfig(_win_id, width=scrollCanvas.winfo_width())
+            # Dynamically show/hide scrollbar based on actual content height
+            content_h = scrollContent.winfo_reqheight()
+            canvas_h  = scrollCanvas.winfo_height()
+            if content_h > canvas_h:
+                vscroll.grid(row=1, column=6, sticky="ns")
+                scrollCanvas.configure(yscrollcommand=vscroll.set)
+            else:
+                vscroll.grid_remove()
+                scrollCanvas.configure(height=content_h)
 
         scrollContent.bind("<Configure>", _on_frame_configure)
 

@@ -63,7 +63,7 @@ widgetsUsed = (
     "Spinbox",
     "Checkbutton",
     "Radiobutton",
-    # "Scale",
+    "Scale",
     "Progressbar",
     # "Floodgauge",
     # "Meter",
@@ -74,10 +74,20 @@ widgetsUsed = (
     "tk.Button",
     "Text",
     "Listbox",
-    # "Treeview", Also needs looking at, more default config
+    "Treeview",
     # "Scrollbar",  # needs wiring to a target widget — use Edit popup instead
     "Separator",
     # "Sizegrip", This is Tricky, it needs to attach itself to a widget
+    # Standard ttk widgets (via ttkbootstrap compatibility layer)
+    "ttk.Scale",
+    "ttk.Treeview",
+    "ttk.Combobox",
+    "ttk.Spinbox",
+    "ttk.Progressbar",
+    "ttk.Separator",
+    "ttk.Scrollbar",
+    "ttk.Notebook",
+    "ttk.PanedWindow",
 )
 
 # ---- Geometry manager ---------------------------------------------------
@@ -393,6 +403,12 @@ def fixWidgetTypeName(wType) -> str:
     :param wType:
     :return: the basic str
     """
+    # Palette names prefixed with "ttk." emit as ttk.Xxx (standard tkinter ttk).
+    if wType.startswith("ttk."):
+        # Capitalise the class part: ttk.scale → ttk.Scale
+        parts = wType.split(".", 1)
+        cls = parts[1][0].upper() + parts[1][1:] if len(parts) > 1 else parts[0]
+        return "ttk." + cls
     t = wType.replace("ttk::", "tboot.")
     wType = t
     idx = wType.find(".")
