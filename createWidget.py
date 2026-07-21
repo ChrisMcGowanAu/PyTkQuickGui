@@ -530,71 +530,114 @@ class createWidget:
                 changeParentOfTo(self.widget, sib)
                 self.widget.place(x=x1 - wx1, y=y1 - wy1)
 
-    def clone(self, offsetx, offsety):
-        mainFrame = self.root
-        mainCanvas = self.root
-        # widgetId = createWidget.widgetId
-        useDict: dict = {}
-        origWidgetDict: dict = {}
+    def clone(self, offsetx, offsety, into_parent=None):
+        """Clone this single widget.
+
+        *into_parent* – if supplied, place/grid the clone into this tk widget
+        instead of the original's saved parent.  Used by deepClone() so each
+        cloned child ends up inside the cloned parent, not the original parent.
+
+        Returns the new createWidget object.
+        """
         originalName = "Widget" + str(self.widgetId)
         origWidgetDict = myVars.saveWidgetAsDict(originalName)
-        log.debug("origWidgetDict: %s", origWidgetDict)
-        # useDict = origWidgetDict.get(originalName)
         useDict = origWidgetDict[originalName]
-        log.debug(
-            "mainFrame %s mainCanvas %s useDict %s",
-            str(mainFrame),
-            str(mainCanvas),
-            useDict,
-        )
+        log.debug("clone useDict: %s", useDict)
+
         widgetDef = myVars.buildAWidget(self.widgetId, useDict)
-        log.debug("widgetDef %s", widgetDef)
-        # widget = ast.literal_eval(widgetDef)
-        widget = eval(widgetDef)
-        place: dict = {}
-        place = useDict["Place"]
-        widgetParent = useDict["WidgetParent"]
-        width = place.get("width")
-        height = place.get("height")
-        newW = createWidget(mainCanvas, widget)
-        # newW : createWidget
-        # newW = createWidget.lastCreated
-        if myVars.rootWidgetName != widgetParent:
-            nameDetails = findPythonWidgetNameList(widgetParent)
-            log.info("widgetParent: %s", widgetParent)
-            log.info("nameDetails: %s", nameDetails)
-            try:
-                w = nameDetails[WIDGET]
-                changeParentOfTo(newW.widget, w)
-            except tk.TclError as e:
-                log.error(
-                    "self.widget ->%s<- nameDetails ->%s<-",
-                    self.widget,
-                    str(nameDetails[WIDGET]),
-                )
-                log.error("Exception %s", str(e))
-        newW.widget.place(
-            x=self.x + offsetx, y=self.y + offsety, width=width, height=height
-        )
+        log.debug("clone widgetDef %s", widgetDef)
+        widget = eval(widgetDef)  # pylint: disable=eval-used
+
+        # Decide which parent to create into
+        if into_parent is not None:
+            target_parent = into_parent
+        else:
+            widgetParent = useDict.get("WidgetParent", myVars.rootWidgetName)
+            if myVars.rootWidgetName != widgetParent:
+                nameDetails = findPythonWidgetNameList(widgetParent)
+                target_parent = nameDetails[WIDGET] if nameDetails else self.root
+            else:
+                target_parent = self.root
+
+        newW = createWidget(target_parent, widget)
+
+        # Apply geometry appropriate to the current manager
+        mgr = myVars.geomManager
+        if mgr == "Place":
+            place = useDict.get("Place", {})
+            width = place.get("width", str(self.width))
+            height = place.get("height", str(self.height))
+            newW.widget.place(
+                in_=target_parent,
+                x=self.x + offsetx,
+                y=self.y + offsety,
+                width=width,
+                height=height,
+            )
+            newW.x = self.x + offsetx
+            newW.y = self.y + offsety
+        elif mgr == "Grid":
+            # Place the clone in the next available cell after this widget's cell
+            new_col = max(0, self.col + offsetx)  # offsetx/y are cell offsets in Grid
+            new_row = max(0, self.row + offsety)
+            newW.col = new_col
+            newW.row = new_row
+            newW.columnspan = self.columnspan
+            newW.rowspan = self.rowspan
+            newW.sticky = self.sticky
+            newW.padx = self.padx
+            newW.pady = self.pady
+            newW.widget.grid(
+                in_=target_parent,
+                row=new_row,
+                column=new_col,
+                columnspan=self.columnspan,
+                rowspan=self.rowspan,
+                sticky=self.sticky,
+                padx=self.padx,
+                pady=self.pady,
+            )
+        else:
+            # Pack or unknown — fall back to pack
+            newW.widget.pack(in_=target_parent, padx=4, pady=4)
+
+        # Sync widgetNameList so the clone's parent is recorded correctly
+        reparentWidget(newW.pythonName, target_parent)
         return newW
 
-    def deepClone(self):
-        newW = self.clone(0, 32)  # The main widget
-        # clonedParent = "Widget" + str(self.widgetId)
-        # NAME: int = 0 PARENT: int = 1 WIDGET: int = 2 CHILDREN: int = 3
-        for w in createWidget.widgetNameList:
-            log.info("w %s self %s", str(w[NAME]), str(self.pythonName))
-            if self.pythonName == w[NAME]:
-                children = w[CHILDREN]
-                for c in children:
-                    log.info("child %s", str(c))
-                    if c:
-                        obj = findCreateWidgetObject(c)
-                        if obj is not None:
-                            newObj = obj.clone(0, 0)
-                            changeParentOfTo(newObj.widget, newW.widget)
+    def _deepClone_recursive(self, new_parent_widget):
+        """Internal helper: clone all CHILDREN of self into *new_parent_widget*,
+        then recurse for grandchildren."""
+        nl = findPythonWidgetNameList(self.pythonName)
+        if not nl:
+            return
+        for child_name in nl[CHILDREN]:
+            if not child_name:
+                continue
+            child_obj = findCreateWidgetObject(child_name)
+            if child_obj is None:
+                continue
+            # Clone with cell offset 0 (same cell) so it lands inside the new parent
+            new_child = child_obj.clone(0, 0, into_parent=new_parent_widget)
+            # Recurse: clone the child's own children into the new child widget
+            child_obj._deepClone_recursive(new_child.widget)
 
-        # Like cone bt create clild widgets of self
+    def deepClone(self):
+        """Clone this widget AND all its descendants, preserving the full tree.
+
+        In Place mode the clone group is offset by 32px down.
+        In Grid mode the clone is placed one row below the original.
+        """
+        # Determine offset so clone doesn't land on top of the original
+        if myVars.geomManager == "Grid":
+            offset = (0, 1)   # (col_offset, row_offset)
+        else:
+            offset = (0, 32)  # (x_offset, y_offset) in pixels
+
+        newW = self.clone(offset[0], offset[1])  # clone the root widget
+        # Recursively clone all children into the new root widget
+        self._deepClone_recursive(newW.widget)
+        return newW
 
     def deleteWidget(self):
         # Record deletion BEFORE destroying so snapshot can still be taken
@@ -1044,7 +1087,19 @@ class createWidget:
             # set by applyLayoutSettings or initialised in __init__.
             # Do NOT read grid_info() here: the widget may still be floating
             # via .place() and grid_info() would return stale or empty data.
+            #
+            # IMPORTANT: include in_= so the widget re-grids into its CURRENT
+            # recorded parent (which may be a container Frame), not back to
+            # self.root.  Without in_=, tkinter defaults to the widget's master
+            # which re-parents it to root and loses all reparenting work.
+            _nl = findPythonWidgetNameList(self.pythonName)
+            _grid_parent = self.root
+            if _nl and _nl[PARENT] != myVars.rootWidgetName:
+                _parent_nl = findPythonWidgetNameList(_nl[PARENT])
+                if _parent_nl:
+                    _grid_parent = _parent_nl[WIDGET]
             self.widget.grid(
+                in_=_grid_parent,
                 row=self.row,
                 column=self.col,
                 columnspan=self.columnspan,

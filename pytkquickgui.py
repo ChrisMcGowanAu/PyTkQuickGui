@@ -981,6 +981,60 @@ def closeProject():
     C.printf("Close Project %s ", configPath)
 
 
+def saveProjectAs():
+    """Save the current project under a new name (duplicate the project folder).
+
+    1. Ask for a new project name.
+    2. Copy the entire project folder to <configPath>/<new_name>/.
+    3. Switch the running session to the new project (update myVars vars).
+    4. Save immediately so the new folder contains the latest state.
+    """
+    if not myVars.projectName:
+        Messagebox.show_warning(
+            title="No Project Open",
+            message="Open or create a project first before using Save As.",
+        )
+        return
+
+    new_name = Querybox.get_string(
+        prompt="New project name:", title="Save Project As"
+    )
+    if not new_name or not new_name.strip():
+        return
+    new_name = new_name.strip()
+
+    configPath = getConfigPath()
+    new_path = os.path.join(configPath, new_name)
+
+    if os.path.exists(new_path):
+        Messagebox.show_warning(
+            title="Name already exists",
+            message=f"A project named '{new_name}' already exists.\nChoose a different name.",
+        )
+        return
+
+    # Copy the project folder
+    try:
+        shutil.copytree(myVars.projectPath, new_path)
+    except (OSError, shutil.Error) as e:
+        Messagebox.show_error(
+            title="Copy failed",
+            message=f"Could not copy project:\n{e}",
+        )
+        return
+
+    # Switch session to the new project
+    myVars.projectName = new_name
+    myVars.projectPath = new_path
+    myVars.projectFileName = os.path.join(new_path, new_name)
+    mainFrame.config(text=new_name)
+
+    # Save current state into the new location
+    saveProject()
+
+    log.info("Project saved as '%s' in %s", new_name, new_path)
+
+
 def selectDir(name):
     C.printf("Name %s", name)
 
@@ -1257,6 +1311,9 @@ def loadProject(project, altFileName):
 
     # using widgetNameList, set the hierarchy
     # NAME 0 PARENT 1 WIDGET 2 CHILDREN 3
+    # Process parents before children: sort so parents come first by walking
+    # the list in creation order (workOutWidgetCreationOrder already ensures
+    # parents precede their children when saving, so widgetNameList order is safe).
     for nl in widgetNameList:
         # Does this widget have a different Parent or have Children?
         # The tcl widget names were removed from this list ( nl[WIDGET] )
@@ -1274,6 +1331,50 @@ def loadProject(project, altFileName):
         else:
             log.warning("name %s parent %s children %s", name, parent, children)
             log.warning("widgetNameList %s", str(widgetNameList))
+
+    # Place mode: after reparenting, reapply x/y/width/height for every widget
+    # that has a non-root parent.  changeParentOfTo only calls .place(in_=parent)
+    # which resets position to 0,0 inside the new parent; we must restore coords.
+    if myVars.geomManager == "Place":
+        for nl in widgetNameList:
+            name = nl[cw.NAME]
+            parent = nl[cw.PARENT]
+            if len(name) < 2:
+                continue
+            wDict = runDict.get(name)
+            if wDict is None:
+                continue
+            place = wDict.get("Place") or {}
+            if not place:
+                continue
+            # Retrieve the live widget object
+            nl_live = cw.findPythonWidgetNameList(name)
+            if not nl_live:
+                continue
+            widget = nl_live[cw.WIDGET]
+            try:
+                x = place.get("x", "0")
+                y = place.get("y", "0")
+                width = place.get("width", "72")
+                height = place.get("height", "32")
+                anchor = place.get("anchor", "nw")
+                bordermode = place.get("bordermode", "inside")
+                if parent != myVars.rootWidgetName:
+                    # Re-apply full place geometry including in_= parent
+                    parent_nl = cw.findPythonWidgetNameList(parent)
+                    if parent_nl:
+                        widget.place(
+                            in_=parent_nl[cw.WIDGET],
+                            x=x, y=y, width=width, height=height,
+                            anchor=anchor, bordermode=bordermode,
+                        )
+                else:
+                    widget.place(
+                        x=x, y=y, width=width, height=height,
+                        anchor=anchor, bordermode=bordermode,
+                    )
+            except (tk.TclError, ValueError) as _pe:
+                log.warning("reapply place for %s: %s", name, _pe)
 
     checkWidgetNameList()
     mainFrame.config(text=myVars.projectName)
@@ -1735,6 +1836,7 @@ def buildMenu():
     fileMenu.add_command(label="Open Project", command=loadProjectWrapper)
     fileMenu.add_command(label="Close Project", command=closeProject)
     fileMenu.add_command(label="Save Project", command=saveProject)
+    fileMenu.add_command(label="Save Project As...", command=saveProjectAs)
     fileMenu.add_command(label="Trial Run", command=runMe)
     fileMenu.add_command(label="Generate Python", command=generatePython)
     fileMenu.add_separator()
