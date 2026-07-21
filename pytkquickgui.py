@@ -620,8 +620,8 @@ def buildPython() -> str:
                 # grid_bbox(col, row) → (x, y, w, h) of that cell
                 bbox = geomWidgetFrame.grid_bbox(ncols - 1, nrows - 1)
                 if bbox:
-                    gw = bbox[0] + bbox[2]   # x + width of last col
-                    gh = bbox[1] + bbox[3]   # y + height of last row
+                    gw = bbox[0] + bbox[2]  # x + width of last col
+                    gh = bbox[1] + bbox[3]  # y + height of last row
             if gw > 100:
                 largestWidth = gw
             if gh > 100:
@@ -996,9 +996,7 @@ def saveProjectAs():
         )
         return
 
-    new_name = Querybox.get_string(
-        prompt="New project name:", title="Save Project As"
-    )
+    new_name = Querybox.get_string(prompt="New project name:", title="Save Project As")
     if not new_name or not new_name.strip():
         return
     new_name = new_name.strip()
@@ -1165,7 +1163,7 @@ def loadProject(project, altFileName):
 
     mainFrame.config(text=myVars.projectName)
     deleteWidgetData()
-
+    projectTheme = myVars.theme
     data = _loadProjectData(fullFileName)
     if data is None:
         # Brand new or empty project – just start fresh
@@ -1176,6 +1174,7 @@ def loadProject(project, altFileName):
     try:
         runDict = data
         log.debug(runDict)
+        projectTheme = runDict.get("theme")
         myVars.backgroundColor = runDict.get("backgroundColor")
         widgetNameList = runDict.get("widgetNameList")
         nWidgets = runDict.get("widgetCount")
@@ -1194,6 +1193,8 @@ def loadProject(project, altFileName):
         if isinstance(savedGroups, dict):
             myVars.groups = savedGroups
             log.info("Restored %d group(s) from project.", len(savedGroups))
+        setTheme(projectTheme)
+        log.info("Setting Theme %s", projectTheme)
     except AttributeError:
         log.info("AttributeError in project file.")
 
@@ -1365,13 +1366,21 @@ def loadProject(project, altFileName):
                     if parent_nl:
                         widget.place(
                             in_=parent_nl[cw.WIDGET],
-                            x=x, y=y, width=width, height=height,
-                            anchor=anchor, bordermode=bordermode,
+                            x=x,
+                            y=y,
+                            width=width,
+                            height=height,
+                            anchor=anchor,
+                            bordermode=bordermode,
                         )
                 else:
                     widget.place(
-                        x=x, y=y, width=width, height=height,
-                        anchor=anchor, bordermode=bordermode,
+                        x=x,
+                        y=y,
+                        width=width,
+                        height=height,
+                        anchor=anchor,
+                        bordermode=bordermode,
                     )
             except (tk.TclError, ValueError) as _pe:
                 log.warning("reapply place for %s: %s", name, _pe)
@@ -1515,8 +1524,8 @@ Widget Context Menu
 ===================
   Edit          Open attribute editor popup
   Layout        Open x/y/width/height editor (Place mode)
-  Clone         Duplicate the widget
-  DeepClone     Duplicate container + all children
+  Duplicate     Duplicate the widget
+  Clone         Duplicate container + all children
   Re-Parent     Move widget into the container it overlaps
   Delete        Remove the widget
   Close         Dismiss the menu
@@ -1893,7 +1902,7 @@ def buildMenu():
     menuBar.add_cascade(label="Help", menu=helpMenu, underline=0)
 
     # add the File menu to the menuBar
-    fileMenu.add_cascade(label="Preferences", menu=subMenu)
+    # fileMenu.add_cascade(label="Preferences", menu=subMenu)
 
 
 def doNothing():
@@ -2840,7 +2849,7 @@ if __name__ == "__main__":
         arg1 = sys.argv[1]
     except IndexError:
         # arg1 = "warn"
-        arg1 = "info"
+        arg1 = "warning"
 
     if arg1 == "info":
         coloredlogs.set_level(logging.INFO)

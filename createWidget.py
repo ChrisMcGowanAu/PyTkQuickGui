@@ -530,19 +530,19 @@ class createWidget:
                 changeParentOfTo(self.widget, sib)
                 self.widget.place(x=x1 - wx1, y=y1 - wy1)
 
-    def clone(self, offsetx, offsety, into_parent=None):
+    def duplicate(self, offsetx, offsety, into_parent=None):
         """Clone this single widget.
 
-        *into_parent* – if supplied, place/grid the clone into this tk widget
+        *into_parent* – if supplied, place/grid the duplicate into this tk widget
         instead of the original's saved parent.  Used by deepClone() so each
-        cloned child ends up inside the cloned parent, not the original parent.
+        duplicated child ends up inside the duplicated parent, not the original parent.
 
         Returns the new createWidget object.
         """
         originalName = "Widget" + str(self.widgetId)
         origWidgetDict = myVars.saveWidgetAsDict(originalName)
         useDict = origWidgetDict[originalName]
-        log.debug("clone useDict: %s", useDict)
+        log.debug("duplicate useDict: %s", useDict)
 
         # Resolve the target parent BEFORE eval so we can inject it as
         # 'mainFrame' — buildAWidget always emits "WidgetType(mainFrame, ...)".
@@ -557,7 +557,7 @@ class createWidget:
                 target_parent = self.root
 
         widgetDef = myVars.buildAWidget(self.widgetId, useDict)
-        log.debug("clone widgetDef %s", widgetDef)
+        log.debug("duplicate widgetDef %s", widgetDef)
         # Inject target_parent as 'mainFrame' so eval can resolve the name.
         widget = eval(  # pylint: disable=eval-used
             widgetDef, globals(), {"mainFrame": target_parent}
@@ -581,7 +581,7 @@ class createWidget:
             newW.x = self.x + offsetx
             newW.y = self.y + offsety
         elif mgr == "Grid":
-            # Place the clone in the next available cell after this widget's cell
+            # Place the duplicate in the next available cell after this widget's cell
             new_col = max(0, self.col + offsetx)  # offsetx/y are cell offsets in Grid
             new_row = max(0, self.row + offsety)
             newW.col = new_col
@@ -622,23 +622,23 @@ class createWidget:
             if child_obj is None:
                 continue
             # Clone with cell offset 0 (same cell) so it lands inside the new parent
-            new_child = child_obj.clone(0, 0, into_parent=new_parent_widget)
-            # Recurse: clone the child's own children into the new child widget
+            new_child = child_obj.duplicate(0, 0, into_parent=new_parent_widget)
+            # Recurse: duplicate the child's own children into the new child widget
             child_obj._deepClone_recursive(new_child.widget)
 
     def deepClone(self):
         """Clone this widget AND all its descendants, preserving the full tree.
 
         In Place mode the clone group is offset by 32px down.
-        In Grid mode the clone is placed one row below the original.
+        In Grid mode the duplicate is placed one row below the original.
         """
-        # Determine offset so clone doesn't land on top of the original
+        # Determine offset so duplicate doesn't land on top of the original
         if myVars.geomManager == "Grid":
-            offset = (0, 1)   # (col_offset, row_offset)
+            offset = (0, 1)  # (col_offset, row_offset)
         else:
             offset = (0, 32)  # (x_offset, y_offset) in pixels
 
-        newW = self.clone(offset[0], offset[1])  # clone the root widget
+        newW = self.duplicate(offset[0], offset[1])  # duplicate the root widget
         # Recursively clone all children into the new root widget
         self._deepClone_recursive(newW.widget)
         return newW
@@ -666,8 +666,8 @@ class createWidget:
         # Adding Menu Items
         self.popup.add_command(label="Edit", command=self.editTtkPopup)
         self.popup.add_command(label="Layout", command=self.editPlacePopup)
-        self.popup.add_command(label="Clone", command=lambda: self.clone(0, 0))
-        self.popup.add_command(label="DeepClone", command=self.deepClone)
+        self.popup.add_command(label="Duplicate", command=lambda: self.duplicate(0, 0))
+        self.popup.add_command(label="Clone", command=self.deepClone)
         self.popup.add_command(label="Re-Parent", command=lambda: self.reParent(None))
         self.popup.add_command(label="Delete", command=self.deleteWidget)
         self.popup.add_separator()

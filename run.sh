@@ -1,1 +1,1 @@
-venv/bin/python pytkquickgui.py
+venv/bin/python pytkquickgui.py $1

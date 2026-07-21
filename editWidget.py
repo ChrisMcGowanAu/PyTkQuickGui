@@ -918,16 +918,16 @@ class widgetEditPopup:
         # Height is computed from the number of attribute rows so there is
         # no wasted gap at the bottom.  A vertical scrollbar is shown only
         # when the content is taller than the maximum visible height.
-        _ROW_PX = 26        # approximate pixels per attribute row
-        _MAX_H  = 480       # maximum visible height before scrolling starts
+        _ROW_PX = 26  # approximate pixels per attribute row
+        _MAX_H = 480  # maximum visible height before scrolling starts
         _scroll_w = 320
 
         # Estimate row count: widget keys + any child-widget extra keys.
         # A precise count comes later but this is close enough for sizing.
         _est_keys = self.widget.keys()
-        _est_rows = max(4, len(_est_keys) + 2)   # +2 for padding / children header
+        _est_rows = max(4, len(_est_keys) + 2)  # +2 for padding / children header
         _content_h = _est_rows * _ROW_PX
-        _scroll_h = min(_content_h, _MAX_H)       # clip to maximum
+        _scroll_h = min(_content_h, _MAX_H)  # clip to maximum
 
         scrollCanvas = tk.Canvas(
             editPopupFrame,
@@ -954,7 +954,7 @@ class widgetEditPopup:
             scrollCanvas.itemconfig(_win_id, width=scrollCanvas.winfo_width())
             # Dynamically show/hide scrollbar based on actual content height
             content_h = scrollContent.winfo_reqheight()
-            canvas_h  = scrollCanvas.winfo_height()
+            canvas_h = scrollCanvas.winfo_height()
             if content_h > canvas_h:
                 vscroll.grid(row=1, column=6, sticky="ns")
                 scrollCanvas.configure(yscrollcommand=vscroll.set)
