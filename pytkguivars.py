@@ -264,6 +264,13 @@ def saveWidgetAsDict(widgetName) -> dict:
                         if value:
                             # The value is w.widgetName + key
                             value = widgetName + key
+                    # Tkinter sometimes returns tuple/list objects for attributes
+                    # like Treeview 'show', 'columns', 'displaycolumns'.
+                    # Convert to a plain space-separated string so buildAWidget
+                    # can serialise and re-eval them without hitting the '<' guard.
+                    if isinstance(value, (tuple, list)):
+                        # Each element may be an index object; str() gives the name
+                        value = " ".join(str(v) for v in value)
                     log.debug("Value->%s<-", str(value))
                     attrId = "Attribute" + str(keyCount)
                     # Ignore empty values

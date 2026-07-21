@@ -10,6 +10,14 @@ PyTkQuickGui lets you lay out tkinter widgets by dragging, resizing, and editing
 
 ---
 
+## Screenshots
+
+| Place mode — multi-container layout | Place mode — instrument test tool |
+|---|---|
+| ![PyTkQuickGui Place mode – platypus project](docs/screenshot_place_platypus.png) | ![PyTkQuickGui Place mode – test tool project](docs/screenshot_place_test_tool.png) |
+
+---
+
 ## Table of Contents
 
 1. [Features](#features)
