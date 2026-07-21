@@ -544,11 +544,8 @@ class createWidget:
         useDict = origWidgetDict[originalName]
         log.debug("clone useDict: %s", useDict)
 
-        widgetDef = myVars.buildAWidget(self.widgetId, useDict)
-        log.debug("clone widgetDef %s", widgetDef)
-        widget = eval(widgetDef)  # pylint: disable=eval-used
-
-        # Decide which parent to create into
+        # Resolve the target parent BEFORE eval so we can inject it as
+        # 'mainFrame' — buildAWidget always emits "WidgetType(mainFrame, ...)".
         if into_parent is not None:
             target_parent = into_parent
         else:
@@ -558,6 +555,13 @@ class createWidget:
                 target_parent = nameDetails[WIDGET] if nameDetails else self.root
             else:
                 target_parent = self.root
+
+        widgetDef = myVars.buildAWidget(self.widgetId, useDict)
+        log.debug("clone widgetDef %s", widgetDef)
+        # Inject target_parent as 'mainFrame' so eval can resolve the name.
+        widget = eval(  # pylint: disable=eval-used
+            widgetDef, globals(), {"mainFrame": target_parent}
+        )
 
         newW = createWidget(target_parent, widget)
 
