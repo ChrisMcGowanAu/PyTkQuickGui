@@ -254,7 +254,15 @@ def saveWidgetAsDict(widgetName) -> dict:
             "GeomData": geomData,
         }
         keyCount = 0
-        keys = w.keys()
+        # Guard against stale / already-destroyed widget paths.  This can
+        # happen when an undo snapshot is taken for a child widget whose parent
+        # was destroyed first, making the Tk path invalid.
+        try:
+            keys = w.keys()
+        except tk.TclError as _ke:
+            log.warning("saveWidgetAsDict: w.keys() failed for %s: %s (skipping attributes)",
+                        widgetName, _ke)
+            return {widgetName: widgetDict}
         # Keys whose values are bound Python callables (e.g. scrollbar.set,
         # canvas.yview).  Tkinter returns them as strings like
         # "140234567890set" or "140234567890yview" — a raw memory address
