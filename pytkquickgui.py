@@ -705,8 +705,16 @@ def generatePython():
 
 def deleteWidgetData():
     log.info("Removing all existing Widgets")
+    # Destroy each widget defensively.  When a parent widget is destroyed Tk
+    # automatically destroys all its children, so by the time we reach a child
+    # entry in widgetList it may already be gone.  Guard with winfo_exists()
+    # and catch any residual TclError so cleanup always completes.
     for w in cw.createWidget.widgetList:
-        w.destroy()
+        try:
+            if w.winfo_exists():
+                w.destroy()
+        except tk.TclError:
+            pass  # already destroyed (e.g. child of a previously destroyed parent)
     cw.createWidget.widgetNameList = []
     cw.createWidget.widgetList = []
     cw.createWidget.widgetObjectList = []
