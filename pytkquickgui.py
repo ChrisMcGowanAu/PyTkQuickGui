@@ -1232,6 +1232,29 @@ def loadProject(project, altFileName):
                 continue
             w = cw.createWidget(_load_parent, widget)
 
+            # Post-construction colour restore: ttkbootstrap's theming engine
+            # overrides bg=/background= kwargs during widget construction, so
+            # the saved colour values are discarded.  We must apply them again
+            # immediately after the widget is created, before the theme has
+            # a chance to override them a second time.
+            _colour_keys = ("bg", "background", "fg", "foreground",
+                            "activebackground", "activeforeground",
+                            "disabledforeground", "readonlybackground",
+                            "troughcolor", "selectcolor")
+            _nkeys = wDict.get(widgetId + "-KeyCount", 0)
+            for _ai in range(_nkeys):
+                _adict = wDict.get("Attribute" + str(_ai))
+                if _adict is None:
+                    continue
+                _ck = _adict.get("Key", "")
+                _cv = _adict.get("Value", "")
+                if _ck in _colour_keys and _cv and not _cv.startswith("<"):
+                    try:
+                        widget.configure(**{_ck: _cv})
+                        log.info("post-load colour restore: %s=%s on %s", _ck, _cv, widgetId)
+                    except tk.TclError as _ce:
+                        log.debug("post-load colour %s=%s ignored: %s", _ck, _cv, _ce)
+
             # In Grid mode, container widgets need their own row/column
             # configuration so child widgets can be reparented into them.
             if myVars.geomManager == "Grid":

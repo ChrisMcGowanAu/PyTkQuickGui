@@ -138,21 +138,44 @@ class widgetEditPopup:
         # This is needed to keep the validatecommand going
         return True
 
-    def changeColour(self, key):
+    def changeColour(self, key, swatch_btn=None):
         """
-        Choose a Colour
-        :param key: Widgets key name
+        Choose a Colour and immediately apply it to the live widget.
+        :param key: Widget attribute key (e.g. 'bg', 'fg', 'background', 'foreground')
+        :param swatch_btn: optional tboot.Button whose background will be updated
+                           to show the chosen colour as a preview swatch.
         """
         colorDialog = ColorChooserDialog()
         currentVal = self.stringDict.get(key)
-        if currentVal is not None:
-            colorDialog.initialcolor = currentVal
+        if currentVal:
+            try:
+                colorDialog.initialcolor = currentVal
+            except Exception:  # pylint: disable=broad-except
+                pass
         colorDialog.show()
         colors = colorDialog.result
-        if colors[2] != "":
-            self.addToStringDict(key, colors[2])
+        if colors is None:
+            log.warning("Color Chooser returned None for key %s", key)
+            return
+        # colors is a namedtuple (rgb, hsl, hex); use the hex value (index 2)
+        hex_val = colors[2] if colors[2] else ""
+        if hex_val:
+            self.addToStringDict(key, hex_val)
+            # Immediately apply to the live widget so the change is visible
+            # without needing to hit "Apply".
+            try:
+                self.widget.configure(**{key: hex_val})
+                log.info("changeColour: applied %s=%s to %s", key, hex_val, self.widget)
+            except tk.TclError as e:
+                log.warning("changeColour configure %s=%s: %s", key, hex_val, e)
+            # Update the swatch button background to preview the chosen colour
+            if swatch_btn is not None:
+                try:
+                    swatch_btn.configure(background=hex_val)
+                except tk.TclError:
+                    pass
         else:
-            log.warning("Color Chooser did not return anything")
+            log.warning("Color Chooser did not return a hex value for key %s", key)
 
     def leftMouseDragResize(self, event):
         """
@@ -442,9 +465,8 @@ class widgetEditPopup:
                             log.error(e)
                             log.warning("k %s val %s", str(k), str(newVal))
         wName = myVars.fixWidgetName(self.widget.widgetName)
-        # if wName in ('canvas', 'listbox', 'text', 'treeview'):
-        # scrollbars are very hard when using place.
-        if myVars.geomManager == "Grid" and wName in ("canvas", "listbox", "treeview"):
+        # Scrollbar wiring works in both Grid and Place geometry manager modes.
+        if wName in ("canvas", "listbox", "treeview"):
             # scrollbars = ['vertical_scrollbar', 'horizontal_scrollbar']
             for k in scrollbars:
                 # verticalValues = [' ', 'none', 'LeftSide', 'RightSide']
@@ -452,11 +474,7 @@ class widgetEditPopup:
                 newVal = self.stringDict.get(k)
                 log.info("scrollbar %s value %s", k, newVal)
                 if k == "vertical_scrollbar":
-                    if newVal == "LeftSide" or newVal == "RightSide":
-                        sbSide = "right"
-                        if newVal == "LeftSide":
-                            sbSide = "left"
-                        # sb = tboot.Scrollbar(self.widget, orient="vertical", style='info round')
+                    if newVal in ("LeftSide", "RightSide"):
                         sb = tboot.Scrollbar(
                             self.root, orient="vertical", style="info round"
                         )
@@ -464,14 +482,32 @@ class widgetEditPopup:
                         cw.changeParentOfTo(sb, self.widget)
                         self.widget.configure(yscrollcommand=sb.set)
                         sb.config(command=self.widget.yview)
-                        sb.place_forget()
-                        sb.pack(side=sbSide, fill="y")
-                        # sb.place(relx=1,  rely=0,  relheight=1,  anchor='ne')
+                        if myVars.geomManager == "Place":
+                            # In Place mode: position the scrollbar to the
+                            # right (or left) edge of the target widget using
+                            # place with relx/rely so it resizes with the widget.
+                            sb.place_forget()
+                            if newVal == "RightSide":
+                                sb.place(
+                                    in_=self.widget,
+                                    relx=1.0, rely=0.0,
+                                    relheight=1.0, width=16,
+                                    anchor="ne",
+                                )
+                            else:  # LeftSide
+                                sb.place(
+                                    in_=self.widget,
+                                    relx=0.0, rely=0.0,
+                                    relheight=1.0, width=16,
+                                    anchor="nw",
+                                )
+                        else:
+                            # Grid / Pack mode: use pack() for natural flow
+                            sbSide = "left" if newVal == "LeftSide" else "right"
+                            sb.place_forget()
+                            sb.pack(side=sbSide, fill="y")
                 elif k == "horizontal_scrollbar":
-                    if newVal == "Top" or newVal == "Bottom":
-                        sbSide = "top"
-                        if newVal == "Bottom":
-                            sbSide = "bottom"
+                    if newVal in ("Top", "Bottom"):
                         sb = tboot.Scrollbar(
                             self.widget, orient="horizontal", style="info"
                         )
@@ -479,20 +515,44 @@ class widgetEditPopup:
                         cw.changeParentOfTo(sb, self.widget)
                         self.widget.configure(xscrollcommand=sb.set)
                         sb.config(command=self.widget.xview)
-                        sb.pack(side=sbSide, fill="x")
-                        # self.widget.configure(xscrollcommand=sb.set)
-        if myVars.geomManager == "Grid" and wName in ("notebook"):
+                        if myVars.geomManager == "Place":
+                            sb.place_forget()
+                            if newVal == "Bottom":
+                                sb.place(
+                                    in_=self.widget,
+                                    relx=0.0, rely=1.0,
+                                    relwidth=1.0, height=16,
+                                    anchor="sw",
+                                )
+                            else:  # Top
+                                sb.place(
+                                    in_=self.widget,
+                                    relx=0.0, rely=0.0,
+                                    relwidth=1.0, height=16,
+                                    anchor="nw",
+                                )
+                        else:
+                            sbSide = "top" if newVal == "Top" else "bottom"
+                            sb.pack(side=sbSide, fill="x")
+        if wName in ("notebook"):
+            # ---- Notebook tab creation (works in Place and Grid mode) -----
             key = "tab_count"
             newVal = self.stringDict.get(key)
             if newVal is None or newVal == "":
                 newVal = "0"
-            # Get the number of tabs.
-            for n in range(int(newVal)):
+            try:
+                n_tabs = int(newVal)
+            except ValueError:
+                n_tabs = 0
+            # Build the label list from the tab_labels entry (comma-separated).
+            labels_raw = self.stringDict.get("tab_labels", "") or ""
+            label_parts = [lbl.strip() for lbl in labels_raw.split(",") if lbl.strip()]
+            for n in range(n_tabs):
+                tab_label = label_parts[n] if n < len(label_parts) else "Tab" + str(n)
                 frame = tboot.Frame(self.widget, borderwidth=1, style="info")
                 cw.createWidget(self.widget, frame)
                 cw.changeParentOfTo(frame, self.widget)
-                self.widget.add(frame, text="Tab" + str(n))
-                # frame.pack(fill='both',  expand=True)
+                self.widget.add(frame, text=tab_label)
 
     def reformatValues(self, values) -> str | list[Any]:
         """
@@ -1204,8 +1264,16 @@ class widgetEditPopup:
                     name=uniqueName,
                     text="Select Color",
                     width=buttonWidth,
-                    command=lambda kk=k: self.changeColour(kk),
                 )
+                # Pre-fill the button background with the current colour so it
+                # acts as a live preview swatch.  Wrap in try in case
+                # ttkbootstrap rejects the colour (e.g. empty string).
+                if val:
+                    try:
+                        w.configure(background=val)
+                    except tk.TclError:
+                        pass
+                w.configure(command=lambda kk=k, sw=w: self.changeColour(kk, sw))
                 w.grid(row=gridRow, column=controlCol, columnspan=3, sticky=tk.SW)
             ###############################
             # The Default --- use and entry widget for all other tags
@@ -1267,11 +1335,11 @@ class widgetEditPopup:
                     log.debug(keys)
                 else:
                     log.debug("unhandled child %s", widgetName)
-        # If a frame,  add button(s) for scrollbar
+        # If a scrollable widget, add scrollbar placement controls.
+        # These work in both Grid and Place geometry manager modes.
         wName = myVars.fixWidgetName(self.widget.widgetName)
         log.debug("wName ->%s<-", wName)
-        if myVars.geomManager == "Grid" and wName in ("canvas", "listbox", "treeview"):
-            # if wName in ('frame', 'labelframe', 'panedwindow'):
+        if wName in ("canvas", "listbox", "treeview"):
             log.info("Creating scrollbar stuff for %s", wName)
             for k in scrollbars:
                 gridRow += 1
@@ -1298,19 +1366,19 @@ class widgetEditPopup:
                 self.addToStringDict(widgetKey, w)
                 w.grid(row=gridRow, column=controlCol, columnspan=3, sticky=tk.SW)
             gridRow += 1
-        if myVars.geomManager == "Grid" and wName in ("notebook"):
+        if wName in ("notebook"):
+            # ---- tab_count spinbox (works in both Place and Grid mode) ----
             gridRow += 1
             key = "tab_count"
             val = self.stringDict.get(key)
             if val is None or val == "":
                 val = "0"
-            sb = tboot.Label(scrollContent, text=key)
+            sb = tboot.Label(scrollContent, text="tab_count")
             sb.grid(row=gridRow, column=labelCol, columnspan=3, sticky=tk.E)
             self.addToStringDict(key, val)
-            w = tboot.Spinbox(
+            tc_spin = tboot.Spinbox(
                 scrollContent,
                 width=spinboxWidth,
-                name=uniqueName,
                 from_=0,
                 to=16,
                 increment=1,
@@ -1318,9 +1386,29 @@ class widgetEditPopup:
                 validatecommand=lambda kk=key: self.popupCallback(kk),
             )
             widgetKey = key + "Widget"
-            self.addToStringDict(widgetKey, w)
-            w.grid(row=gridRow, column=controlCol, columnspan=3, sticky=tk.SW)
-            w.set(val)
+            self.addToStringDict(widgetKey, tc_spin)
+            tc_spin.grid(row=gridRow, column=controlCol, columnspan=3, sticky=tk.SW)
+            tc_spin.set(val)
+            # ---- tab_labels entry -----------------------------------------
+            # Comma-separated list of tab labels, e.g. "Home,Config,About"
+            gridRow += 1
+            key2 = "tab_labels"
+            val2 = self.stringDict.get(key2, "")
+            if val2 is None:
+                val2 = ""
+            sb2 = tboot.Label(scrollContent, text="tab_labels")
+            sb2.grid(row=gridRow, column=labelCol, columnspan=3, sticky=tk.E)
+            self.addToStringDict(key2, val2)
+            tl_entry = Entry(
+                scrollContent,
+                width=entryWidth,
+                validate="focusout",
+                validatecommand=lambda kk=key2: self.popupCallback(kk),
+            )
+            widgetKey2 = key2 + "Widget"
+            self.addToStringDict(widgetKey2, tl_entry)
+            tl_entry.insert(tk.END, val2)
+            tl_entry.grid(row=gridRow, column=controlCol, columnspan=3, sticky=tk.SW)
 
         gridRow += 1
 
