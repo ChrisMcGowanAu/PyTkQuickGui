@@ -1423,9 +1423,12 @@ def loadProject(project, altFileName):
             log.warning("name %s parent %s children %s", name, parent, children)
             log.warning("widgetNameList %s", str(widgetNameList))
 
-    # Place mode: after reparenting, reapply x/y/width/height for every widget
-    # that has a non-root parent.  changeParentOfTo only calls .place(in_=parent)
-    # which resets position to 0,0 inside the new parent; we must restore coords.
+    # Place mode: after reparenting, reapply full place geometry for every
+    # widget.  changeParentOfTo only calls .place(in_=parent) which resets
+    # position to 0,0; we must restore all 8 fields: x, y, relx, rely,
+    # width, height, relwidth, relheight (plus anchor / bordermode).
+    # Empty-string values from the JSON must be omitted so Tkinter does not
+    # try to parse "" as a number.
     if myVars.geomManager == "Place":
         for nl in widgetNameList:
             name = nl[cw.NAME]
@@ -1444,12 +1447,41 @@ def loadProject(project, altFileName):
                 continue
             widget = nl_live[cw.WIDGET]
             try:
-                x = place.get("x", "0")
-                y = place.get("y", "0")
-                width = place.get("width", "72")
-                height = place.get("height", "32")
-                anchor = place.get("anchor", "nw")
-                bordermode = place.get("bordermode", "inside")
+                # Build kwargs from the saved Place dict.
+                # Only include a key when its value is a non-empty string so
+                # that Tkinter does not receive "" for numeric fields.
+                def _pv(key, default=""):
+                    return place.get(key, default)
+
+                place_kwargs = {}
+                # Absolute position
+                _x = _pv("x"); place_kwargs["x"] = _x if _x != "" else "0"
+                _y = _pv("y"); place_kwargs["y"] = _y if _y != "" else "0"
+                # Relative position — omit if empty
+                _relx = _pv("relx")
+                if _relx != "":
+                    place_kwargs["relx"] = _relx
+                _rely = _pv("rely")
+                if _rely != "":
+                    place_kwargs["rely"] = _rely
+                # Absolute size — omit if empty (lets relwidth/relheight drive it)
+                _w = _pv("width")
+                if _w != "":
+                    place_kwargs["width"] = _w
+                _h = _pv("height")
+                if _h != "":
+                    place_kwargs["height"] = _h
+                # Relative size — omit if empty
+                _relw = _pv("relwidth")
+                if _relw != "":
+                    place_kwargs["relwidth"] = _relw
+                _relh = _pv("relheight")
+                if _relh != "":
+                    place_kwargs["relheight"] = _relh
+                # Anchor and bordermode always present
+                place_kwargs["anchor"] = _pv("anchor", "nw")
+                place_kwargs["bordermode"] = _pv("bordermode", "inside")
+
                 if parent != myVars.rootWidgetName:
                     # Re-apply full place geometry including in_= parent.
                     # Exception: if the parent is a Notebook, the widget is a
@@ -1463,24 +1495,9 @@ def loadProject(project, altFileName):
                             # Tab frames are owned by the notebook via add();
                             # skip the place() call for them entirely.
                             continue
-                        widget.place(
-                            in_=parent_widget,
-                            x=x,
-                            y=y,
-                            width=width,
-                            height=height,
-                            anchor=anchor,
-                            bordermode=bordermode,
-                        )
+                        widget.place(in_=parent_widget, **place_kwargs)
                 else:
-                    widget.place(
-                        x=x,
-                        y=y,
-                        width=width,
-                        height=height,
-                        anchor=anchor,
-                        bordermode=bordermode,
-                    )
+                    widget.place(**place_kwargs)
             except (tk.TclError, ValueError) as _pe:
                 log.warning("reapply place for %s: %s", name, _pe)
 
