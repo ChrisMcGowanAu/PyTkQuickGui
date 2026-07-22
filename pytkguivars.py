@@ -255,10 +255,22 @@ def saveWidgetAsDict(widgetName) -> dict:
         }
         keyCount = 0
         keys = w.keys()
+        # Keys whose values are bound Python callables (e.g. scrollbar.set,
+        # canvas.yview).  Tkinter returns them as strings like
+        # "140234567890set" or "140234567890yview" — a raw memory address
+        # concatenated with the method name.  These are meaningless on reload
+        # and must never be passed back to widget.configure().  We skip them
+        # here and re-wire them in loadProject() instead.
+        _CALLABLE_KEYS = ("yscrollcommand", "xscrollcommand", "command")
         if keys:
             for key in keys:
                 log.debug("Key->%s<-", key)
                 if key != "in":
+                    # Skip callable binding keys — they encode live Python
+                    # object addresses that are invalid after restart.
+                    if key in _CALLABLE_KEYS:
+                        log.debug("saveWidgetAsDict: skipping callable key %s", key)
+                        continue
                     value = w[key]
                     if key == "image":
                         if value:
