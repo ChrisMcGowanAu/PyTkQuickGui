@@ -748,6 +748,23 @@ def changeParentOfTo(widgetName, parentName):
     widget = widgetList[cw.WIDGET]
     parent = parentList[cw.WIDGET]
 
+    # If the new parent is a Notebook, the child must be .add()-ed as a tab,
+    # not placed/gridded inside it.  Use notebook.add() regardless of the
+    # active geometry manager so the tab frame is properly registered.
+    parent_wn = getattr(parent, "widgetName", "")
+    if parent_wn == "ttk::notebook":
+        # Only add if not already a tab of this notebook
+        existing_tabs = list(parent.tabs())
+        if str(widget) not in existing_tabs:
+            try:
+                parent.add(widget, text="Tab")
+                log.info("changeParentOfTo: added %s as tab of %s", widgetName, parentName)
+            except tk.TclError as _te:
+                log.warning("notebook.add(%s): %s", widgetName, _te)
+        widget.parent = parent
+        cw.reparentWidget(widgetName, parent)
+        return
+
     mgr = myVars.geomManager
     if mgr == "Place":
         widget.place(in_=parent)
@@ -1384,11 +1401,20 @@ def loadProject(project, altFileName):
                 anchor = place.get("anchor", "nw")
                 bordermode = place.get("bordermode", "inside")
                 if parent != myVars.rootWidgetName:
-                    # Re-apply full place geometry including in_= parent
+                    # Re-apply full place geometry including in_= parent.
+                    # Exception: if the parent is a Notebook, the widget is a
+                    # tab frame managed by .add() — do NOT place() it inside
+                    # the notebook or it escapes the tab system.
                     parent_nl = cw.findPythonWidgetNameList(parent)
                     if parent_nl:
+                        parent_widget = parent_nl[cw.WIDGET]
+                        parent_wn = getattr(parent_widget, "widgetName", "")
+                        if parent_wn == "ttk::notebook":
+                            # Tab frames are owned by the notebook via add();
+                            # skip the place() call for them entirely.
+                            continue
                         widget.place(
-                            in_=parent_nl[cw.WIDGET],
+                            in_=parent_widget,
                             x=x,
                             y=y,
                             width=width,

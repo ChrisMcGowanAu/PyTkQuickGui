@@ -158,6 +158,23 @@ def deleteWidgetFromLists(pythonName, widget):
 
 def changeParentOfTo(widget, newParentWidget):
     """Re-parent *widget* into *newParentWidget* using the active geometry manager."""
+    # If the new parent is a Notebook, use .add() so the widget becomes a tab.
+    parent_wn = getattr(newParentWidget, "widgetName", "")
+    if parent_wn == "ttk::notebook":
+        existing_tabs = list(newParentWidget.tabs())
+        if str(widget) not in existing_tabs:
+            try:
+                newParentWidget.add(widget, text="Tab")
+                log.info("changeParentOfTo: added %s as notebook tab", widget)
+            except tk.TclError as _te:
+                log.warning("notebook.add: %s", _te)
+        pythonName = findPythonWidgetNameFromWidget(widget)
+        if pythonName:
+            reparentWidget(pythonName, newParentWidget)
+        widget.parent = newParentWidget
+        newParentWidget.update()
+        return
+
     mgr = myVars.geomManager
     if mgr == "Grid":
         # Preserve grid position if already gridded, else start at 0,0

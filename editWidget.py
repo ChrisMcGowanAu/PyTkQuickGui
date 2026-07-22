@@ -1317,6 +1317,11 @@ class widgetEditPopup:
             l1.grid(row=gridRow, column=labelCol, columnspan=3, sticky=tk.E)
 
         # Some widgets have 'children'
+        # Filter out internal Tk children that are not user-created widgets:
+        # - widgets without a widgetName attribute (Tk internal objects)
+        # - notebook tab-bar menus ("menu") — Tk creates these internally
+        # - scrollbar/grip helper widgets injected by ttkbootstrap
+        _INTERNAL_WIDGET_NAMES = ("menu",)
         kids = self.widget.children
         if kids:
             # for k in kids:
@@ -1324,7 +1329,11 @@ class widgetEditPopup:
                 try:
                     widgetName = k.widgetName
                 except AttributeError as e:
-                    log.warning("child widget ->%s<- got exception %s", str(k), str(e))
+                    log.warning("child widget ->%s<- got exception %s (skipped)", str(k), str(e))
+                    continue
+                # Skip internal Tk children that are not user widgets
+                if widgetName in _INTERNAL_WIDGET_NAMES:
+                    log.debug("createEditPopup: skipping internal child %s", widgetName)
                     continue
                 log.debug(widgetName)
                 l0 = tboot.Label()
@@ -1392,8 +1401,14 @@ class widgetEditPopup:
             gridRow += 1
             key = "tab_count"
             val = self.stringDict.get(key)
+            # Pre-populate from the live notebook's actual tab count so the
+            # spinbox reflects reality when reopening the editor on an existing
+            # notebook (rather than showing 0 every time).
             if val is None or val == "":
-                val = "0"
+                try:
+                    val = str(len(self.widget.tabs()))
+                except tk.TclError:
+                    val = "0"
             sb = tboot.Label(scrollContent, text="tab_count")
             sb.grid(row=gridRow, column=labelCol, columnspan=3, sticky=tk.E)
             self.addToStringDict(key, val)
@@ -1415,6 +1430,15 @@ class widgetEditPopup:
             gridRow += 1
             key2 = "tab_labels"
             val2 = self.stringDict.get(key2, "")
+            # Pre-populate from the live notebook tab texts if no value stored
+            if not val2:
+                try:
+                    _live_labels = [
+                        self.widget.tab(tid, "text") for tid in self.widget.tabs()
+                    ]
+                    val2 = ",".join(_live_labels)
+                except tk.TclError:
+                    val2 = ""
             if val2 is None:
                 val2 = ""
             sb2 = tboot.Label(scrollContent, text="tab_labels")
