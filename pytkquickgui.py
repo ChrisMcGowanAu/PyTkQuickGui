@@ -748,6 +748,23 @@ def changeParentOfTo(widgetName, parentName):
     widget = widgetList[cw.WIDGET]
     parent = parentList[cw.WIDGET]
 
+    # If the new parent is a Notebook, the child must be .add()-ed as a tab,
+    # not placed/gridded inside it.  Use notebook.add() regardless of the
+    # active geometry manager so the tab frame is properly registered.
+    parent_wn = getattr(parent, "widgetName", "")
+    if parent_wn == "ttk::notebook":
+        # Only add if not already a tab of this notebook
+        existing_tabs = list(parent.tabs())
+        if str(widget) not in existing_tabs:
+            try:
+                parent.add(widget, text="Tab")
+                log.info("changeParentOfTo: added %s as tab of %s", widgetName, parentName)
+            except tk.TclError as _te:
+                log.warning("notebook.add(%s): %s", widgetName, _te)
+        widget.parent = parent
+        cw.reparentWidget(widgetName, parent)
+        return
+
     mgr = myVars.geomManager
     if mgr == "Place":
         widget.place(in_=parent)
@@ -977,8 +994,37 @@ def _askGeomManager() -> str:
 
 
 def closeProject():
-    configPath = getConfigPath()
-    C.printf("Close Project %s ", configPath)
+    """Close the current project.
+
+    1. If there are unsaved widgets, ask whether to save first.
+    2. Clear the canvas (delete all widgets).
+    3. Reset project name / path so the UI shows an empty state.
+    """
+    # Only prompt when there is actually something on the canvas
+    if cw.createWidget.widgetList:
+        if not myVars.projectSaved:
+            answer = Messagebox.yesnocancel(
+                title="Unsaved Changes",
+                message=f"Project '{myVars.projectName}' has unsaved changes.\n"
+                        "Save before closing?",
+            )
+            if answer is None or answer == "Cancel":
+                return
+            if answer == "Yes":
+                saveProject()
+
+    # Clear all widgets from the canvas
+    deleteWidgetData()
+    _rebuild_canvas_for_geom()
+
+    # Reset project metadata so the title bar shows no project
+    myVars.projectName = ""
+    myVars.projectPath = ""
+    myVars.projectFileName = ""
+    myVars.projectSaved = True   # nothing to save on a blank canvas
+    mainFrame.config(text="(no project)")
+    undoredo.stack.clear()
+    log.info("closeProject: canvas cleared")
 
 
 def saveProjectAs():
@@ -1384,11 +1430,20 @@ def loadProject(project, altFileName):
                 anchor = place.get("anchor", "nw")
                 bordermode = place.get("bordermode", "inside")
                 if parent != myVars.rootWidgetName:
-                    # Re-apply full place geometry including in_= parent
+                    # Re-apply full place geometry including in_= parent.
+                    # Exception: if the parent is a Notebook, the widget is a
+                    # tab frame managed by .add() — do NOT place() it inside
+                    # the notebook or it escapes the tab system.
                     parent_nl = cw.findPythonWidgetNameList(parent)
                     if parent_nl:
+                        parent_widget = parent_nl[cw.WIDGET]
+                        parent_wn = getattr(parent_widget, "widgetName", "")
+                        if parent_wn == "ttk::notebook":
+                            # Tab frames are owned by the notebook via add();
+                            # skip the place() call for them entirely.
+                            continue
                         widget.place(
-                            in_=parent_nl[cw.WIDGET],
+                            in_=parent_widget,
                             x=x,
                             y=y,
                             width=width,
@@ -1408,6 +1463,48 @@ def loadProject(project, altFileName):
             except (tk.TclError, ValueError) as _pe:
                 log.warning("reapply place for %s: %s", name, _pe)
 
+    # ---- Scrollbar rewiring pass -----------------------------------------
+    # yscrollcommand / xscrollcommand / command are bound Python callables.
+    # saveWidgetAsDict now skips them so no garbage address strings are saved.
+    # Here we reconstruct the wiring from the saved widget hierarchy:
+    #   • a ttk::scrollbar whose parent is a scrollable widget
+    #     → widget.configure(yscrollcommand / xscrollcommand = sb.set)
+    #     → sb.configure(command = widget.yview / xview)
+    _SCROLLABLE_WN = ("canvas", "tk::text", "tk::listbox",
+                      "ttk::treeview", "text", "listbox")
+    for nl in cw.createWidget.widgetNameList:
+        name = nl[cw.NAME]
+        parent_name = nl[cw.PARENT]
+        widget_obj = nl[cw.WIDGET]
+        wn = getattr(widget_obj, "widgetName", "")
+        if wn != "ttk::scrollbar":
+            continue
+        if parent_name == myVars.rootWidgetName:
+            continue
+        parent_nl = cw.findPythonWidgetNameList(parent_name)
+        if not parent_nl:
+            continue
+        target = parent_nl[cw.WIDGET]
+        target_wn = getattr(target, "widgetName", "")
+        if target_wn not in _SCROLLABLE_WN:
+            continue
+        # Determine orientation from saved orient attribute
+        try:
+            orient = widget_obj.cget("orient")
+        except tk.TclError:
+            orient = "vertical"
+        try:
+            if orient == "vertical":
+                target.configure(yscrollcommand=widget_obj.set)
+                widget_obj.configure(command=target.yview)
+                log.info("load rewire: %s yscroll → %s", parent_name, name)
+            else:
+                target.configure(xscrollcommand=widget_obj.set)
+                widget_obj.configure(command=target.xview)
+                log.info("load rewire: %s xscroll → %s", parent_name, name)
+        except tk.TclError as _se:
+            log.warning("scrollbar rewire %s→%s: %s", name, parent_name, _se)
+
     checkWidgetNameList()
     mainFrame.config(text=myVars.projectName)
     # Force tkinter to process all pending geometry requests so that
@@ -1415,6 +1512,8 @@ def loadProject(project, altFileName):
     rootWin.update_idletasks()
     # Clear undo history – actions from the old project aren't reachable
     undoredo.stack.clear()
+    # A freshly loaded project has no unsaved changes yet
+    myVars.projectSaved = True
 
 
 def loadLastProject():
