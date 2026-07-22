@@ -535,7 +535,10 @@ class widgetEditPopup:
                             sbSide = "top" if newVal == "Top" else "bottom"
                             sb.pack(side=sbSide, fill="x")
         if wName in ("notebook"):
-            # ---- Notebook tab creation (works in Place and Grid mode) -----
+            # ---- Notebook tab sync (works in Place and Grid mode) ---------
+            # Goal: make the notebook have exactly n_tabs tabs with the
+            # requested labels.  We must NOT blindly add every time Apply is
+            # pressed — that would duplicate tabs on every edit.
             key = "tab_count"
             newVal = self.stringDict.get(key)
             if newVal is None or newVal == "":
@@ -544,15 +547,33 @@ class widgetEditPopup:
                 n_tabs = int(newVal)
             except ValueError:
                 n_tabs = 0
-            # Build the label list from the tab_labels entry (comma-separated).
+            # Build target label list (fallback to "Tab0", "Tab1", …)
             labels_raw = self.stringDict.get("tab_labels", "") or ""
             label_parts = [lbl.strip() for lbl in labels_raw.split(",") if lbl.strip()]
-            for n in range(n_tabs):
-                tab_label = label_parts[n] if n < len(label_parts) else "Tab" + str(n)
+            def _tab_label(idx):
+                return label_parts[idx] if idx < len(label_parts) else "Tab" + str(idx)
+
+            # How many tabs exist right now?
+            existing_tabs = list(self.widget.tabs())   # list of tab IDs
+            existing_count = len(existing_tabs)
+
+            # 1. Rename / relabel existing tabs to match the new label list
+            for idx, tab_id in enumerate(existing_tabs):
+                self.widget.tab(tab_id, text=_tab_label(idx))
+
+            # 2. Add new tabs for any slots beyond the current count
+            for n in range(existing_count, n_tabs):
                 frame = tboot.Frame(self.widget, borderwidth=1, style="info")
                 cw.createWidget(self.widget, frame)
                 cw.changeParentOfTo(frame, self.widget)
-                self.widget.add(frame, text=tab_label)
+                self.widget.add(frame, text=_tab_label(n))
+
+            # 3. Remove excess tabs (from the end) if n_tabs shrank
+            for tab_id in reversed(existing_tabs[n_tabs:]):
+                try:
+                    self.widget.forget(tab_id)
+                except tk.TclError as _te:
+                    log.warning("notebook forget tab %s: %s", tab_id, _te)
 
     def reformatValues(self, values) -> str | list[Any]:
         """
