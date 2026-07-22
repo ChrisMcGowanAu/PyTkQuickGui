@@ -1248,65 +1248,87 @@ def loadProject(project, altFileName):
     # the correct (new) geomWidgetFrame for the loaded project's geometry manager.
     _rebuild_canvas_for_geom()
 
-    widgetsFound = 0
-    n = 0
-    while widgetsFound < nWidgets:
-        # for n in range(nWidgets + 4):
-        widgetId = "Widget" + str(n)
+    # Build the ordered list of widget IDs to load from widgetNameList.
+    # This handles projects saved after deletions where IDs are non-contiguous
+    # (e.g. Widget2, Widget3 instead of Widget0, Widget1).
+    # widgetNameList order is safe: parents precede children (creation order).
+    _load_ids = [nl[cw.NAME] for nl in widgetNameList if runDict.get(nl[cw.NAME])]
+    # Also pick up any IDs in runDict that are not in widgetNameList (safety net)
+    for _k in runDict:
+        if _k.startswith("Widget") and _k[6:].isdigit() and _k not in _load_ids:
+            _load_ids.append(_k)
+
+    _colour_keys = ("bg", "background", "fg", "foreground",
+                    "activebackground", "activeforeground",
+                    "disabledforeground", "readonlybackground",
+                    "troughcolor", "selectcolor")
+
+    for widgetId in _load_ids:
         wDict = runDict.get(widgetId)
-        if wDict is not None:
-            widgetsFound += 1
-            widgetDef = myVars.buildAWidget(n, wDict)
-            # Route to the correct parent for the active geometry manager.
-            # The eval'd widget def uses 'mainFrame' as parent token — we shadow
-            # it here so the widget is created inside geomWidgetFrame directly.
-            _load_parent = (
-                geomWidgetFrame if geomWidgetFrame is not None else mainCanvas
-            )
-            try:
-                # widget = ast.literal_eval(widgetDef)
-                log.info("widgetDef ->%s<-", widgetDef)
-                # Evaluate with mainFrame aliased to _load_parent so the widget
-                # is created as a child of the correct container.
-                # pylint: disable=eval-used
-                widget = eval(widgetDef, globals(), {"mainFrame": _load_parent})
-            except NameError as e:
-                log.error("%d dict %s eval() NameError %s", n, str(wDict), str(e))
-                continue
-            except TypeError as e:
-                log.error("%d dict %s eval() TypeError %s", n, str(wDict), str(e))
-                continue
-            w = cw.createWidget(_load_parent, widget)
+        if wDict is None:
+            continue
+        # Extract the numeric part of the saved ID so buildAWidget can look up
+        # keys like "Widget2-KeyCount" / "Attribute0" inside wDict correctly.
+        _id_num = int(widgetId[6:])  # "Widget2" → 2
+        widgetDef = myVars.buildAWidget(_id_num, wDict)
+        # Route to the correct parent for the active geometry manager.
+        # The eval'd widget def uses 'mainFrame' as parent token — we shadow
+        # it here so the widget is created inside geomWidgetFrame directly.
+        _load_parent = (
+            geomWidgetFrame if geomWidgetFrame is not None else mainCanvas
+        )
+        try:
+            log.info("widgetDef ->%s<-", widgetDef)
+            # pylint: disable=eval-used
+            widget = eval(widgetDef, globals(), {"mainFrame": _load_parent})
+        except NameError as e:
+            log.error("%s dict %s eval() NameError %s", widgetId, str(wDict), str(e))
+            continue
+        except TypeError as e:
+            log.error("%s dict %s eval() TypeError %s", widgetId, str(wDict), str(e))
+            continue
+        w = cw.createWidget(_load_parent, widget)
 
-            # Post-construction colour restore: ttkbootstrap's theming engine
-            # overrides bg=/background= kwargs during widget construction, so
-            # the saved colour values are discarded.  We must apply them again
-            # immediately after the widget is created, before the theme has
-            # a chance to override them a second time.
-            _colour_keys = ("bg", "background", "fg", "foreground",
-                            "activebackground", "activeforeground",
-                            "disabledforeground", "readonlybackground",
-                            "troughcolor", "selectcolor")
-            _nkeys = wDict.get(widgetId + "-KeyCount", 0)
-            for _ai in range(_nkeys):
-                _adict = wDict.get("Attribute" + str(_ai))
-                if _adict is None:
-                    continue
-                _ck = _adict.get("Key", "")
-                _cv = _adict.get("Value", "")
-                if _ck in _colour_keys and _cv and not _cv.startswith("<"):
-                    try:
-                        widget.configure(**{_ck: _cv})
-                        log.info("post-load colour restore: %s=%s on %s", _ck, _cv, widgetId)
-                    except tk.TclError as _ce:
-                        log.debug("post-load colour %s=%s ignored: %s", _ck, _cv, _ce)
+        # createWidget.__init__ auto-assigns pythonName = "Widget" + widgetId
+        # (starting from 0), which will be wrong for non-contiguous saved IDs.
+        # Correct the pythonName in both the object and the widgetNameList entry
+        # to match the saved name (e.g. "Widget2" instead of "Widget0").
+        if w.pythonName != widgetId:
+            _old_name = w.pythonName
+            # Find the auto-assigned entry and rename it
+            for _nl in cw.createWidget.widgetNameList:
+                if _nl[cw.NAME] == _old_name:
+                    _nl[cw.NAME] = widgetId
+                    break
+            w.pythonName = widgetId
+            w.widget.pythonName = widgetId
+            log.info("load: renamed auto-id %s → %s", _old_name, widgetId)
 
-            # In Grid mode, container widgets need their own row/column
-            # configuration so child widgets can be reparented into them.
-            if myVars.geomManager == "Grid":
-                wn = wDict.get("WidgetName", "")
-                if wn in myVars.containerWidgetsUsed:
-                    _configure_container_grid(widget)
+        # Post-construction colour restore: ttkbootstrap's theming engine
+        # overrides bg=/background= kwargs during widget construction, so
+        # the saved colour values are discarded.  We must apply them again
+        # immediately after the widget is created, before the theme has
+        # a chance to override them a second time.
+        _nkeys = wDict.get(widgetId + "-KeyCount", 0)
+        for _ai in range(_nkeys):
+            _adict = wDict.get("Attribute" + str(_ai))
+            if _adict is None:
+                continue
+            _ck = _adict.get("Key", "")
+            _cv = _adict.get("Value", "")
+            if _ck in _colour_keys and _cv and not _cv.startswith("<"):
+                try:
+                    widget.configure(**{_ck: _cv})
+                    log.info("post-load colour restore: %s=%s on %s", _ck, _cv, widgetId)
+                except tk.TclError as _ce:
+                    log.debug("post-load colour %s=%s ignored: %s", _ck, _cv, _ce)
+
+        # In Grid mode, container widgets need their own row/column
+        # configuration so child widgets can be reparented into them.
+        if myVars.geomManager == "Grid":
+            wn = wDict.get("WidgetName", "")
+            if wn in myVars.containerWidgetsUsed:
+                _configure_container_grid(widget)
 
             mgr = myVars.geomManager
             if mgr == "Place":
@@ -1369,15 +1391,14 @@ def loadProject(project, altFileName):
                 )
             else:
                 log.error("Geometry Manager %s unknown", mgr)
-        n += 1
-        if n > (nWidgets * 10):
-            log.error(
-                "Cannot locate All Widgets tried %d times expected to find %d found %d",
-                n,
-                nWidgets,
-                widgetsFound,
-            )
-            break
+
+    # After loading all widgets, advance the global widgetId counter past the
+    # highest saved ID so that new widgets created after load don't collide.
+    if _load_ids:
+        _max_id = max(int(wid[6:]) for wid in _load_ids if wid[6:].isdigit())
+        if cw.createWidget.widgetId <= _max_id:
+            cw.createWidget.widgetId = _max_id + 1
+            log.info("load: widgetId counter advanced to %d", cw.createWidget.widgetId)
 
     # using widgetNameList, set the hierarchy
     # NAME 0 PARENT 1 WIDGET 2 CHILDREN 3
