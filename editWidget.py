@@ -466,7 +466,7 @@ class widgetEditPopup:
                             log.warning("k %s val %s", str(k), str(newVal))
         wName = myVars.fixWidgetName(self.widget.widgetName)
         # Scrollbar wiring works in both Grid and Place geometry manager modes.
-        if wName in ("canvas", "listbox", "treeview"):
+        if wName in ("canvas", "listbox", "treeview", "text"):
             # scrollbars = ['vertical_scrollbar', 'horizontal_scrollbar']
             for k in scrollbars:
                 # verticalValues = [' ', 'none', 'LeftSide', 'RightSide']
@@ -574,6 +574,9 @@ class widgetEditPopup:
                     self.widget.forget(tab_id)
                 except tk.TclError as _te:
                     log.warning("notebook forget tab %s: %s", tab_id, _te)
+
+        # Any Apply press means the project has unsaved changes
+        myVars.projectSaved = False
 
     def reformatValues(self, values) -> str | list[Any]:
         """
@@ -1369,7 +1372,7 @@ class widgetEditPopup:
         # These work in both Grid and Place geometry manager modes.
         wName = myVars.fixWidgetName(self.widget.widgetName)
         log.debug("wName ->%s<-", wName)
-        if wName in ("canvas", "listbox", "treeview"):
+        if wName in ("canvas", "listbox", "treeview", "text"):
             log.info("Creating scrollbar stuff for %s", wName)
             for k in scrollbars:
                 gridRow += 1

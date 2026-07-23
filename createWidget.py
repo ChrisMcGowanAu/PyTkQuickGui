@@ -374,6 +374,8 @@ class createWidget:
         )
         createWidget.lastCreated = self
         createWidget.widgetObjectList.append(self)
+        # Mark project as having unsaved changes
+        myVars.projectSaved = False
         # Record creation for undo (push_done: the widget is already on screen)
         undoredo.stack.push_done(undoredo.CreateCommand(self, self.root))
 
@@ -665,6 +667,7 @@ class createWidget:
         undoredo.stack.push_done(undoredo.DeleteCommand(self, self.root))
         deleteWidgetFromLists(self.pythonName, self.widget)
         self.widget.destroy()
+        myVars.projectSaved = False
 
     def _highlight(self, on: bool):
         """Toggle a visual highlight to show multi-selection."""
@@ -1200,3 +1203,4 @@ class createWidget:
             undoredo.stack.push_done(
                 undoredo.MoveCommand(self, ox, oy, ow, oh, nx, ny, nw, nh)
             )
+            myVars.projectSaved = False
