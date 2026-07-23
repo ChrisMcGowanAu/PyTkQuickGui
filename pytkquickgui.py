@@ -1472,20 +1472,35 @@ def loadProject(project, altFileName):
                 _rely = _pv("rely")
                 if _rely != "":
                     place_kwargs["rely"] = _rely
-                # Absolute size — omit if empty (lets relwidth/relheight drive it)
+                # Absolute size — omit if empty (lets relwidth/relheight drive it).
+                # IMPORTANT: Tkinter's place() is ADDITIVE — calling place(relheight=1)
+                # does NOT clear a previously-set height= from createWidget.__init__.
+                # The result would be height = old_height + relheight*container_height
+                # making the scrollbar (or any rel-sized widget) far too tall/wide.
+                # Fix: always pass both the absolute and relative dimension together:
+                #   • if relheight is set and height is empty → pass height="" to clear it
+                #   • if height is set and relheight is empty → pass relheight="" to clear it
+                # Same logic applies to width / relwidth.
                 _w = _pv("width")
-                if _w != "":
-                    place_kwargs["width"] = _w
-                _h = _pv("height")
-                if _h != "":
-                    place_kwargs["height"] = _h
-                # Relative size — omit if empty
                 _relw = _pv("relwidth")
                 if _relw != "":
                     place_kwargs["relwidth"] = _relw
+                    # Clear any stale absolute width left from createWidget.__init__
+                    place_kwargs["width"] = _w if _w != "" else ""
+                elif _w != "":
+                    place_kwargs["width"] = _w
+                    place_kwargs["relwidth"] = ""   # clear any stale relwidth
+
+                _h = _pv("height")
                 _relh = _pv("relheight")
                 if _relh != "":
                     place_kwargs["relheight"] = _relh
+                    # Clear any stale absolute height left from createWidget.__init__
+                    place_kwargs["height"] = _h if _h != "" else ""
+                elif _h != "":
+                    place_kwargs["height"] = _h
+                    place_kwargs["relheight"] = ""  # clear any stale relheight
+
                 # Anchor and bordermode always present
                 place_kwargs["anchor"] = _pv("anchor", "nw")
                 place_kwargs["bordermode"] = _pv("bordermode", "inside")
