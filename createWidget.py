@@ -156,24 +156,67 @@ def deleteWidgetFromLists(pythonName, widget):
     createWidget.widgetNameList.remove(nl)
 
 
+def _is_notebook_tab_type(widget):
+    """Return True if *widget* is a Frame/LabelFrame — i.e. it should become a
+    notebook tab via .add().  Buttons, Labels, Text widgets, etc. return False
+    and should instead go *inside* the notebook's currently-selected tab frame."""
+    wn = getattr(widget, "widgetName", "")
+    return wn in ("ttk::frame", "ttk::labelframe", "frame", "labelframe")
+
+
+def _notebook_selected_tab_frame(notebook):
+    """Return the tk widget for the currently-selected tab of *notebook*, or
+    None if the notebook has no tabs yet."""
+    try:
+        sel = notebook.select()          # returns Tk path string of selected tab
+        if not sel:
+            return None
+        return notebook.nametowidget(sel)
+    except tk.TclError:
+        return None
+
+
 def changeParentOfTo(widget, newParentWidget):
     """Re-parent *widget* into *newParentWidget* using the active geometry manager."""
-    # If the new parent is a Notebook, use .add() so the widget becomes a tab.
+    # ------------------------------------------------------------------
+    # Notebook handling — two cases:
+    #   1. widget IS a Frame/LabelFrame → add it as a new tab (.add())
+    #   2. widget is any other type    → place it INSIDE the currently-
+    #      selected tab frame, not as a new tab
+    # ------------------------------------------------------------------
     parent_wn = getattr(newParentWidget, "widgetName", "")
     if parent_wn == "ttk::notebook":
-        existing_tabs = list(newParentWidget.tabs())
-        if str(widget) not in existing_tabs:
-            try:
-                newParentWidget.add(widget, text="Tab")
-                log.info("changeParentOfTo: added %s as notebook tab", widget)
-            except tk.TclError as _te:
-                log.warning("notebook.add: %s", _te)
-        pythonName = findPythonWidgetNameFromWidget(widget)
-        if pythonName:
-            reparentWidget(pythonName, newParentWidget)
-        widget.parent = newParentWidget
-        newParentWidget.update()
-        return
+        if _is_notebook_tab_type(widget):
+            # Frame/LabelFrame: register as a tab page
+            existing_tabs = list(newParentWidget.tabs())
+            if str(widget) not in existing_tabs:
+                try:
+                    newParentWidget.add(widget, text="Tab")
+                    log.info("changeParentOfTo: added %s as notebook tab", widget)
+                except tk.TclError as _te:
+                    log.warning("notebook.add: %s", _te)
+            pythonName = findPythonWidgetNameFromWidget(widget)
+            if pythonName:
+                reparentWidget(pythonName, newParentWidget)
+            widget.parent = newParentWidget
+            newParentWidget.update()
+            return
+        else:
+            # Non-frame widget: route into the currently-selected tab frame
+            tab_frame = _notebook_selected_tab_frame(newParentWidget)
+            if tab_frame is not None:
+                log.info(
+                    "changeParentOfTo: routing non-frame %s into tab frame %s",
+                    widget, tab_frame,
+                )
+                # Recurse with the tab frame as the real parent
+                changeParentOfTo(widget, tab_frame)
+                return
+            else:
+                log.warning(
+                    "changeParentOfTo: notebook has no selected tab; "
+                    "falling through to place %s in notebook directly", widget
+                )
 
     mgr = myVars.geomManager
     if mgr == "Grid":

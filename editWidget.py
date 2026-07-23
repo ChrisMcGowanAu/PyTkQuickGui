@@ -467,6 +467,29 @@ class widgetEditPopup:
         wName = myVars.fixWidgetName(self.widget.widgetName)
         # Scrollbar wiring works in both Grid and Place geometry manager modes.
         if wName in ("canvas", "listbox", "treeview", "text"):
+            # Helper: find an existing scrollbar child of self.widget with a
+            # given orient ("vertical" or "horizontal") from widgetNameList.
+            # Returns the live scrollbar widget, or None.
+            def _find_existing_sb(orient):
+                my_nl = cw.findPythonWidgetNameList(
+                    cw.findPythonWidgetNameFromWidget(self.widget)
+                )
+                if not my_nl:
+                    return None
+                for child_name in my_nl[cw.CHILDREN]:
+                    child_nl = cw.findPythonWidgetNameList(child_name)
+                    if not child_nl:
+                        continue
+                    child_w = child_nl[cw.WIDGET]
+                    if getattr(child_w, "widgetName", "") != "ttk::scrollbar":
+                        continue
+                    try:
+                        if child_w.cget("orient") == orient:
+                            return child_w
+                    except tk.TclError:
+                        pass
+                return None
+
             # scrollbars = ['vertical_scrollbar', 'horizontal_scrollbar']
             for k in scrollbars:
                 # verticalValues = [' ', 'none', 'LeftSide', 'RightSide']
@@ -474,12 +497,19 @@ class widgetEditPopup:
                 newVal = self.stringDict.get(k)
                 log.info("scrollbar %s value %s", k, newVal)
                 if k == "vertical_scrollbar":
+                    existing_vsb = _find_existing_sb("vertical")
                     if newVal in ("LeftSide", "RightSide"):
-                        sb = tboot.Scrollbar(
-                            self.root, orient="vertical", style="info round"
-                        )
-                        cw.createWidget(self.root, sb)
-                        cw.changeParentOfTo(sb, self.widget)
+                        if existing_vsb is not None:
+                            # Scrollbar already exists — just reposition it
+                            # in case the user switched LeftSide ↔ RightSide.
+                            sb = existing_vsb
+                            log.info("reusing existing vertical scrollbar %s", sb)
+                        else:
+                            sb = tboot.Scrollbar(
+                                self.root, orient="vertical", style="info round"
+                            )
+                            cw.createWidget(self.root, sb)
+                            cw.changeParentOfTo(sb, self.widget)
                         self.widget.configure(yscrollcommand=sb.set)
                         sb.config(command=self.widget.yview)
                         if myVars.geomManager == "Place":
@@ -492,6 +522,7 @@ class widgetEditPopup:
                                     in_=self.widget,
                                     relx=1.0, rely=0.0,
                                     relheight=1.0, width=16,
+                                    height="",
                                     anchor="ne",
                                 )
                             else:  # LeftSide
@@ -499,6 +530,7 @@ class widgetEditPopup:
                                     in_=self.widget,
                                     relx=0.0, rely=0.0,
                                     relheight=1.0, width=16,
+                                    height="",
                                     anchor="nw",
                                 )
                         else:
@@ -506,13 +538,30 @@ class widgetEditPopup:
                             sbSide = "left" if newVal == "LeftSide" else "right"
                             sb.place_forget()
                             sb.pack(side=sbSide, fill="y")
+                    elif newVal in ("none", " ", None) and existing_vsb is not None:
+                        # User chose "none" — remove the existing scrollbar
+                        try:
+                            self.widget.configure(yscrollcommand="")
+                        except tk.TclError:
+                            pass
+                        vsb_name = cw.findPythonWidgetNameFromWidget(existing_vsb)
+                        if vsb_name:
+                            vsb_cwo = cw.findCreateWidgetObject(vsb_name)
+                            if vsb_cwo:
+                                vsb_cwo.deleteWidget()
+                        log.info("removed vertical scrollbar from %s", self.widget)
                 elif k == "horizontal_scrollbar":
+                    existing_hsb = _find_existing_sb("horizontal")
                     if newVal in ("Top", "Bottom"):
-                        sb = tboot.Scrollbar(
-                            self.widget, orient="horizontal", style="info"
-                        )
-                        cw.createWidget(self.widget, sb)
-                        cw.changeParentOfTo(sb, self.widget)
+                        if existing_hsb is not None:
+                            sb = existing_hsb
+                            log.info("reusing existing horizontal scrollbar %s", sb)
+                        else:
+                            sb = tboot.Scrollbar(
+                                self.widget, orient="horizontal", style="info"
+                            )
+                            cw.createWidget(self.widget, sb)
+                            cw.changeParentOfTo(sb, self.widget)
                         self.widget.configure(xscrollcommand=sb.set)
                         sb.config(command=self.widget.xview)
                         if myVars.geomManager == "Place":
@@ -522,6 +571,7 @@ class widgetEditPopup:
                                     in_=self.widget,
                                     relx=0.0, rely=1.0,
                                     relwidth=1.0, height=16,
+                                    width="",
                                     anchor="sw",
                                 )
                             else:  # Top
@@ -529,11 +579,24 @@ class widgetEditPopup:
                                     in_=self.widget,
                                     relx=0.0, rely=0.0,
                                     relwidth=1.0, height=16,
+                                    width="",
                                     anchor="nw",
                                 )
                         else:
                             sbSide = "top" if newVal == "Top" else "bottom"
                             sb.pack(side=sbSide, fill="x")
+                    elif newVal in ("none", " ", None) and existing_hsb is not None:
+                        # User chose "none" — remove the existing scrollbar
+                        try:
+                            self.widget.configure(xscrollcommand="")
+                        except tk.TclError:
+                            pass
+                        hsb_name = cw.findPythonWidgetNameFromWidget(existing_hsb)
+                        if hsb_name:
+                            hsb_cwo = cw.findCreateWidgetObject(hsb_name)
+                            if hsb_cwo:
+                                hsb_cwo.deleteWidget()
+                        log.info("removed horizontal scrollbar from %s", self.widget)
         if wName in ("notebook"):
             # ---- Notebook tab sync (works in Place and Grid mode) ---------
             # Goal: make the notebook have exactly n_tabs tabs with the

@@ -131,12 +131,36 @@ def Merge(dict1, dict2) -> dict:
 
 
 def createCleanNameList() -> list:
+    """Return widgetNameList in parent-before-child order for safe reloading.
+
+    The live widgetNameList may have children listed before their parents if
+    widgets were created or reparented in unusual sequences (e.g. a scrollbar
+    created first then its canvas parent reparented later).  loadProject()
+    processes the list top-to-bottom and calls changeParentOfTo() for each
+    child — if a child appears before its parent the parent hasn't been loaded
+    yet and reparenting silently fails, leaving the child at root level.
+
+    We reorder using workOutWidgetCreationOrder() which already guarantees
+    parent-before-child traversal.
+    """
+    # Build a lookup from name → raw entry so we can reassemble in the
+    # correct order without losing any entry.
+    raw = {c[cw.NAME]: c for c in cw.createWidget.widgetNameList}
+    ordered_names = workOutWidgetCreationOrder()   # ["rootWidget", "Widget0", ...]
     cleanNameList = []
+    seen = set()
+    for name in ordered_names:
+        if name == myVars.rootWidgetName:
+            continue
+        c = raw.get(name)
+        if c is None:
+            continue
+        cleanNameList.append([c[cw.NAME], c[cw.PARENT], "", c[cw.CHILDREN]])
+        seen.add(name)
+    # Safety net: add any entries not covered by workOutWidgetCreationOrder
     for c in cw.createWidget.widgetNameList:
-        name = c[cw.NAME]
-        parent = c[cw.PARENT]
-        children = c[cw.CHILDREN]
-        cleanNameList.append([name, parent, "", children])
+        if c[cw.NAME] not in seen:
+            cleanNameList.append([c[cw.NAME], c[cw.PARENT], "", c[cw.CHILDREN]])
     return cleanNameList
 
 
@@ -746,6 +770,25 @@ def checkWidgetNameList():
                     children2.remove(widgetName1)
 
 
+def _notebook_selected_tab_frame(notebook):
+    """Return the tk widget for the currently-selected tab of *notebook*, or
+    None if the notebook has no tabs yet."""
+    try:
+        sel = notebook.select()
+        if not sel:
+            return None
+        return notebook.nametowidget(sel)
+    except tk.TclError:
+        return None
+
+
+def _is_notebook_tab_type(widget):
+    """True when *widget* should become a notebook tab (Frame/LabelFrame).
+    Other widget types (Button, Label, Text, etc.) should go *inside* a tab."""
+    wn = getattr(widget, "widgetName", "")
+    return wn in ("ttk::frame", "ttk::labelframe", "frame", "labelframe")
+
+
 def changeParentOfTo(widgetName, parentName):
     # find both widgets
     widgetList = cw.findPythonWidgetNameList(widgetName)
@@ -756,22 +799,56 @@ def changeParentOfTo(widgetName, parentName):
     widget = widgetList[cw.WIDGET]
     parent = parentList[cw.WIDGET]
 
-    # If the new parent is a Notebook, the child must be .add()-ed as a tab,
-    # not placed/gridded inside it.  Use notebook.add() regardless of the
-    # active geometry manager so the tab frame is properly registered.
+    # ------------------------------------------------------------------
+    # Notebook handling — two cases:
+    #   1. widget IS a Frame/LabelFrame → add it as a new tab (.add())
+    #   2. widget is any other type    → place it INSIDE the currently-
+    #      selected tab frame, not as a new tab
+    # ------------------------------------------------------------------
     parent_wn = getattr(parent, "widgetName", "")
     if parent_wn == "ttk::notebook":
-        # Only add if not already a tab of this notebook
-        existing_tabs = list(parent.tabs())
-        if str(widget) not in existing_tabs:
-            try:
-                parent.add(widget, text="Tab")
-                log.info("changeParentOfTo: added %s as tab of %s", widgetName, parentName)
-            except tk.TclError as _te:
-                log.warning("notebook.add(%s): %s", widgetName, _te)
-        widget.parent = parent
-        cw.reparentWidget(widgetName, parent)
-        return
+        if _is_notebook_tab_type(widget):
+            # Frame/LabelFrame: register as a notebook tab page
+            existing_tabs = list(parent.tabs())
+            if str(widget) not in existing_tabs:
+                try:
+                    parent.add(widget, text="Tab")
+                    log.info("changeParentOfTo: added %s as tab of %s", widgetName, parentName)
+                except tk.TclError as _te:
+                    log.warning("notebook.add(%s): %s", widgetName, _te)
+            widget.parent = parent
+            cw.reparentWidget(widgetName, parent)
+            return
+        else:
+            # Non-frame: route into the currently-selected tab frame instead
+            tab_frame = _notebook_selected_tab_frame(parent)
+            if tab_frame is not None:
+                tab_frame_name = cw.findPythonWidgetNameFromWidget(tab_frame)
+                log.info(
+                    "changeParentOfTo: routing non-frame %s into tab frame %s (%s)",
+                    widgetName, tab_frame_name, tab_frame,
+                )
+                if tab_frame_name:
+                    changeParentOfTo(widgetName, tab_frame_name)
+                else:
+                    # tab frame not in our registry — fall through to direct place
+                    log.warning(
+                        "changeParentOfTo: selected tab frame not in widgetNameList; "
+                        "placing %s directly in notebook", widgetName
+                    )
+                    widget.place(in_=parent)
+                    widget.parent = parent
+                    cw.reparentWidget(widgetName, parent)
+                return
+            else:
+                log.warning(
+                    "changeParentOfTo: notebook %s has no selected tab; "
+                    "placing %s directly in notebook", parentName, widgetName
+                )
+                widget.place(in_=parent)
+                widget.parent = parent
+                cw.reparentWidget(widgetName, parent)
+                return
 
     mgr = myVars.geomManager
     if mgr == "Place":
@@ -1515,9 +1592,28 @@ def loadProject(project, altFileName):
                         parent_widget = parent_nl[cw.WIDGET]
                         parent_wn = getattr(parent_widget, "widgetName", "")
                         if parent_wn == "ttk::notebook":
-                            # Tab frames are owned by the notebook via add();
-                            # skip the place() call for them entirely.
-                            continue
+                            if _is_notebook_tab_type(widget):
+                                # Tab frames are owned by the notebook via
+                                # add(); skip the place() call for them.
+                                continue
+                            else:
+                                # Non-frame widget recorded with a notebook
+                                # parent (incorrectly reparented earlier).
+                                # Try to find the actual tab frame it belongs
+                                # in (the notebook's first tab as fallback).
+                                tab_frame = _notebook_selected_tab_frame(parent_widget)
+                                if tab_frame is None and parent_widget.tabs():
+                                    try:
+                                        tab_frame = parent_widget.nametowidget(
+                                            parent_widget.tabs()[0]
+                                        )
+                                    except tk.TclError:
+                                        pass
+                                if tab_frame is not None:
+                                    widget.place(in_=tab_frame, **place_kwargs)
+                                else:
+                                    widget.place(in_=parent_widget, **place_kwargs)
+                                continue
                         widget.place(in_=parent_widget, **place_kwargs)
                 else:
                     widget.place(**place_kwargs)
