@@ -24,10 +24,6 @@ import createWidget as cw
 import pytkguivars as myVars
 import undoredo
 
-# Register all pre-2.0 Bootswatch theme names (solar, darkly, etc.) so that
-# projects saved with legacy theme names load without DeprecationWarning.
-ttk.install_legacy_themes()
-
 log = logging.getLogger(name="mylogger")
 
 
@@ -93,6 +89,10 @@ def createFileName(sa, sb, sc) -> str:
 # This will be from a project's defaultdict
 useTheme = getDefaultTheme()
 rootWin = ttk.Window(theme=useTheme, iconphoto="snake.png")
+# Register all pre-2.0 Bootswatch theme names (solar, darkly, cosmo, …) so
+# that projects saved with legacy theme names load without DeprecationWarning.
+# Must be called AFTER ttk.Window() because that creates the Style singleton.
+ttk.install_legacy_themes()
 rootWin.eval("tk::PlaceWindow . pointer")
 mainFrame = ttk.Frame()
 rootWin.title("Python Tk GUI Builder")
