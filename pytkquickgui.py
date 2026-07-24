@@ -820,6 +820,10 @@ def changeParentOfTo(widgetName, parentName):
                     log.warning("notebook.add(%s): %s", widgetName, _te)
             widget.parent = parent
             cw.reparentWidget(widgetName, parent)
+            # Lock drag/resize — tab frames are sized/positioned by the notebook
+            _tab_cwo = cw.findCreateWidgetObject(widgetName)
+            if _tab_cwo is not None:
+                _tab_cwo.lock_as_tab_frame()
             return
         else:
             # Non-frame: route into the currently-selected tab frame instead
@@ -1375,6 +1379,28 @@ def loadProject(project, altFileName):
             log.error("%s dict %s eval() TypeError %s", widgetId, str(wDict), str(e))
             continue
         w = cw.createWidget(_load_parent, widget)
+
+        # Tab-frame fix: createWidget.__init__ calls widget.place(x,y) for
+        # every widget in Place mode, including frames that are notebook tabs.
+        # That initial place() tears the frame away from the notebook before
+        # notebook.add() can claim it, causing tab frames to float loose after
+        # reload.  Fix: if this widget's saved parent is a notebook, call
+        # place_forget() immediately so the frame has no geometry manager
+        # active when notebook.add() is called in the reparenting pass below.
+        _saved_parent_name = wDict.get("WidgetParent", myVars.rootWidgetName)
+        if _saved_parent_name != myVars.rootWidgetName:
+            _sp_nl = cw.findPythonWidgetNameList(_saved_parent_name)
+            if _sp_nl:
+                _sp_wn = getattr(_sp_nl[cw.WIDGET], "widgetName", "")
+                if _sp_wn == "ttk::notebook" and _is_notebook_tab_type(widget):
+                    try:
+                        widget.place_forget()
+                        log.info(
+                            "load: place_forget() on tab frame %s (parent=%s)",
+                            widgetId, _saved_parent_name,
+                        )
+                    except tk.TclError as _pfe:
+                        log.debug("load: place_forget on %s: %s", widgetId, _pfe)
 
         # createWidget.__init__ auto-assigns pythonName = "Widget" + widgetId
         # (starting from 0), which will be wrong for non-contiguous saved IDs.
@@ -2141,11 +2167,24 @@ def buildMenu():
     subMenu.add_command(label="Color Themes")
 
     menuBar.add_cascade(label="File", menu=fileMenu, underline=0)
-    # widget Menu
+    # Theme menu — three submenus: Light, Dark, Legacy
+    # ttkbootstrap 2.0 curated themes follow "family-light" / "family-dark"
+    # naming; everything else is a legacy (pre-2.0) Bootswatch theme.
     themeMenu = ttk.Menu(menuBar, tearoff=0)
-    for t in themes:
-        mypartial = partial(setTheme, t)
-        themeMenu.add_command(label=t, command=mypartial)
+    lightMenu  = ttk.Menu(themeMenu, tearoff=0)
+    darkMenu   = ttk.Menu(themeMenu, tearoff=0)
+    legacyMenu = ttk.Menu(themeMenu, tearoff=0)
+    for t in sorted(themes):
+        _mp = partial(setTheme, t)
+        if t.endswith("-light"):
+            lightMenu.add_command(label=t, command=_mp)
+        elif t.endswith("-dark"):
+            darkMenu.add_command(label=t, command=_mp)
+        else:
+            legacyMenu.add_command(label=t, command=_mp)
+    themeMenu.add_cascade(label="Light Themes",  menu=lightMenu)
+    themeMenu.add_cascade(label="Dark Themes",   menu=darkMenu)
+    themeMenu.add_cascade(label="Legacy Themes", menu=legacyMenu)
 
     toolsMenu = ttk.Menu(menuBar, tearoff=0)
     toolsMenu.add_command(label="Hide Label Borders", command=hideLabelBorders)

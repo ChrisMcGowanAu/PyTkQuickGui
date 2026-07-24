@@ -198,6 +198,10 @@ def changeParentOfTo(widget, newParentWidget):
             pythonName = findPythonWidgetNameFromWidget(widget)
             if pythonName:
                 reparentWidget(pythonName, newParentWidget)
+                # Lock drag/resize — tab frames are sized by the notebook
+                cwo = findCreateWidgetObject(pythonName)
+                if cwo is not None:
+                    cwo.lock_as_tab_frame()
             widget.parent = newParentWidget
             newParentWidget.update()
             return
@@ -424,6 +428,24 @@ class createWidget:
 
     def setRoot(self, root):
         createWidget.baseRoot = root
+
+    def lock_as_tab_frame(self):
+        """Called when this widget has been added to a notebook as a tab frame.
+        Unbinds drag/resize mouse events so the user cannot accidentally move
+        or resize the frame (it is sized and positioned by the notebook).
+        Right-click (edit popup) is kept so the tab can still be configured."""
+        self.widget.unbind("<Button-1>")
+        self.widget.unbind("<B1-Motion>")
+        self.widget.unbind("<ButtonRelease-1>")
+        log.info("lock_as_tab_frame: %s mouse drag disabled", self.pythonName)
+
+    def unlock_as_tab_frame(self):
+        """Restore normal drag/resize bindings (e.g. if tab frame is later
+        removed from the notebook and reparented elsewhere)."""
+        self.widget.bind("<Button-1>", self.leftMouseDown)
+        self.widget.bind("<B1-Motion>", self.leftMouseDrag)
+        self.widget.bind("<ButtonRelease-1>", self.leftMouseRelease)
+        log.info("unlock_as_tab_frame: %s mouse drag restored", self.pythonName)
 
     def addPlace(self, placeDict):
         log.debug(placeDict)
