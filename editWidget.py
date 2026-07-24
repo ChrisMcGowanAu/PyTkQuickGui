@@ -4,10 +4,9 @@ import tkinter.filedialog as filedialog
 import webbrowser
 from typing import Any
 
-import ttkbootstrap as tboot
+import ttkbootstrap as ttk
 from PIL import ImageTk
 from tkfontchooser import askfont
-from ttkbootstrap import Entry, Labelframe
 from ttkbootstrap.dialogs.colorchooser import ColorChooserDialog
 
 import createWidget as cw
@@ -142,7 +141,7 @@ class widgetEditPopup:
         """
         Choose a Colour and immediately apply it to the live widget.
         :param key: Widget attribute key (e.g. 'bg', 'fg', 'background', 'foreground')
-        :param swatch_btn: optional tboot.Button whose background will be updated
+        :param swatch_btn: optional ttk.Button whose background will be updated
                            to show the chosen colour as a preview swatch.
         """
         colorDialog = ColorChooserDialog()
@@ -215,7 +214,7 @@ class widgetEditPopup:
         # Walk up to the Labelframe root of the popup
         while widget is not None:
             try:
-                if isinstance(widget, Labelframe):
+                if isinstance(widget, ttk.Labelframe):
                     break
                 widget = widget.master
             except AttributeError:
@@ -240,7 +239,7 @@ class widgetEditPopup:
             widget = event.widget
             while widget is not None:
                 try:
-                    if isinstance(widget, Labelframe):
+                    if isinstance(widget, ttk.Labelframe):
                         break
                     widget = widget.master
                 except AttributeError:
@@ -505,7 +504,7 @@ class widgetEditPopup:
                             sb = existing_vsb
                             log.info("reusing existing vertical scrollbar %s", sb)
                         else:
-                            sb = tboot.Scrollbar(
+                            sb = ttk.Scrollbar(
                                 self.root, orient="vertical", style="info round"
                             )
                             cw.createWidget(self.root, sb)
@@ -557,7 +556,7 @@ class widgetEditPopup:
                             sb = existing_hsb
                             log.info("reusing existing horizontal scrollbar %s", sb)
                         else:
-                            sb = tboot.Scrollbar(
+                            sb = ttk.Scrollbar(
                                 self.widget, orient="horizontal", style="info"
                             )
                             cw.createWidget(self.widget, sb)
@@ -626,7 +625,7 @@ class widgetEditPopup:
 
             # 2. Add new tabs for any slots beyond the current count
             for n in range(existing_count, n_tabs):
-                frame = tboot.Frame(self.widget, borderwidth=1, style="info")
+                frame = ttk.Frame(self.widget, borderwidth=1, style="info")
                 cw.createWidget(self.widget, frame)
                 cw.changeParentOfTo(frame, self.widget)
                 self.widget.add(frame, text=_tab_label(n))
@@ -674,9 +673,9 @@ class widgetEditPopup:
         :param dragType: 'triangle' or 'dot'
         """
         # Header row: yellow handle + spacer label (both draggable)
-        headerRow = tboot.Frame(rootFrame)
+        headerRow = ttk.Frame(rootFrame)
         headerRow.grid(row=0, column=0, columnspan=10, sticky="EW")
-        clickCanvas = tboot.Canvas(
+        clickCanvas = ttk.Canvas(
             headerRow,
             width=20,
             height=20,
@@ -688,7 +687,7 @@ class widgetEditPopup:
         else:
             clickCanvas.create_oval(1, 1, 20, 20, fill="yellow")
         # Spacer label fills the rest of the header — also draggable
-        spacer = tboot.Label(
+        spacer = ttk.Label(
             headerRow,
             text="  drag here  ",
             foreground="#888",
@@ -715,7 +714,7 @@ class widgetEditPopup:
         wName = myVars.fixWidgetName(self.widget.widgetName)
         log.debug("Widget %s name %s", self.widget, wName)
         label = "Edit layout for " + wName
-        layoutPopupFrame = Labelframe(
+        layoutPopupFrame = ttk.Labelframe(
             topWin,
             text=label,
             labelanchor="n",
@@ -777,12 +776,12 @@ class widgetEditPopup:
             )
             for p, val, frm, to, inc in grid_fields:
                 gridRow += 1
-                lab1 = tboot.Label(layoutPopupFrame, text=p)
+                lab1 = ttk.Label(layoutPopupFrame, text=p)
                 origName = p + "Orig"
                 self.addToStringDict(origName, str(val))
                 self.addToStringDict(p, str(val))
                 uniqueName = p + str(gridRow)
-                w = tboot.Spinbox(
+                w = ttk.Spinbox(
                     layoutPopupFrame,
                     width=5,
                     name=uniqueName,
@@ -799,8 +798,8 @@ class widgetEditPopup:
                 w.grid(row=gridRow, column=3, sticky=tk.SW)
             # sticky combobox
             gridRow += 1
-            lab1 = tboot.Label(layoutPopupFrame, text="sticky")
-            stickyCombo = tboot.Combobox(
+            lab1 = ttk.Label(layoutPopupFrame, text="sticky")
+            stickyCombo = ttk.Combobox(
                 layoutPopupFrame,
                 values=[
                     "ew",
@@ -846,10 +845,10 @@ class widgetEditPopup:
             pady_val = int(_pi("pady", cwo.pack_pady if cwo else None, 4))
             # side combobox
             gridRow += 1
-            tboot.Label(layoutPopupFrame, text="side").grid(
+            ttk.Label(layoutPopupFrame, text="side").grid(
                 row=gridRow, column=0, sticky=tk.NSEW
             )
-            sideCombo = tboot.Combobox(
+            sideCombo = ttk.Combobox(
                 layoutPopupFrame,
                 values=["top", "bottom", "left", "right"],
                 width=6,
@@ -863,10 +862,10 @@ class widgetEditPopup:
             sideCombo.grid(row=gridRow, column=3, sticky=tk.SW)
             # fill combobox
             gridRow += 1
-            tboot.Label(layoutPopupFrame, text="fill").grid(
+            ttk.Label(layoutPopupFrame, text="fill").grid(
                 row=gridRow, column=0, sticky=tk.NE
             )
-            fillCombo = tboot.Combobox(
+            fillCombo = ttk.Combobox(
                 layoutPopupFrame,
                 values=["none", "x", "y", "both"],
                 width=6,
@@ -880,10 +879,10 @@ class widgetEditPopup:
             fillCombo.grid(row=gridRow, column=3, sticky=tk.SW)
             # expand spinbox
             gridRow += 1
-            tboot.Label(layoutPopupFrame, text="expand").grid(
+            ttk.Label(layoutPopupFrame, text="expand").grid(
                 row=gridRow, column=0, sticky=tk.NE
             )
-            expandSpin = tboot.Spinbox(
+            expandSpin = ttk.Spinbox(
                 layoutPopupFrame,
                 width=5,
                 from_=0,
@@ -900,10 +899,10 @@ class widgetEditPopup:
             # padx / pady spinboxes
             for pname, pval in (("padx", padx_val), ("pady", pady_val)):
                 gridRow += 1
-                tboot.Label(layoutPopupFrame, text=pname).grid(
+                ttk.Label(layoutPopupFrame, text=pname).grid(
                     row=gridRow, column=0, sticky=tk.NE
                 )
-                pspin = tboot.Spinbox(
+                pspin = ttk.Spinbox(
                     layoutPopupFrame,
                     width=5,
                     from_=0,
@@ -920,10 +919,10 @@ class widgetEditPopup:
             # anchor combobox
             anchor_val = _pi("anchor", cwo.pack_anchor if cwo else None, "center")
             gridRow += 1
-            tboot.Label(layoutPopupFrame, text="anchor").grid(
+            ttk.Label(layoutPopupFrame, text="anchor").grid(
                 row=gridRow, column=0, sticky=tk.NE
             )
-            anchorCombo = tboot.Combobox(
+            anchorCombo = ttk.Combobox(
                 layoutPopupFrame,
                 values=["center", "n", "ne", "e", "se", "s", "sw", "w", "nw"],
                 width=6,
@@ -943,13 +942,13 @@ class widgetEditPopup:
                 if p not in onlyThese:
                     continue
                 gridRow += 1
-                lab1 = tboot.Label(layoutPopupFrame, text=p)
+                lab1 = ttk.Label(layoutPopupFrame, text=p)
                 val = place[p]
                 origName = str(p) + "Orig"
                 self.addToStringDict(origName, val)
                 self.addToStringDict(p, val)
                 uniqueName = p + str(gridRow)
-                w = tboot.Spinbox(
+                w = ttk.Spinbox(
                     layoutPopupFrame,
                     width=5,
                     name=uniqueName,
@@ -967,17 +966,17 @@ class widgetEditPopup:
 
         # blank spacer
         gridRow += 1
-        lab2 = tboot.Label(layoutPopupFrame, text="  ")
+        lab2 = ttk.Label(layoutPopupFrame, text="  ")
         lab2.grid(row=gridRow, column=2)
         gridRow += 1
-        b1 = tboot.Button(
+        b1 = ttk.Button(
             layoutPopupFrame,
             style="warning",
             width=5,
             text="Close",
             command=layoutPopupFrame.destroy,
         )
-        b2 = tboot.Button(
+        b2 = ttk.Button(
             layoutPopupFrame,
             style="success",
             width=5,
@@ -1050,7 +1049,7 @@ class widgetEditPopup:
         # Always parent to the real top-level window (not geomWidgetFrame)
         topWin = self.widget.winfo_toplevel()
         topWin.resizable(True, True)
-        editPopupFrame = Labelframe(
+        editPopupFrame = ttk.Labelframe(
             topWin,
             text=label,
             labelanchor="n",
@@ -1085,14 +1084,14 @@ class widgetEditPopup:
         )
         # Show scrollbar only when content is taller than the visible area
         _need_scroll = _content_h > _MAX_H
-        vscroll = tboot.Scrollbar(
+        vscroll = ttk.Scrollbar(
             editPopupFrame, orient="vertical", command=scrollCanvas.yview
         )
         scrollCanvas.configure(yscrollcommand=vscroll.set)
         scrollCanvas.grid(row=1, column=0, columnspan=6, sticky="nsew")
         if _need_scroll:
             vscroll.grid(row=1, column=6, sticky="ns")
-        scrollContent = tboot.Frame(scrollCanvas)
+        scrollContent = ttk.Frame(scrollCanvas)
         _win_id = scrollCanvas.create_window((0, 0), window=scrollContent, anchor="nw")
 
         def _on_frame_configure(_evt):
@@ -1144,7 +1143,7 @@ class widgetEditPopup:
                 val = child_widget.cget(k)
             else:
                 val = self.widget.cget(k)
-            l1 = tboot.Label(scrollContent, text=k)
+            l1 = ttk.Label(scrollContent, text=k)
             uniqueName = k + str(row)
             if k in ignoredKeys:
                 continue
@@ -1153,7 +1152,7 @@ class widgetEditPopup:
             ###############################
             elif k == "font":
                 self.addToStringDict(k, val)
-                w = tboot.Button(
+                w = ttk.Button(
                     scrollContent,
                     name=uniqueName,
                     text="Select a Font",
@@ -1173,7 +1172,7 @@ class widgetEditPopup:
                 "padding",
             ):
                 self.addToStringDict(k, val)
-                w = tboot.Spinbox(
+                w = ttk.Spinbox(
                     scrollContent,
                     width=spinboxWidth,
                     name=uniqueName,
@@ -1192,7 +1191,7 @@ class widgetEditPopup:
             ###############################
             elif k == "anchor" or k == "labelanchor":
                 self.addToStringDict(k, val)
-                w = tboot.Combobox(
+                w = ttk.Combobox(
                     scrollContent,
                     values=anchorVals,
                     width=comboWidth,
@@ -1206,7 +1205,7 @@ class widgetEditPopup:
                 w.grid(row=gridRow, column=controlCol, columnspan=3, sticky=tk.SW)
             elif k == "justify":
                 self.addToStringDict(k, val)
-                w = tboot.Combobox(
+                w = ttk.Combobox(
                     scrollContent,
                     values=justifyVals,
                     width=comboWidth,
@@ -1220,7 +1219,7 @@ class widgetEditPopup:
                 w.grid(row=gridRow, column=controlCol, columnspan=3, sticky=tk.SW)
             elif k == "relief":
                 self.addToStringDict(k, val)
-                w = tboot.Combobox(
+                w = ttk.Combobox(
                     scrollContent,
                     values=reliefVals,
                     width=comboWidth,
@@ -1234,7 +1233,7 @@ class widgetEditPopup:
                 w.grid(row=gridRow, column=controlCol, columnspan=3, sticky=tk.SW)
             elif k == "compound":
                 self.addToStringDict(k, val)
-                w = tboot.Combobox(
+                w = ttk.Combobox(
                     scrollContent,
                     values=compoundVals,
                     width=comboWidth,
@@ -1248,7 +1247,7 @@ class widgetEditPopup:
                 w.grid(row=gridRow, column=controlCol, columnspan=3, sticky=tk.SW)
             elif k == "cursor":
                 self.addToStringDict(k, val)
-                w = tboot.Combobox(
+                w = ttk.Combobox(
                     scrollContent,
                     values=cursorVals,
                     width=comboWidth,
@@ -1262,7 +1261,7 @@ class widgetEditPopup:
                 w.grid(row=gridRow, column=controlCol, columnspan=3, sticky=tk.SW)
             elif k == "orient":
                 self.addToStringDict(k, val)
-                w = tboot.Combobox(
+                w = ttk.Combobox(
                     scrollContent,
                     values=orientVals,
                     width=comboWidth,
@@ -1280,7 +1279,7 @@ class widgetEditPopup:
             elif k == "style":
                 self.addToStringDict(k, val)
                 # varName = self.stringDict.get(k)
-                style = tboot.Style()
+                style = ttk.Style()
                 colours = []
                 # if self.widget.widgetName == 'ttk::button':
                 # largest range ,  bur does not seem to work
@@ -1301,7 +1300,7 @@ class widgetEditPopup:
                     if altList:
                         for alt in altList:
                             colours.append(color_label + "." + alt)
-                w = tboot.Combobox(
+                w = ttk.Combobox(
                     scrollContent,
                     values=colours,
                     width=comboWidth,
@@ -1333,7 +1332,7 @@ class widgetEditPopup:
             elif k == "image":
                 # thisRow1 = row
                 self.addToStringDict(k, val)
-                w = tboot.Button(
+                w = ttk.Button(
                     scrollContent,
                     name=uniqueName,
                     text="Select Image",
@@ -1346,7 +1345,7 @@ class widgetEditPopup:
             ###############################
             elif k == "fg" or k == "bg" or k == "foreground" or k == "background":
                 self.addToStringDict(k, val)
-                w = tboot.Button(
+                w = ttk.Button(
                     scrollContent,
                     name=uniqueName,
                     text="Select Color",
@@ -1367,7 +1366,7 @@ class widgetEditPopup:
             ###############################
             else:
                 self.addToStringDict(k, val)
-                w = Entry(
+                w = ttk.Entry(
                     scrollContent,
                     name=uniqueName,
                     width=entryWidth,
@@ -1402,9 +1401,9 @@ class widgetEditPopup:
                     log.debug("createEditPopup: skipping internal child %s", widgetName)
                     continue
                 log.debug(widgetName)
-                l0 = tboot.Label()
+                l0 = ttk.Label()
                 try:
-                    l0 = tboot.Label(
+                    l0 = ttk.Label(
                         scrollContent,
                         text=widgetName,
                         borderwidth=1,
@@ -1439,11 +1438,11 @@ class widgetEditPopup:
             log.info("Creating scrollbar stuff for %s", wName)
             for k in scrollbars:
                 gridRow += 1
-                sb = tboot.Label(scrollContent, text=k)
+                sb = ttk.Label(scrollContent, text=k)
                 sb.grid(row=gridRow, column=labelCol, columnspan=3, sticky=tk.E)
                 self.addToStringDict(k, val)
                 if k == "vertical_scrollbar":
-                    w = tboot.Combobox(
+                    w = ttk.Combobox(
                         scrollContent,
                         values=verticalValues,
                         width=comboWidth,
@@ -1451,7 +1450,7 @@ class widgetEditPopup:
                         validatecommand=lambda kk=k: self.popupCallback(kk),
                     )
                 else:
-                    w = tboot.Combobox(
+                    w = ttk.Combobox(
                         scrollContent,
                         values=horizontalValues,
                         width=comboWidth,
@@ -1475,10 +1474,10 @@ class widgetEditPopup:
                     val = str(len(self.widget.tabs()))
                 except tk.TclError:
                     val = "0"
-            sb = tboot.Label(scrollContent, text="tab_count")
+            sb = ttk.Label(scrollContent, text="tab_count")
             sb.grid(row=gridRow, column=labelCol, columnspan=3, sticky=tk.E)
             self.addToStringDict(key, val)
-            tc_spin = tboot.Spinbox(
+            tc_spin = ttk.Spinbox(
                 scrollContent,
                 width=spinboxWidth,
                 from_=0,
@@ -1507,10 +1506,10 @@ class widgetEditPopup:
                     val2 = ""
             if val2 is None:
                 val2 = ""
-            sb2 = tboot.Label(scrollContent, text="tab_labels")
+            sb2 = ttk.Label(scrollContent, text="tab_labels")
             sb2.grid(row=gridRow, column=labelCol, columnspan=3, sticky=tk.E)
             self.addToStringDict(key2, val2)
-            tl_entry = Entry(
+            tl_entry = ttk.Entry(
                 scrollContent,
                 width=entryWidth,
                 validate="focusout",
@@ -1523,17 +1522,17 @@ class widgetEditPopup:
 
         gridRow += 1
 
-        b1 = tboot.Button(
+        b1 = ttk.Button(
             editPopupFrame,
             style="warning",
             width=5,
             text="Close",
             command=editPopupFrame.destroy,
         )
-        b2 = tboot.Button(
+        b2 = ttk.Button(
             editPopupFrame, style="info", width=5, text="Help", command=self.getHelp
         )
-        b3 = tboot.Button(
+        b3 = ttk.Button(
             editPopupFrame,
             style="success",
             width=5,
@@ -1542,7 +1541,7 @@ class widgetEditPopup:
         )
 
         # blank Label to make the layout better
-        lab2 = tboot.Label(editPopupFrame, text="   ")
+        lab2 = ttk.Label(editPopupFrame, text="   ")
         lab2.grid(row=gridRow, column=2)
 
         gridRow += 1
