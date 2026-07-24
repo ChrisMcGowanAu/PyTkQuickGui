@@ -4,7 +4,7 @@ import os.path
 import tkinter as tk
 from tkinter import PhotoImage
 
-import ttkbootstrap as tboot
+import ttkbootstrap as ttk
 
 import createWidget as cw
 
@@ -30,7 +30,7 @@ snapTo: int
 imageIndex: int
 backgroundColor: str
 theme: str
-style: tboot.Style
+style: ttk.Style
 rootWidgetName: str
 ascii_lowercase = "abcdefghijklmnopqrstuvwxyz"
 createdWidgetOrder: list
@@ -430,16 +430,18 @@ def fixWidgetTypeName(wType) -> str:
     :param wType:
     :return: the basic str
     """
-    # Palette names prefixed with "ttk." emit as ttk.Xxx (standard tkinter ttk).
+    # "ttk." prefix names (palette widgets like "ttk.Scale") — capitalise class.
+    # These also resolve to ttkbootstrap widgets since we import ttkbootstrap as ttk.
     if wType.startswith("ttk."):
-        # Capitalise the class part: ttk.scale → ttk.Scale
         parts = wType.split(".", 1)
         cls = parts[1][0].upper() + parts[1][1:] if len(parts) > 1 else parts[0]
         return "ttk." + cls
-    t = wType.replace("ttk::", "tboot.")
+    # "ttk::" is Tk's internal class prefix (e.g. "ttk::button" → "ttk.Button").
+    # Maps to ttkbootstrap widgets because we import ttkbootstrap as ttk.
+    t = wType.replace("ttk::", "ttk.")
     wType = t
     idx = wType.find(".")
-    if idx == -1:  # Not ttk widgets
+    if idx == -1:  # Plain tk widget (no namespace prefix)
         t = "tk." + wType
         wType = t
     for ch in alphaList:

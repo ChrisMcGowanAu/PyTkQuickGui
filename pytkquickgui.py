@@ -8,7 +8,6 @@ import re
 import shutil
 import sys
 import tkinter as tk
-import tkinter.ttk as ttk
 from collections import defaultdict
 from functools import partial
 from tkinter.colorchooser import askcolor
@@ -16,15 +15,18 @@ from typing import Any
 
 import coloredlogs
 import tkfontchooser as tkfc
-import ttkbootstrap as tboot
+import ttkbootstrap as ttk
 from ttkbootstrap.constants import *
 from ttkbootstrap.dialogs import Messagebox, Querybox
-from ttkbootstrap.widgets.scrolled import ScrolledFrame, ScrolledText
 
 import cdefs as C
 import createWidget as cw
 import pytkguivars as myVars
 import undoredo
+
+# Register all pre-2.0 Bootswatch theme names (solar, darkly, etc.) so that
+# projects saved with legacy theme names load without DeprecationWarning.
+ttk.install_legacy_themes()
 
 log = logging.getLogger(name="mylogger")
 
@@ -90,12 +92,12 @@ def createFileName(sa, sb, sc) -> str:
 
 # This will be from a project's defaultdict
 useTheme = getDefaultTheme()
-rootWin = tboot.Window(themename=useTheme, iconphoto="snake.png")
+rootWin = ttk.Window(theme=useTheme, iconphoto="snake.png")
 rootWin.eval("tk::PlaceWindow . pointer")
-mainFrame = tboot.Frame()
+mainFrame = ttk.Frame()
 rootWin.title("Python Tk GUI Builder")
-iconBar = tboot.Frame()
-mainCanvas = tboot.Canvas()
+iconBar = ttk.Frame()
+mainCanvas = ttk.Canvas()
 # geomWidgetFrame: inner Frame inside mainCanvas for Grid/Pack modes.
 # For Place mode this is None (widgets go directly on mainCanvas).
 geomWidgetFrame = None
@@ -114,7 +116,7 @@ def setTheme(theme: object):
     # global style
     myVars.theme = theme
     log.debug(theme)
-    # style = tboot.Style(rootWin)
+    # style = ttk.Style(rootWin)
     myVars.style.theme_use(theme)
     # for color_label in style.colors:
     #     color = style.colors.get(color_label)
@@ -433,16 +435,16 @@ def buildPython() -> str:
         )
     # sys.stdout = open("/tmp/test.py", "w", encoding="utf8")
     sys.stdout = open(fileName, "w", encoding="utf8")
-    print("import tkinter as tk\nimport ttkbootstrap as tboot\n")
+    print("import tkinter as tk\nimport ttkbootstrap as ttk\n")
     themeName = myVars.theme
     title = myVars.projectName
     print("themeName = '" + themeName + "'\n")
     print("title = '" + title + "'\n")
-    print("rootWin = tboot.Window(themename=themeName,title=title)")
+    print("rootWin = ttk.Window(theme=themeName, title=title)")
     rootName = myVars.rootWidgetName
     print(
         rootName
-        + " = tboot.Frame(rootWin, width=40, height=100, relief='ridge', borderwidth=1)"
+        + " = ttk.Frame(rootWin, width=40, height=100, relief='ridge', borderwidth=1)"
     )
     # Create widgets on the rootFrame first
     # for widgetName in myVars.createdWidgetOrder:
@@ -661,7 +663,7 @@ def buildPython() -> str:
     print("rootWin.resizable(True, True)")
     print("rootWin.columnconfigure(0, weight=1)")
     print("rootWin.rowconfigure(0, weight=1)")
-    print("sg0 = tboot.Sizegrip(rootWin)")
+    print("sg0 = ttk.Sizegrip(rootWin)")
     print("sg0.grid(row=1, sticky=tk.SE)")
     if myVars.geomManager == "Place":
         print(rootName + ".place(x=0, y=0, relwidth=1.0, relheight=1.0)")
@@ -955,7 +957,7 @@ def setDefaultFont(which):
     log.debug("font_str=%s", font_str)
     if font_str != "":
         if which == "style":
-            myVars.style = tboot.Style()  # .style.Style()
+            myVars.style = ttk.Style()  # .style.Style()
             for w in myVars.widgetsUsed:
                 objType = "T" + w
                 # need to check if 'font' is valid for the widget typeG
@@ -1035,7 +1037,7 @@ def _askGeomManager() -> str:
     tw = top.winfo_reqwidth() or 380
     th = top.winfo_reqheight() or 200
     top.geometry(f"{tw}x{th}+{rx + (rw - tw)//2}+{ry + (rh - th)//2}")
-    tboot.Label(
+    ttk.Label(
         top, text="Choose how widgets will be positioned:", font="TkDefaultFont 10 bold"
     ).pack(pady=(16, 4), padx=16)
 
@@ -1050,7 +1052,7 @@ def _askGeomManager() -> str:
     }
     chosen = tk.StringVar(value="Place")
     for mgr, desc in descriptions.items():
-        rb = tboot.Radiobutton(
+        rb = ttk.Radiobutton(
             top, text=f"{mgr}  —  {desc}", variable=chosen, value=mgr
         )
         if mgr == "Pack":
@@ -1066,12 +1068,12 @@ def _askGeomManager() -> str:
     def _cancel():
         top.destroy()
 
-    bf = tboot.Frame(top)
+    bf = ttk.Frame(top)
     bf.pack(pady=(12, 16))
-    tboot.Button(bf, text="OK", bootstyle="primary", command=_ok).pack(
+    ttk.Button(bf, text="OK", bootstyle="primary", command=_ok).pack(
         side=tk.LEFT, padx=8
     )
-    tboot.Button(bf, text="Cancel", bootstyle="secondary", command=_cancel).pack(
+    ttk.Button(bf, text="Cancel", bootstyle="secondary", command=_cancel).pack(
         side=tk.LEFT, padx=8
     )
     top.wait_window()
@@ -1902,12 +1904,12 @@ Generated Python File
 File > Generate Python  produces a single .py file:
 
   import tkinter as tk
-  import ttkbootstrap as tboot
+  import ttkbootstrap as ttk
 
   themeName = 'cyborg'
   title     = 'MyProject'
-  rootWin   = tboot.Window(themename=themeName, title=title)
-  rootWidget = tboot.Frame(rootWin, ...)
+  rootWin   = ttk.Window(theme=themeName, title=title)
+  rootWidget = ttk.Frame(rootWin, ...)
 
   ####### TK variables #######
   myVar = tk.StringVar(rootWin, '0.0')
@@ -1918,7 +1920,7 @@ File > Generate Python  produces a single .py file:
       print('onButtonClick')
 
   ####### Widgets #######
-  Widget0 = tboot.Button(rootWidget, text='Click', command=onButtonClick)
+  Widget0 = ttk.Button(rootWidget, text='Click', command=onButtonClick)
   Widget0.place(x=80, y=48, width=120, height=32, ...)
 
   ####### Main #######
@@ -2015,20 +2017,20 @@ Troubleshooting
 
 def helpMe():
     """Open the tabbed in-app help window."""
-    helpWin = tboot.Toplevel(rootWin)
+    helpWin = ttk.Toplevel(rootWin)
     helpWin.title("PyTkQuickGui – Help")
     helpWin.geometry("700x520")
     helpWin.resizable(True, True)
 
-    nb = tboot.Notebook(helpWin)
+    nb = ttk.Notebook(helpWin)
     nb.pack(fill="both", expand=True, padx=8, pady=8)
 
     for tab_title, tab_text in _HELP_TABS.items():
-        frame = tboot.Frame(nb)
+        frame = ttk.Frame(nb)
         nb.add(frame, text=tab_title)
 
         # Scrollable text area
-        vsb = tboot.Scrollbar(frame, orient="vertical", style="info round")
+        vsb = ttk.Scrollbar(frame, orient="vertical", style="info round")
         txt = tk.Text(
             frame,
             wrap="word",
@@ -2045,7 +2047,7 @@ def helpMe():
         txt.insert("1.0", tab_text.strip())
         txt.config(state="disabled")
 
-    close_btn = tboot.Button(
+    close_btn = ttk.Button(
         helpWin, text="Close", style="warning", command=helpWin.destroy
     )
     close_btn.pack(pady=(0, 8))
@@ -2107,17 +2109,17 @@ def _changeLayoutManager() -> None:
 
 def buildMenu():
     # global rootWin
-    menuBar = tboot.Menu(rootWin)
-    mystyle = tboot.Style()
+    menuBar = ttk.Menu(rootWin)
+    mystyle = ttk.Style()
     themes = []
     for themeName in mystyle.theme_names():
         themes.append(themeName)
-    # style = tboot.Style(rootWin)
+    # style = ttk.Style(rootWin)
     # themes = style.theme_names()
     # log.debug(themes[1])
     # themes
     rootWin.config(menu=menuBar)
-    fileMenu = tboot.Menu(menuBar, tearoff=0)
+    fileMenu = ttk.Menu(menuBar, tearoff=0)
     # add menu items to the File menu
     fileMenu.add_command(label="New Project", command=newProject)
     fileMenu.add_command(label="Open last Project", command=loadLastProject)
@@ -2132,7 +2134,7 @@ def buildMenu():
     fileMenu.add_command(label="Exit", command=exitApp)
 
     # add a submenu
-    subMenu = tboot.Menu(fileMenu, tearoff=0)
+    subMenu = ttk.Menu(fileMenu, tearoff=0)
     # subMenu.add_command(label='Keyboard Shortcuts')
     subMenu.add_command(label="Background Color", command=chooseBackground)
     subMenu.add_command(label="Themes")
@@ -2140,12 +2142,12 @@ def buildMenu():
 
     menuBar.add_cascade(label="File", menu=fileMenu, underline=0)
     # widget Menu
-    themeMenu = tboot.Menu(menuBar, tearoff=0)
+    themeMenu = ttk.Menu(menuBar, tearoff=0)
     for t in themes:
         mypartial = partial(setTheme, t)
         themeMenu.add_command(label=t, command=mypartial)
 
-    toolsMenu = tboot.Menu(menuBar, tearoff=0)
+    toolsMenu = ttk.Menu(menuBar, tearoff=0)
     toolsMenu.add_command(label="Hide Label Borders", command=hideLabelBorders)
     toolsMenu.add_command(label="Show Label Borders", command=showLabelBorders)
     toolsMenu.add_command(label="Set tools default Theme", command=setDefaultToolTheme)
@@ -2161,7 +2163,7 @@ def buildMenu():
     )
 
     # ---- Edit menu (Undo / Redo) ----------------------------------------
-    editMenu = tboot.Menu(menuBar, tearoff=0)
+    editMenu = ttk.Menu(menuBar, tearoff=0)
     editMenu.add_command(label="Undo\tCtrl+Z", command=undoredo.stack.undo)
     editMenu.add_command(label="Redo\tCtrl+Y", command=undoredo.stack.redo)
     editMenu.add_separator()
@@ -2170,7 +2172,7 @@ def buildMenu():
     menuBar.add_cascade(label="Edit", menu=editMenu, underline=0)
 
     # create the Help menu
-    helpMenu = tboot.Menu(menuBar, tearoff=0)
+    helpMenu = ttk.Menu(menuBar, tearoff=0)
 
     helpMenu.add_command(label="Welcome", command=welcome)
     helpMenu.add_command(label="Help", command=helpMe)
@@ -2189,7 +2191,7 @@ def doNothing():
     pass
 
 
-def _make_grid_overlay(frame: tboot.Frame) -> tk.Canvas:  # type: ignore[name-defined]
+def _make_grid_overlay(frame: ttk.Frame) -> tk.Canvas:  # type: ignore[name-defined]
     """Create (or recreate) the transparent overlay Canvas inside *frame*.
 
     The canvas is placed to fill the entire frame with .place() so it does
@@ -2738,11 +2740,11 @@ def createWidgetPopup(event, widgetName):
 
     # ---- Container widgets -------------------------------------------
     if widgetName == "Frame":
-        w = tboot.Frame(_parent, cursor=defaultCursor, style=defaultStyle)
+        w = ttk.Frame(_parent, cursor=defaultCursor, style=defaultStyle)
         if myVars.geomManager == "Grid":
             _configure_container_grid(w)
     elif widgetName == "Labelframe":
-        w = tboot.Labelframe(
+        w = ttk.Labelframe(
             _parent,
             text=widgetName,
             borderwidth=1,
@@ -2754,12 +2756,12 @@ def createWidgetPopup(event, widgetName):
         if myVars.geomManager == "Grid":
             _configure_container_grid(w)
     elif widgetName == "Panedwindow":
-        w = tboot.Panedwindow(_parent, cursor=defaultCursor, style=defaultStyle)
+        w = ttk.Panedwindow(_parent, cursor=defaultCursor, style=defaultStyle)
         if myVars.geomManager == "Grid":
             _configure_container_grid(w)
     # ---- ttkbootstrap widgets ----------------------------------------
     elif widgetName == "Label":
-        w = tboot.Label(
+        w = ttk.Label(
             _parent,
             text=widgetName,
             borderwidth=1,
@@ -2769,28 +2771,28 @@ def createWidgetPopup(event, widgetName):
             style=defaultStyle,
         )
     elif widgetName == "ScrolledText":
-        w = ScrolledText(_parent, padding=5, height=20, autohide=True)
+        w = ttk.ScrolledText(_parent, padding=5, height=20, autohide=True)
     elif widgetName == "ScrolledFrame":
-        w = ScrolledFrame(_parent, padding=5, height=20, autohide=True)
+        w = ttk.ScrolledFrame(_parent, padding=5, height=20, autohide=True)
     elif widgetName == "Button":
-        w = tboot.Button(
+        w = ttk.Button(
             _parent, text=widgetName, cursor=defaultCursor, style=defaultStyle
         )
 
     elif widgetName == "Entry":
-        w = tboot.Entry(_parent, cursor=defaultCursor, style=defaultStyle)
+        w = ttk.Entry(_parent, cursor=defaultCursor, style=defaultStyle)
     elif widgetName == "Combobox":
-        w = tboot.Combobox(_parent, cursor=defaultCursor, style=defaultStyle)
+        w = ttk.Combobox(_parent, cursor=defaultCursor, style=defaultStyle)
     elif widgetName == "Notebook":
-        w = tboot.Notebook(_parent, cursor=defaultCursor, style=defaultStyle)
+        w = ttk.Notebook(_parent, cursor=defaultCursor, style=defaultStyle)
     elif widgetName == "Canvas":
-        w = tboot.Canvas(_parent, borderwidth=1, relief=tk.SOLID, cursor=defaultCursor)
+        w = ttk.Canvas(_parent, borderwidth=1, relief=tk.SOLID, cursor=defaultCursor)
     elif widgetName == "Spinbox":
-        w = tboot.Spinbox(_parent, cursor=defaultCursor, style=defaultStyle)
+        w = ttk.Spinbox(_parent, cursor=defaultCursor, style=defaultStyle)
     elif widgetName == "Checkbutton":
         # Each Checkbutton needs its own IntVar so it renders and saves correctly.
         _cbv = tk.IntVar(rootWin, 0)
-        w = tboot.Checkbutton(
+        w = ttk.Checkbutton(
             _parent,
             text=widgetName,
             cursor=defaultCursor,
@@ -2801,7 +2803,7 @@ def createWidgetPopup(event, widgetName):
     elif widgetName == "Radiobutton":
         # Each Radiobutton group shares a variable; give each a unique default.
         _rbv = tk.IntVar(rootWin, 0)
-        w = tboot.Radiobutton(
+        w = ttk.Radiobutton(
             _parent,
             text=widgetName,
             cursor=defaultCursor,
@@ -2811,17 +2813,17 @@ def createWidgetPopup(event, widgetName):
         )
         w._tkvar = _rbv
     elif widgetName == "Scale":
-        w = tboot.Scale(_parent, cursor=defaultCursor, style=defaultStyle)
+        w = ttk.Scale(_parent, cursor=defaultCursor, style=defaultStyle)
     elif widgetName == "Progressbar":
-        w = tboot.Progressbar(
+        w = ttk.Progressbar(
             _parent, value=50.0, cursor=defaultCursor, style=defaultStyle
         )
     elif widgetName == "Floodgauge":
-        w = tboot.Floodgauge(
+        w = ttk.Floodgauge(
             _parent, value=50, cursor=defaultCursor, style=defaultStyle
         )
     elif widgetName == "Meter":
-        w = tboot.Meter(
+        w = ttk.Meter(
             _parent,
             metersize=150,
             padding=5,
@@ -2853,7 +2855,7 @@ def createWidgetPopup(event, widgetName):
             selectmode=tk.BROWSE,
         )
     elif widgetName == "Treeview":
-        w = tboot.Treeview(
+        w = ttk.Treeview(
             _parent,
             columns=("col1",),
             show="headings",
@@ -2861,13 +2863,13 @@ def createWidgetPopup(event, widgetName):
         )
         w.heading("col1", text="Column 1")
     elif widgetName == "Scrollbar":
-        w = tboot.Scrollbar(_parent, orient=tk.VERTICAL, style=defaultStyle)
+        w = ttk.Scrollbar(_parent, orient=tk.VERTICAL, style=defaultStyle)
     elif widgetName == "Separator":
         # Separator requires a fully-qualified style name: orient is baked in.
         sep_style = f"{defaultStyle}.Horizontal.TSeparator"
-        w = tboot.Separator(_parent, orient=tk.HORIZONTAL, style=sep_style)
+        w = ttk.Separator(_parent, orient=tk.HORIZONTAL, style=sep_style)
     elif widgetName == "Sizegrip":
-        w = tboot.Sizegrip(_parent, style=defaultStyle)
+        w = ttk.Sizegrip(_parent, style=defaultStyle)
     # ---- Standard ttk widgets (no ttkbootstrap extras) ------------------
     elif widgetName == "ttk.Scale":
         w = ttk.Scale(_parent, orient=tk.HORIZONTAL, from_=0, to=100)
@@ -2888,6 +2890,8 @@ def createWidgetPopup(event, widgetName):
         w = ttk.Notebook(_parent)
     elif widgetName == "ttk.PanedWindow":
         w = ttk.PanedWindow(_parent, orient=tk.HORIZONTAL)
+    # NOTE: the ttk. branches above now use ttkbootstrap's ttk (imported as ttk)
+    # which is a superset of tkinter.ttk — no separate import needed
     else:
         log.warning("Widget %s not implemented", widgetName)
         return
@@ -2899,7 +2903,7 @@ def createWidgetPopup(event, widgetName):
 def rightMouseDown(event):
     # global mainCanvas
     log.debug("rightMouseDown -- event %s", str(event))
-    popup = tboot.Menu(mainFrame, tearoff=0)
+    popup = ttk.Menu(mainFrame, tearoff=0)
     for wName in myVars.containerWidgetsUsed:
         popup.add_command(
             label=wName, command=lambda e=event, w=wName: createWidgetPopup(e, w)
@@ -2921,7 +2925,7 @@ def buildGrid(rows, cols):
     :rtype: object
     """
     global mainCanvas, geomWidgetFrame
-    mainCanvas = tboot.Canvas(
+    mainCanvas = ttk.Canvas(
         mainFrame, width=40, height=100, relief=tk.SOLID, borderwidth=1
     )
     mainCanvas.grid(
@@ -2934,7 +2938,7 @@ def buildGrid(rows, cols):
     # isolated from mainFrame's grid (which owns mainCanvas itself).
     mgr = myVars.geomManager
     if mgr in ("Grid", "Pack"):
-        geomWidgetFrame = tboot.Frame(mainCanvas)
+        geomWidgetFrame = ttk.Frame(mainCanvas)
         # Give the inner frame a large initial size so widgets aren't clipped.
         # The canvas create_window will be resized on every <Configure> event.
         geomWidgetFrame.configure(width=1200, height=900)
@@ -3020,7 +3024,7 @@ def _rebuild_canvas_for_geom():
 
     mgr = myVars.geomManager
     if mgr in ("Grid", "Pack"):
-        geomWidgetFrame = tboot.Frame(mainCanvas)
+        geomWidgetFrame = ttk.Frame(mainCanvas)
         # Give the inner frame a large initial size so widgets aren't clipped.
         geomWidgetFrame.configure(width=1200, height=900)
         # Allow every column/row to expand so grid cells grow with the frame
@@ -3060,19 +3064,19 @@ def buildMainGui():
     buildMenu()
 
     # ---- Toolbar row (row 0) -------------------------------------------
-    toolbarFrame = tboot.Frame(rootWin)
+    toolbarFrame = ttk.Frame(rootWin)
     toolbarFrame.grid(row=0, column=0, sticky="EW", padx=4, pady=2)
 
     # Show the active geometry manager as a read-only label.
     # The manager is chosen once at New Project time; the buttons have been
     # removed to prevent mid-session switching confusion.
-    tboot.Label(toolbarFrame, text="Layout:").pack(side=tk.LEFT, padx=(0, 2))
-    geomLabel = tboot.Label(toolbarFrame, text=myVars.geomManager, bootstyle="info")
+    ttk.Label(toolbarFrame, text="Layout:").pack(side=tk.LEFT, padx=(0, 2))
+    geomLabel = ttk.Label(toolbarFrame, text=myVars.geomManager, bootstyle="info")
     geomLabel.pack(side=tk.LEFT, padx=(0, 8))
     rootWin._geomLabel = geomLabel
 
     # ---- Undo/Redo status label (right side of toolbar) ---------------
-    undoLabel = tboot.Label(
+    undoLabel = ttk.Label(
         toolbarFrame, text="", bootstyle="secondary", font=("TkDefaultFont", 8)
     )
     undoLabel.pack(side=tk.RIGHT, padx=(8, 4))
@@ -3095,7 +3099,7 @@ def buildMainGui():
     rootWin.bind("<Control-Shift-Z>", lambda e: undoredo.stack.redo())
 
     # ---- Main canvas frame (row 1) ------------------------------------
-    mainFrame = tboot.Labelframe(
+    mainFrame = ttk.Labelframe(
         rootWin, width=600, height=150, labelanchor=tk.N, text="No Project Selected"
     )
     mainFrame.grid(row=1, column=0, sticky="NWES")
@@ -3103,7 +3107,7 @@ def buildMainGui():
 
     mainFrame.columnconfigure(0, weight=1)
     mainFrame.rowconfigure(0, weight=1)
-    sg0 = tboot.Sizegrip(mainFrame)
+    sg0 = ttk.Sizegrip(mainFrame)
     sg0.grid(row=1, sticky=tk.SE)
     sg0.bind("<ButtonRelease-1>", sizeGripRelease)
 
@@ -3141,7 +3145,7 @@ if __name__ == "__main__":
     log.info("mainFrame %s %s", mainFrame, str(mainFrame))
 
     buildMainGui()
-    myVars.style = tboot.Style()
+    myVars.style = ttk.Style()
     # Expose drawGridLines to createWidget without a circular import
     myVars.redrawGridLines = drawGridLines
     rootWin.mainloop()

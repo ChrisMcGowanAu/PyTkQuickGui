@@ -5,7 +5,7 @@ import tkinter.messagebox as mb
 import tkinter.simpledialog as sd
 from typing import Any
 
-import ttkbootstrap as tboot
+import ttkbootstrap as ttk
 
 import editWidget as ew
 import pytkguivars as myVars
@@ -724,7 +724,7 @@ class createWidget:
 
     def makePopup(self):
         # Add Menu
-        self.popup = tboot.Menu(self.root, tearoff=0)
+        self.popup = ttk.Menu(self.root, tearoff=0)
 
         # Adding Menu Items
         self.popup.add_command(label="Edit", command=self.editTtkPopup)
