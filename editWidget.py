@@ -536,8 +536,19 @@ class widgetEditPopup:
                                     height="",
                                     anchor="nw",
                                 )
+                        elif myVars.geomManager == "Grid":
+                            # Grid mode: use grid() so there is no geometry-manager
+                            # conflict with the parent container.
+                            sb.place_forget()
+                            sbCol = 0 if newVal == "LeftSide" else 999
+                            sb.grid(
+                                row=0,
+                                column=sbCol,
+                                rowspan=999,
+                                sticky="ns",
+                            )
                         else:
-                            # Grid / Pack mode: use pack() for natural flow
+                            # Pack mode: use pack() for natural flow
                             sbSide = "left" if newVal == "LeftSide" else "right"
                             sb.place_forget()
                             sb.pack(side=sbSide, fill="y")
@@ -589,7 +600,18 @@ class widgetEditPopup:
                                     width="",
                                     anchor="nw",
                                 )
+                        elif myVars.geomManager == "Grid":
+                            # Grid mode: use grid() to avoid geometry-manager conflict.
+                            sb.place_forget()
+                            sbRow = 0 if newVal == "Top" else 999
+                            sb.grid(
+                                row=sbRow,
+                                column=0,
+                                columnspan=999,
+                                sticky="ew",
+                            )
                         else:
+                            # Pack mode
                             sbSide = "top" if newVal == "Top" else "bottom"
                             sb.pack(side=sbSide, fill="x")
                     elif newVal in ("none", " ", None) and existing_hsb is not None:
