@@ -93,6 +93,34 @@ rootWin = ttk.Window(theme=useTheme, iconphoto="snake.png")
 # that projects saved with legacy theme names load without DeprecationWarning.
 # Must be called AFTER ttk.Window() because that creates the Style singleton.
 ttk.install_legacy_themes()
+
+# ── ttkbootstrap version guard ──────────────────────────────────────────────
+# This application requires ttkbootstrap 2.0 or later.
+# Version 1.x uses a different import structure and is incompatible.
+def _check_ttkbootstrap_version():
+    """Warn (and exit) if ttkbootstrap is older than 2.0."""
+    try:
+        ver_str = getattr(ttk, "__version__", "0.0")
+        # Parse major version — handle forms like "2.0.1", "2.0.1.dev0", etc.
+        major = int(str(ver_str).split(".")[0])
+    except (ValueError, AttributeError):
+        major = 0
+    if major < 2:
+        from ttkbootstrap.dialogs import Messagebox
+        Messagebox.show_error(
+            title="Unsupported ttkbootstrap version",
+            message=(
+                f"PyTkQuickGui requires ttkbootstrap 2.0 or later.\n\n"
+                f"Installed version: {ver_str}\n\n"
+                "Please upgrade:  pip install --upgrade ttkbootstrap\n\n"
+                "The application will now exit."
+            ),
+        )
+        rootWin.destroy()
+        import sys as _sys
+        _sys.exit(1)
+
+_check_ttkbootstrap_version()
 rootWin.eval("tk::PlaceWindow . pointer")
 mainFrame = ttk.Frame()
 rootWin.title("Python Tk GUI Builder")
@@ -266,6 +294,8 @@ def saveProject():
         "height": height,
         "theme": myVars.theme,
         "geomManager": myVars.geomManager,
+        "gridRows": getattr(myVars, "gridRows", 10),
+        "gridCols": getattr(myVars, "gridCols", 10),
         "generatedPyFile": myVars.generatedPyFile,
         "widgetNameList": cleanList,
         "backgroundColor": myVars.backgroundColor,
@@ -501,9 +531,12 @@ def buildPython() -> str:
                 print(v + " = tk.StringVar(rootWin,'0.0')")
     print("")
     print(_SEC_FUNCTIONS)
+    # Deduplicate function names (a command may appear on multiple widgets)
+    seen_funcs: set = set()
     for f in functions:
-        if not f:
+        if not f or f in seen_funcs:
             continue
+        seen_funcs.add(f)
         print("")
         if f in _preserved_funcs:
             # Emit the user's version verbatim (already dedented relative to
@@ -514,6 +547,19 @@ def buildPython() -> str:
             print("def " + f + "():")
             print("    " + _STUB_SENTINEL)
             print("    print('" + f + "')")
+    # Emit any user-added functions that are no longer referenced by a widget
+    # (e.g. widget deleted after user wrote the function body)
+    for f, body in _preserved_funcs.items():
+        if f not in seen_funcs:
+            print("")
+            print(body.rstrip())
+    if not functions and not _preserved_funcs:
+        # No callbacks defined yet — emit a placeholder so the section is
+        # clearly visible and the user knows where to add their own callbacks.
+        print("# Add your callback functions here.")
+        print("# Example:")
+        print("# def my_button_click():")
+        print("#     print('button clicked')")
     print("")
     print(_SEC_WIDGETS)
     for widgetName in createdWidgetOrder:
@@ -871,31 +917,42 @@ def changeParentOfTo(widgetName, parentName):
         widget.parent = parent
         widget.update()
     elif mgr == "Grid":
-        # Preserve existing grid info if available, else default to 0,0
-        try:
-            gi = widget.grid_info()
-            row = gi.get("row", 0)
-            col = gi.get("column", 0)
-        except tk.TclError:
-            row, col = 0, 0
-        # Read current cwo values so we preserve span/sticky from last edit
+        # Use the authoritative createWidget object values (row/col/span/sticky)
+        # rather than grid_info() which may still reflect the old container or
+        # the createWidget.__init__ defaults (row=4, col=4).
         cwo_r = cw.findCreateWidgetObject(widgetName)
-        col_span = cwo_r.columnspan if cwo_r is not None else 2
-        row_span = cwo_r.rowspan if cwo_r is not None else 2
-        sticky_r = cwo_r.sticky if cwo_r is not None else "nsew"
+        if cwo_r is not None:
+            row = cwo_r.row
+            col = cwo_r.col
+            col_span = cwo_r.columnspan
+            row_span = cwo_r.rowspan
+            sticky_r = cwo_r.sticky
+            padx_r = cwo_r.padx
+            pady_r = cwo_r.pady
+            ipadx_r = cwo_r.ipadx
+            ipady_r = cwo_r.ipady
+        else:
+            # Fallback: try grid_info() from the current (old) container
+            try:
+                gi = widget.grid_info()
+                row = int(str(gi.get("row", 0)).split()[0])
+                col = int(str(gi.get("column", 0)).split()[0])
+            except (tk.TclError, ValueError):
+                row, col = 0, 0
+            col_span, row_span, sticky_r = 1, 1, "nsew"
+            padx_r, pady_r, ipadx_r, ipady_r = 2, 2, 0, 0
         widget.grid(
             in_=parent,
             row=row,
             column=col,
             columnspan=col_span,
             rowspan=row_span,
-            padx=2,
-            pady=2,
+            padx=padx_r,
+            pady=pady_r,
+            ipadx=ipadx_r,
+            ipady=ipady_r,
             sticky=sticky_r,
         )
-        if cwo_r is not None:
-            cwo_r.col = col
-            cwo_r.row = row
     elif mgr == "Pack":
         widget.pack(in_=parent, padx=4, pady=4, anchor="nw")
     else:
@@ -1009,8 +1066,8 @@ def newProject():
     if not name:
         return
 
-    # Ask for geometry manager once at project creation
-    geom_choice = _askGeomManager()
+    # Ask for geometry manager (and grid dimensions) once at project creation
+    geom_choice, grid_rows, grid_cols = _askGeomManager()
     if not geom_choice:
         return
 
@@ -1027,53 +1084,98 @@ def newProject():
 
     # Apply geometry manager (canvas is empty so setGeomManager will accept it)
     myVars.geomManager = geom_choice
+    if geom_choice == "Grid":
+        myVars.gridRows = grid_rows
+        myVars.gridCols = grid_cols
     if hasattr(rootWin, "_geomLabel"):
         rootWin._geomLabel.config(text="Layout: " + geom_choice)
     _rebuild_canvas_for_geom()
     mainFrame.config(text=myVars.projectName)
 
 
-def _askGeomManager() -> str:
-    """Show a simple dialog to choose Place / Grid / Pack.
-    Returns the chosen manager string, or empty string if cancelled."""
+def _askGeomManager() -> tuple:
+    """Show a dialog to choose Place / Grid / Pack and (for Grid) rows/cols.
+
+    Returns ``(geom_manager_str, rows, cols)`` where rows/cols are ints
+    (only meaningful when geom_manager_str == "Grid").
+    Returns ``("", 10, 10)`` if the user cancelled.
+    """
     # Use tk.Toplevel to avoid ttkbootstrap positional-arg conflict with 'title'
     top = tk.Toplevel(rootWin)
-    top.title("Choose Geometry Manager")
+    top.title("New Project — Layout")
     top.resizable(False, False)
     top.grab_set()
-    # Centre over rootWin once the window has been drawn
-    top.update_idletasks()
-    rw = rootWin.winfo_width() or 900
-    rh = rootWin.winfo_height() or 820
-    rx = rootWin.winfo_rootx()
-    ry = rootWin.winfo_rooty()
-    tw = top.winfo_reqwidth() or 380
-    th = top.winfo_reqheight() or 200
-    top.geometry(f"{tw}x{th}+{rx + (rw - tw)//2}+{ry + (rh - th)//2}")
+
     ttk.Label(
         top, text="Choose how widgets will be positioned:", font="TkDefaultFont 10 bold"
     ).pack(pady=(16, 4), padx=16)
 
-    # descriptions_x = {
-    #     "Place": "Free-form drag & drop (absolute x/y)  ← recommended",
-    #     "Grid":  "Row / column grid layout",
-    #     "Pack":  "Stack widgets top-to-bottom or left-to-right",
     descriptions = {
-        "Place": "Free-form drag & drop (absolute x/y)  ← recommended",
-        "Grid": "Row / column grid layout",
+        "Place": "Free-form drag & drop (absolute x/y)",
+        "Grid": "Row / column grid layout  ← recommended",
         "Pack": "Stack widgets top-to-bottom or left-to-right  (coming soon)",
     }
-    chosen = tk.StringVar(value="Place")
+    chosen = tk.StringVar(value="Grid")
     for mgr, desc in descriptions.items():
         rb = ttk.Radiobutton(top, text=f"{mgr}  —  {desc}", variable=chosen, value=mgr)
         if mgr == "Pack":
             rb.configure(state="disabled")
         rb.pack(anchor="w", padx=24, pady=2)
 
-    result = [""]
+    # ---- Grid rows / cols sub-panel (shown only when Grid is selected) ----
+    grid_frame = ttk.Frame(top, padding=(24, 4, 24, 4))
+    grid_frame.pack(fill="x")
+
+    rows_var = tk.IntVar(value=10)
+    cols_var = tk.IntVar(value=10)
+
+    rows_label = ttk.Label(grid_frame, text="Initial grid rows:")
+    rows_spin  = ttk.Spinbox(grid_frame, from_=2, to=50, textvariable=rows_var, width=6)
+    cols_label = ttk.Label(grid_frame, text="columns:")
+    cols_spin  = ttk.Spinbox(grid_frame, from_=2, to=50, textvariable=cols_var, width=6)
+    hint_label = ttk.Label(
+        grid_frame,
+        text="(Grid auto-expands if more cells are needed)",
+        font="TkDefaultFont 8",
+        bootstyle="secondary",
+    )
+
+    rows_label.grid(row=0, column=0, sticky="e", padx=(0, 4))
+    rows_spin.grid( row=0, column=1, sticky="w", padx=(0, 12))
+    cols_label.grid(row=0, column=2, sticky="e", padx=(0, 4))
+    cols_spin.grid( row=0, column=3, sticky="w")
+    hint_label.grid(row=1, column=0, columnspan=4, sticky="w", pady=(2, 0))
+
+    def _toggle_grid_frame(*_):
+        if chosen.get() == "Grid":
+            rows_label.configure(state="normal")
+            rows_spin.configure(state="normal")
+            cols_label.configure(state="normal")
+            cols_spin.configure(state="normal")
+        else:
+            rows_label.configure(state="disabled")
+            rows_spin.configure(state="disabled")
+            cols_label.configure(state="disabled")
+            cols_spin.configure(state="disabled")
+
+    chosen.trace_add("write", _toggle_grid_frame)
+    _toggle_grid_frame()  # set initial state
+
+    result = ["", 10, 10]
 
     def _ok():
-        result[0] = chosen.get()
+        mgr = chosen.get()
+        try:
+            r = max(2, int(rows_var.get()))
+        except (tk.TclError, ValueError):
+            r = 10
+        try:
+            c = max(2, int(cols_var.get()))
+        except (tk.TclError, ValueError):
+            c = 10
+        result[0] = mgr
+        result[1] = r
+        result[2] = c
         top.destroy()
 
     def _cancel():
@@ -1087,8 +1189,19 @@ def _askGeomManager() -> str:
     ttk.Button(bf, text="Cancel", bootstyle="secondary", command=_cancel).pack(
         side=tk.LEFT, padx=8
     )
+
+    # Centre over rootWin after widgets are laid out
+    top.update_idletasks()
+    rw = rootWin.winfo_width() or 900
+    rh = rootWin.winfo_height() or 820
+    rx = rootWin.winfo_rootx()
+    ry = rootWin.winfo_rooty()
+    tw = top.winfo_reqwidth() or 420
+    th = top.winfo_reqheight() or 260
+    top.geometry(f"{tw}x{th}+{rx + (rw - tw)//2}+{ry + (rh - th)//2}")
+
     top.wait_window()
-    return result[0]
+    return tuple(result)
 
 
 def closeProject():
@@ -1340,6 +1453,9 @@ def loadProject(project, altFileName):
             myVars.geomManager = savedGeom
             if hasattr(rootWin, "_geomLabel"):
                 rootWin._geomLabel.config(text="Layout: " + savedGeom)
+        # Restore grid dimensions (default 10×10 for projects saved before this feature)
+        myVars.gridRows = int(runDict.get("gridRows", 10))
+        myVars.gridCols = int(runDict.get("gridCols", 10))
         savedPyFile = runDict.get("generatedPyFile", "")
         if savedPyFile and os.path.isfile(savedPyFile):
             myVars.generatedPyFile = savedPyFile
@@ -1563,6 +1679,64 @@ def loadProject(project, altFileName):
         else:
             log.warning("name %s parent %s children %s", name, parent, children)
             log.warning("widgetNameList %s", str(widgetNameList))
+
+    # Grid mode: after reparenting, re-apply the saved grid geometry for every
+    # widget.  changeParentOfTo preserves row/col/span from cwo, but a final
+    # authoritative pass guarantees the values are consistent with the saved JSON
+    # (handles edge cases where cwo defaults haven't been set yet).
+    if myVars.geomManager == "Grid":
+        for nl in widgetNameList:
+            name = nl[cw.NAME]
+            if len(name) < 2:
+                continue
+            wDict = runDict.get(name)
+            if wDict is None:
+                continue
+            geomData = wDict.get("GeomData") or {}
+            if not geomData:
+                continue
+            nl_live = cw.findPythonWidgetNameList(name)
+            if not nl_live:
+                continue
+            widget = nl_live[cw.WIDGET]
+            cwo_g = cw.findCreateWidgetObject(name)
+            try:
+                row = int(geomData.get("row", 0))
+                col = int(geomData.get("column", 0))
+                columnspan = max(1, int(geomData.get("columnspan", 1)))
+                rowspan = max(1, int(geomData.get("rowspan", 1)))
+                sticky = geomData.get("sticky", "nsew")
+                padx = int(geomData.get("padx", 2))
+                pady = int(geomData.get("pady", 2))
+                ipadx = int(geomData.get("ipadx", 0))
+                ipady = int(geomData.get("ipady", 0))
+                widget.grid(
+                    row=row,
+                    column=col,
+                    columnspan=columnspan,
+                    rowspan=rowspan,
+                    sticky=sticky,
+                    padx=padx,
+                    pady=pady,
+                    ipadx=ipadx,
+                    ipady=ipady,
+                )
+                if cwo_g is not None:
+                    cwo_g.row = row
+                    cwo_g.col = col
+                    cwo_g.columnspan = columnspan
+                    cwo_g.rowspan = rowspan
+                    cwo_g.sticky = sticky
+                    cwo_g.padx = padx
+                    cwo_g.pady = pady
+                    cwo_g.ipadx = ipadx
+                    cwo_g.ipady = ipady
+                log.debug(
+                    "load grid re-apply: %s row=%d col=%d cspan=%d rspan=%d",
+                    name, row, col, columnspan, rowspan,
+                )
+            except (tk.TclError, ValueError) as _ge:
+                log.warning("load grid re-apply %s: %s", name, _ge)
 
     # Place mode: after reparenting, reapply full place geometry for every
     # widget.  changeParentOfTo only calls .place(in_=parent) which resets
@@ -3102,11 +3276,17 @@ def _rebuild_canvas_for_geom():
         geomWidgetFrame = ttk.Frame(mainCanvas)
         # Give the inner frame a large initial size so widgets aren't clipped.
         geomWidgetFrame.configure(width=1200, height=900)
-        # Allow every column/row to expand so grid cells grow with the frame
-        for c in range(32):
-            geomWidgetFrame.columnconfigure(c, weight=1, minsize=60)
-        for r in range(32):
-            geomWidgetFrame.rowconfigure(r, weight=1, minsize=30)
+        # Configure the requested number of rows/cols (default 10×10, auto-expands).
+        # We always configure a wider range (32) so widgets can be placed beyond
+        # the initial grid size; extra cells just have no min-size configured.
+        _n_cols = max(getattr(myVars, "gridCols", 10), 10)
+        _n_rows = max(getattr(myVars, "gridRows", 10), 10)
+        for c in range(max(_n_cols, 32)):
+            _ms = 60 if c < _n_cols else 0
+            geomWidgetFrame.columnconfigure(c, weight=1, minsize=_ms)
+        for r in range(max(_n_rows, 32)):
+            _ms = 30 if r < _n_rows else 0
+            geomWidgetFrame.rowconfigure(r, weight=1, minsize=_ms)
         mainCanvas.create_window(
             0, 0, window=geomWidgetFrame, anchor="nw", tags="geomframe"
         )

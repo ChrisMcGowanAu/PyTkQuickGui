@@ -95,6 +95,10 @@ widgetsUsed = (
 # Some objects use Grid and Pack internally; the root window uses Grid.
 GEOM_MANAGERS = ("Place", "Grid", "Pack")
 geomManager = "Grid"
+# Number of rows/columns in the initial grid (Grid mode only).
+# The grid auto-expands if more rows/cols are needed.
+gridRows: int = 10
+gridCols: int = 10
 
 # ---- Widget groups (logical, not tkinter containers) --------------------
 # {group_name: [widgetName, ...]}  — persisted to project JSON
@@ -146,8 +150,11 @@ def initVars():
     generatedPyFile = ""
     global groups
     global selectedWidgets
+    global gridRows, gridCols
     groups = {}
     selectedWidgets = []
+    gridRows = 10
+    gridCols = 10
 
 
 # Common Procs
