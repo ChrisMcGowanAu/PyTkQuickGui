@@ -98,10 +98,29 @@ ttk.install_legacy_themes()
 # This application requires ttkbootstrap 2.0 or later.
 # Version 1.x uses a different import structure and is incompatible.
 def _check_ttkbootstrap_version():
-    """Warn (and exit) if ttkbootstrap is older than 2.0."""
+    """Warn (and exit) if ttkbootstrap is older than 2.0.
+
+    Version resolution order (most reliable first):
+      1. importlib.metadata — reads the installed package metadata,
+         works regardless of what the module exposes as __version__.
+      2. ttk.__version__ — present on some builds.
+      3. ttk.VERSION     — older ttkbootstrap attribute.
+    Falls back to "0.0" only if all three fail (should never happen on a
+    correctly installed package).
+    """
+    import importlib.metadata as _meta
+    ver_str = "0.0"
     try:
-        ver_str = getattr(ttk, "__version__", "0.0")
-        # Parse major version — handle forms like "2.0.1", "2.0.1.dev0", etc.
+        ver_str = _meta.version("ttkbootstrap")
+    except Exception:
+        # Package metadata not found — try module attributes
+        for _attr in ("__version__", "VERSION", "version"):
+            _v = getattr(ttk, _attr, None)
+            if _v and str(_v) not in ("", "0.0"):
+                ver_str = str(_v)
+                break
+    try:
+        # Parse major version — handle "2.0.1", "2.0.1.dev0", "2.0.1b1", etc.
         major = int(str(ver_str).split(".")[0])
     except (ValueError, AttributeError):
         major = 0
