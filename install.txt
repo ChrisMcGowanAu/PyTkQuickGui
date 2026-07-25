@@ -8,10 +8,13 @@ sudo apt install python3 python3-venv python3-pip git
 cd /opt # or where you want to install it.
 git clone git@github.com:ChrisMcGowanAu/PyTkQuickGui.git
 cd /opt/PyTkQuickGui
+
+## 3. Install required packages
 python3 -m venv venv
 venv/bin/pip install --upgrade pip
 venv/bin/pip install -r requirments.txt
 
+Note: ttkbootstrap has to be version 2.0 or later
 
 #################################
 # Windows 10 (and 11 ?)
@@ -21,7 +24,7 @@ https://python.org/downloads/windows
 # then from a terminal ( preferably a git-bash one ) 
 pip install tkfontchooser
 pip install coloredlogs
-pip install ttkbootstrap
+pip install ttkbootstrap (version 2.0 or later )
 
 It seems to work OK for Windows, will need to do more testing later
 

@@ -1,8 +1,6 @@
 logging
-ttkbootstrap
+ttkbootstrap>=2.0
 tkfontchooser
 coloredlogs
-ttkbootstrap
 pip
 Pillow
-

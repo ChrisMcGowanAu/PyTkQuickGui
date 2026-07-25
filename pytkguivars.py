@@ -55,46 +55,46 @@ generatedPyFile: str = ""
 # ---- Widgets available in the right-click palette ----------------------
 widgetsUsed = (
     # ttkbootstrap widgets
+    # "Frame",
+    # "Labelframe",
     "Label",
     "Button",
     "Entry",
     "Combobox",
-    # "Notebook", # Raises tcl errors
     "Spinbox",
     "Checkbutton",
     "Radiobutton",
     "Scale",
     "Progressbar",
+    "Canvas",
+    "Text",
+    "Listbox",
+    "Separator",
+    "Panedwindow",
     # "Floodgauge",
     # "Meter",
     # "ScrolledText",  # Cannot get edit or layout
     # "ScrolledFrame", # Weird behaviour
     # Standard tk/ttk widgets
-    "Canvas",
-    "tk.Button",
-    "Text",
-    "Listbox",
-    "Treeview",
+    # "tk.Button",
+    # "Treeview",
     # "Scrollbar",  # needs wiring to a target widget — use Edit popup instead
-    "Separator",
     # "Sizegrip", This is Tricky, it needs to attach itself to a widget
     # Standard ttk widgets (via ttkbootstrap compatibility layer)
-    "ttk.Scale",
-    "ttk.Treeview",
-    "ttk.Combobox",
-    "ttk.Spinbox",
-    "ttk.Progressbar",
-    "ttk.Separator",
-    "ttk.Scrollbar",
-    "ttk.Notebook",
-    "ttk.PanedWindow",
+    # "ttk.Scale",
+    # "ttk.Treeview",
+    # "ttk.Combobox",
+    # "ttk.Spinbox",
+    # "ttk.Progressbar",
+    # "ttk.Separator",
+    # "ttk.Scrollbar",
 )
 
 # ---- Geometry manager ---------------------------------------------------
 # Valid values: 'Place'  'Grid'  'Pack'
 # Some objects use Grid and Pack internally; the root window uses Grid.
 GEOM_MANAGERS = ("Place", "Grid", "Pack")
-geomManager = "Place"
+geomManager = "Grid"
 
 # ---- Widget groups (logical, not tkinter containers) --------------------
 # {group_name: [widgetName, ...]}  — persisted to project JSON
@@ -260,8 +260,11 @@ def saveWidgetAsDict(widgetName) -> dict:
         try:
             keys = w.keys()
         except tk.TclError as _ke:
-            log.warning("saveWidgetAsDict: w.keys() failed for %s: %s (skipping attributes)",
-                        widgetName, _ke)
+            log.warning(
+                "saveWidgetAsDict: w.keys() failed for %s: %s (skipping attributes)",
+                widgetName,
+                _ke,
+            )
             return {widgetName: widgetDict}
         # Keys whose values are bound Python callables (e.g. scrollbar.set,
         # canvas.yview).  Tkinter returns them as strings like
@@ -338,8 +341,14 @@ def buildAWidget(widgetId: object, wDictOrig: dict) -> str:
     t = fixWidgetTypeName(wType)
     wType = t
     keyCount = widgetName + "-KeyCount"
-    # nKeys = wDict.get(keyCount)
-    nKeys = wDict[keyCount]
+
+    nKeys = 0
+
+    try:
+        nKeys = wDict[keyCount]
+    except KeyError as e:
+        log.error("KeyError in json? ->%s<- ->%s<- %s", keyCount, str(nKeys), e)
+
     widgetDef = wType + "(mainFrame"
     for a in range(nKeys):
         attribute = "Attribute" + str(a)

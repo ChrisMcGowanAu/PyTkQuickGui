@@ -152,8 +152,14 @@ def deleteWidgetFromLists(pythonName, widget):
         # Remove pythonName from the children
         parentNl[CHILDREN].remove(pythonName)
     log.info("Deleting %s and %s", str(nl), str(widget))
-    createWidget.widgetList.remove(widget)
-    createWidget.widgetNameList.remove(nl)
+    try:
+        createWidget.widgetList.remove(widget)
+    except ValueError as e:
+        log.warning("No Widget named ->%s<- %s", str(widget), e)
+    try:
+        createWidget.widgetNameList.remove(nl)
+    except ValueError as e:
+        log.warning("No Widget named ->%s<- %s", str(nl), e)
 
 
 def _is_notebook_tab_type(widget):
@@ -168,7 +174,7 @@ def _notebook_selected_tab_frame(notebook):
     """Return the tk widget for the currently-selected tab of *notebook*, or
     None if the notebook has no tabs yet."""
     try:
-        sel = notebook.select()          # returns Tk path string of selected tab
+        sel = notebook.select()  # returns Tk path string of selected tab
         if not sel:
             return None
         return notebook.nametowidget(sel)
@@ -211,7 +217,8 @@ def changeParentOfTo(widget, newParentWidget):
             if tab_frame is not None:
                 log.info(
                     "changeParentOfTo: routing non-frame %s into tab frame %s",
-                    widget, tab_frame,
+                    widget,
+                    tab_frame,
                 )
                 # Recurse with the tab frame as the real parent
                 changeParentOfTo(widget, tab_frame)
@@ -219,7 +226,8 @@ def changeParentOfTo(widget, newParentWidget):
             else:
                 log.warning(
                     "changeParentOfTo: notebook has no selected tab; "
-                    "falling through to place %s in notebook directly", widget
+                    "falling through to place %s in notebook directly",
+                    widget,
                 )
 
     mgr = myVars.geomManager

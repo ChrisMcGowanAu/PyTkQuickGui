@@ -148,7 +148,7 @@ def createCleanNameList() -> list:
     # Build a lookup from name → raw entry so we can reassemble in the
     # correct order without losing any entry.
     raw = {c[cw.NAME]: c for c in cw.createWidget.widgetNameList}
-    ordered_names = workOutWidgetCreationOrder()   # ["rootWidget", "Widget0", ...]
+    ordered_names = workOutWidgetCreationOrder()  # ["rootWidget", "Widget0", ...]
     cleanNameList = []
     seen = set()
     for name in ordered_names:
@@ -815,7 +815,11 @@ def changeParentOfTo(widgetName, parentName):
             if str(widget) not in existing_tabs:
                 try:
                     parent.add(widget, text="Tab")
-                    log.info("changeParentOfTo: added %s as tab of %s", widgetName, parentName)
+                    log.info(
+                        "changeParentOfTo: added %s as tab of %s",
+                        widgetName,
+                        parentName,
+                    )
                 except tk.TclError as _te:
                     log.warning("notebook.add(%s): %s", widgetName, _te)
             widget.parent = parent
@@ -832,7 +836,9 @@ def changeParentOfTo(widgetName, parentName):
                 tab_frame_name = cw.findPythonWidgetNameFromWidget(tab_frame)
                 log.info(
                     "changeParentOfTo: routing non-frame %s into tab frame %s (%s)",
-                    widgetName, tab_frame_name, tab_frame,
+                    widgetName,
+                    tab_frame_name,
+                    tab_frame,
                 )
                 if tab_frame_name:
                     changeParentOfTo(widgetName, tab_frame_name)
@@ -840,7 +846,8 @@ def changeParentOfTo(widgetName, parentName):
                     # tab frame not in our registry — fall through to direct place
                     log.warning(
                         "changeParentOfTo: selected tab frame not in widgetNameList; "
-                        "placing %s directly in notebook", widgetName
+                        "placing %s directly in notebook",
+                        widgetName,
                     )
                     widget.place(in_=parent)
                     widget.parent = parent
@@ -849,7 +856,9 @@ def changeParentOfTo(widgetName, parentName):
             else:
                 log.warning(
                     "changeParentOfTo: notebook %s has no selected tab; "
-                    "placing %s directly in notebook", parentName, widgetName
+                    "placing %s directly in notebook",
+                    parentName,
+                    widgetName,
                 )
                 widget.place(in_=parent)
                 widget.parent = parent
@@ -1056,9 +1065,7 @@ def _askGeomManager() -> str:
     }
     chosen = tk.StringVar(value="Place")
     for mgr, desc in descriptions.items():
-        rb = ttk.Radiobutton(
-            top, text=f"{mgr}  —  {desc}", variable=chosen, value=mgr
-        )
+        rb = ttk.Radiobutton(top, text=f"{mgr}  —  {desc}", variable=chosen, value=mgr)
         if mgr == "Pack":
             rb.configure(state="disabled")
         rb.pack(anchor="w", padx=24, pady=2)
@@ -1097,7 +1104,7 @@ def closeProject():
             answer = Messagebox.yesnocancel(
                 title="Unsaved Changes",
                 message=f"Project '{myVars.projectName}' has unsaved changes.\n"
-                        "Save before closing?",
+                "Save before closing?",
             )
             if answer is None or answer == "Cancel":
                 return
@@ -1112,7 +1119,7 @@ def closeProject():
     myVars.projectName = ""
     myVars.projectPath = ""
     myVars.projectFileName = ""
-    myVars.projectSaved = True   # nothing to save on a blank canvas
+    myVars.projectSaved = True  # nothing to save on a blank canvas
     mainFrame.config(text="(no project)")
     undoredo.stack.clear()
     log.info("closeProject: canvas cleared")
@@ -1271,7 +1278,19 @@ def loadProject(project, altFileName):
             )
             return
         projFileName = myVars.projectName
-        fileName = os.path.join(myVars.projectPath, projFileName)
+        filename = ""
+        try:
+            fileName = os.path.join(myVars.projectPath, projFileName)
+        except TypeError as e:
+            log.error(
+                "Type Error ->%s<- exception ->%s<- ->%s<- %s",
+                fileName,
+                myVars.projectPath,
+                projFileName,
+                str(e),
+            )
+            return
+
         myVars.projectFileName = fileName
         # Try JSON file first, then legacy pickle
         jsonFile = fileName + myVars.fileType
@@ -1349,10 +1368,18 @@ def loadProject(project, altFileName):
         if _k.startswith("Widget") and _k[6:].isdigit() and _k not in _load_ids:
             _load_ids.append(_k)
 
-    _colour_keys = ("bg", "background", "fg", "foreground",
-                    "activebackground", "activeforeground",
-                    "disabledforeground", "readonlybackground",
-                    "troughcolor", "selectcolor")
+    _colour_keys = (
+        "bg",
+        "background",
+        "fg",
+        "foreground",
+        "activebackground",
+        "activeforeground",
+        "disabledforeground",
+        "readonlybackground",
+        "troughcolor",
+        "selectcolor",
+    )
 
     for widgetId in _load_ids:
         wDict = runDict.get(widgetId)
@@ -1365,9 +1392,7 @@ def loadProject(project, altFileName):
         # Route to the correct parent for the active geometry manager.
         # The eval'd widget def uses 'mainFrame' as parent token — we shadow
         # it here so the widget is created inside geomWidgetFrame directly.
-        _load_parent = (
-            geomWidgetFrame if geomWidgetFrame is not None else mainCanvas
-        )
+        _load_parent = geomWidgetFrame if geomWidgetFrame is not None else mainCanvas
         try:
             log.info("widgetDef ->%s<-", widgetDef)
             # pylint: disable=eval-used
@@ -1397,7 +1422,8 @@ def loadProject(project, altFileName):
                         widget.place_forget()
                         log.info(
                             "load: place_forget() on tab frame %s (parent=%s)",
-                            widgetId, _saved_parent_name,
+                            widgetId,
+                            _saved_parent_name,
                         )
                     except tk.TclError as _pfe:
                         log.debug("load: place_forget on %s: %s", widgetId, _pfe)
@@ -1432,7 +1458,9 @@ def loadProject(project, altFileName):
             if _ck in _colour_keys and _cv and not _cv.startswith("<"):
                 try:
                     widget.configure(**{_ck: _cv})
-                    log.info("post-load colour restore: %s=%s on %s", _ck, _cv, widgetId)
+                    log.info(
+                        "post-load colour restore: %s=%s on %s", _ck, _cv, widgetId
+                    )
                 except tk.TclError as _ce:
                     log.debug("post-load colour %s=%s ignored: %s", _ck, _cv, _ce)
 
@@ -1568,8 +1596,10 @@ def loadProject(project, altFileName):
 
                 place_kwargs = {}
                 # Absolute position
-                _x = _pv("x"); place_kwargs["x"] = _x if _x != "" else "0"
-                _y = _pv("y"); place_kwargs["y"] = _y if _y != "" else "0"
+                _x = _pv("x")
+                place_kwargs["x"] = _x if _x != "" else "0"
+                _y = _pv("y")
+                place_kwargs["y"] = _y if _y != "" else "0"
                 # Relative position — omit if empty
                 _relx = _pv("relx")
                 if _relx != "":
@@ -1594,7 +1624,7 @@ def loadProject(project, altFileName):
                     place_kwargs["width"] = _w if _w != "" else ""
                 elif _w != "":
                     place_kwargs["width"] = _w
-                    place_kwargs["relwidth"] = ""   # clear any stale relwidth
+                    place_kwargs["relwidth"] = ""  # clear any stale relwidth
 
                 _h = _pv("height")
                 _relh = _pv("relheight")
@@ -1655,8 +1685,14 @@ def loadProject(project, altFileName):
     #   • a ttk::scrollbar whose parent is a scrollable widget
     #     → widget.configure(yscrollcommand / xscrollcommand = sb.set)
     #     → sb.configure(command = widget.yview / xview)
-    _SCROLLABLE_WN = ("canvas", "tk::text", "tk::listbox",
-                      "ttk::treeview", "text", "listbox")
+    _SCROLLABLE_WN = (
+        "canvas",
+        "tk::text",
+        "tk::listbox",
+        "ttk::treeview",
+        "text",
+        "listbox",
+    )
     for nl in cw.createWidget.widgetNameList:
         name = nl[cw.NAME]
         parent_name = nl[cw.PARENT]
@@ -2171,8 +2207,8 @@ def buildMenu():
     # ttkbootstrap 2.0 curated themes follow "family-light" / "family-dark"
     # naming; everything else is a legacy (pre-2.0) Bootswatch theme.
     themeMenu = ttk.Menu(menuBar, tearoff=0)
-    lightMenu  = ttk.Menu(themeMenu, tearoff=0)
-    darkMenu   = ttk.Menu(themeMenu, tearoff=0)
+    lightMenu = ttk.Menu(themeMenu, tearoff=0)
+    darkMenu = ttk.Menu(themeMenu, tearoff=0)
     legacyMenu = ttk.Menu(themeMenu, tearoff=0)
     for t in sorted(themes):
         _mp = partial(setTheme, t)
@@ -2182,8 +2218,8 @@ def buildMenu():
             darkMenu.add_command(label=t, command=_mp)
         else:
             legacyMenu.add_command(label=t, command=_mp)
-    themeMenu.add_cascade(label="Light Themes",  menu=lightMenu)
-    themeMenu.add_cascade(label="Dark Themes",   menu=darkMenu)
+    themeMenu.add_cascade(label="Light Themes", menu=lightMenu)
+    themeMenu.add_cascade(label="Dark Themes", menu=darkMenu)
     themeMenu.add_cascade(label="Legacy Themes", menu=legacyMenu)
 
     toolsMenu = ttk.Menu(menuBar, tearoff=0)
@@ -2858,9 +2894,7 @@ def createWidgetPopup(event, widgetName):
             _parent, value=50.0, cursor=defaultCursor, style=defaultStyle
         )
     elif widgetName == "Floodgauge":
-        w = ttk.Floodgauge(
-            _parent, value=50, cursor=defaultCursor, style=defaultStyle
-        )
+        w = ttk.Floodgauge(_parent, value=50, cursor=defaultCursor, style=defaultStyle)
     elif widgetName == "Meter":
         w = ttk.Meter(
             _parent,
@@ -2875,7 +2909,7 @@ def createWidgetPopup(event, widgetName):
     elif widgetName == "tk.Button":
         w = tk.Button(_parent, text=widgetName, cursor=defaultCursor)
     elif widgetName == "Text":
-        w = tk.Text(
+        w = ttk.Text(
             _parent,
             width=20,
             height=5,
@@ -2884,7 +2918,7 @@ def createWidgetPopup(event, widgetName):
             relief=tk.SOLID,
         )
     elif widgetName == "Listbox":
-        w = tk.Listbox(
+        w = ttk.Listbox(
             _parent,
             width=20,
             height=6,
@@ -2909,12 +2943,19 @@ def createWidgetPopup(event, widgetName):
         w = ttk.Separator(_parent, orient=tk.HORIZONTAL, style=sep_style)
     elif widgetName == "Sizegrip":
         w = ttk.Sizegrip(_parent, style=defaultStyle)
-    # ---- Standard ttk widgets (no ttkbootstrap extras) ------------------
+    else:
+        log.error("Widget %s not implemented", widgetName)
+        return
+
+    # NOTE: the ttk. branches above now use ttkbootstrap's ttk (imported as ttk)
+    # which is a superset of tkinter.ttk — no separate import needed
+    """
     elif widgetName == "ttk.Scale":
         w = ttk.Scale(_parent, orient=tk.HORIZONTAL, from_=0, to=100)
     elif widgetName == "ttk.Treeview":
         w = ttk.Treeview(_parent, columns=("col1",), show="headings")
         w.heading("col1", text="Column 1")
+
     elif widgetName == "ttk.Combobox":
         w = ttk.Combobox(_parent, values=("option1", "option2"))
     elif widgetName == "ttk.Spinbox":
@@ -2925,16 +2966,11 @@ def createWidgetPopup(event, widgetName):
         w = ttk.Separator(_parent, orient=tk.HORIZONTAL)
     elif widgetName == "ttk.Scrollbar":
         w = ttk.Scrollbar(_parent, orient=tk.VERTICAL)
-    elif widgetName == "ttk.Notebook":
+    elif widgetName == "Notebook":
         w = ttk.Notebook(_parent)
-    elif widgetName == "ttk.PanedWindow":
-        w = ttk.PanedWindow(_parent, orient=tk.HORIZONTAL)
-    # NOTE: the ttk. branches above now use ttkbootstrap's ttk (imported as ttk)
-    # which is a superset of tkinter.ttk — no separate import needed
-    else:
-        log.warning("Widget %s not implemented", widgetName)
-        return
-
+    elif widgetName == "Panedwindow":
+        w = ttk.Panedwindow(_parent, orient=tk.HORIZONTAL)
+    """
     cw.createWidget(_parent, w)
     _placeNewWidget(w, x, y, width=72, height=32)
 

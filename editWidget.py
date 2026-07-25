@@ -519,16 +519,20 @@ class widgetEditPopup:
                             if newVal == "RightSide":
                                 sb.place(
                                     in_=self.widget,
-                                    relx=1.0, rely=0.0,
-                                    relheight=1.0, width=16,
+                                    relx=1.0,
+                                    rely=0.0,
+                                    relheight=1.0,
+                                    width=16,
                                     height="",
                                     anchor="ne",
                                 )
                             else:  # LeftSide
                                 sb.place(
                                     in_=self.widget,
-                                    relx=0.0, rely=0.0,
-                                    relheight=1.0, width=16,
+                                    relx=0.0,
+                                    rely=0.0,
+                                    relheight=1.0,
+                                    width=16,
                                     height="",
                                     anchor="nw",
                                 )
@@ -568,16 +572,20 @@ class widgetEditPopup:
                             if newVal == "Bottom":
                                 sb.place(
                                     in_=self.widget,
-                                    relx=0.0, rely=1.0,
-                                    relwidth=1.0, height=16,
+                                    relx=0.0,
+                                    rely=1.0,
+                                    relwidth=1.0,
+                                    height=16,
                                     width="",
                                     anchor="sw",
                                 )
                             else:  # Top
                                 sb.place(
                                     in_=self.widget,
-                                    relx=0.0, rely=0.0,
-                                    relwidth=1.0, height=16,
+                                    relx=0.0,
+                                    rely=0.0,
+                                    relwidth=1.0,
+                                    height=16,
                                     width="",
                                     anchor="nw",
                                 )
@@ -612,11 +620,12 @@ class widgetEditPopup:
             # Build target label list (fallback to "Tab0", "Tab1", …)
             labels_raw = self.stringDict.get("tab_labels", "") or ""
             label_parts = [lbl.strip() for lbl in labels_raw.split(",") if lbl.strip()]
+
             def _tab_label(idx):
                 return label_parts[idx] if idx < len(label_parts) else "Tab" + str(idx)
 
             # How many tabs exist right now?
-            existing_tabs = list(self.widget.tabs())   # list of tab IDs
+            existing_tabs = list(self.widget.tabs())  # list of tab IDs
             existing_count = len(existing_tabs)
 
             # 1. Rename / relabel existing tabs to match the new label list
@@ -1394,7 +1403,9 @@ class widgetEditPopup:
                 try:
                     widgetName = k.widgetName
                 except AttributeError as e:
-                    log.warning("child widget ->%s<- got exception %s (skipped)", str(k), str(e))
+                    log.warning(
+                        "child widget ->%s<- got exception %s (skipped)", str(k), str(e)
+                    )
                     continue
                 # Skip internal Tk children that are not user widgets
                 if widgetName in _INTERNAL_WIDGET_NAMES:
