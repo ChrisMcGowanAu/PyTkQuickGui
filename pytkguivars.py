@@ -94,7 +94,8 @@ widgetsUsed = (
 # Valid values: 'Place'  'Grid'  'Pack'
 # Some objects use Grid and Pack internally; the root window uses Grid.
 GEOM_MANAGERS = ("Place", "Grid", "Pack")
-geomManager = "Grid"
+# Default
+geomManager = "Place"
 
 # ---- Widget groups (logical, not tkinter containers) --------------------
 # {group_name: [widgetName, ...]}  — persisted to project JSON
