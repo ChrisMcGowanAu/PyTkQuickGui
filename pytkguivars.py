@@ -283,15 +283,43 @@ def saveWidgetAsDict(widgetName) -> dict:
         # concatenated with the method name.  These are meaningless on reload
         # and must never be passed back to widget.configure().  We skip them
         # here and re-wire them in loadProject() instead.
-        _CALLABLE_KEYS = ("yscrollcommand", "xscrollcommand", "command")
+        #
+        # EXCEPTION: command/postcommand/textvariable/variable may hold a
+        # plain user-supplied Python name (e.g. "my_button_click").  When set
+        # via widget.configure() Tkinter wraps these in Tcl references, making
+        # widget["command"] return a mangled string.  editWidget.py saves the
+        # raw user string in widget._user_attrs so we can recover it here.
+        _CALLABLE_KEYS = ("yscrollcommand", "xscrollcommand")
+        # command/postcommand: Tkinter mangles these to internal Tcl addresses
+        # when set via widget.configure(), so widget["command"] is NOT the
+        # user-supplied string.  We save them exclusively from widget._user_attrs
+        # which editWidget.py stamps with the raw user string.
+        #
+        # textvariable/variable: Tkinter does NOT mangle these — widget["textvariable"]
+        # reliably returns the variable name the user typed.  So we let these go
+        # through the normal widget[key] path below (no _user_attrs needed).
+        _USER_STRING_KEYS = ("command", "postcommand")
+        # Emit command/postcommand from _user_attrs first (before the key loop).
+        _user_attrs = getattr(w, "_user_attrs", {})
+        for _ukey, _uval in _user_attrs.items():
+            if _ukey in _USER_STRING_KEYS and _uval:  # skip empty / non-command attrs
+                attrId = "Attribute" + str(keyCount)
+                widgetAttribute = {attrId: {"Key": _ukey, "Value": str(_uval)}}
+                newWidget = Merge(widgetDict, widgetAttribute)
+                widgetDict = newWidget
+                keyCount += 1
+                log.debug("saveWidgetAsDict: user_attr %s=%s", _ukey, _uval)
         if keys:
             for key in keys:
                 log.debug("Key->%s<-", key)
                 if key != "in":
-                    # Skip callable binding keys — they encode live Python
-                    # object addresses that are invalid after restart.
+                    # Skip scroll-command callables — always raw Tcl addresses.
                     if key in _CALLABLE_KEYS:
                         log.debug("saveWidgetAsDict: skipping callable key %s", key)
+                        continue
+                    # Skip command/postcommand — already emitted from _user_attrs above.
+                    if key in _USER_STRING_KEYS:
+                        log.debug("saveWidgetAsDict: skipping (in _user_attrs) %s", key)
                         continue
                     value = w[key]
                     if key == "image":

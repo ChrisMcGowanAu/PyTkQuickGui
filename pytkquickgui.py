@@ -970,7 +970,7 @@ def changeParentOfTo(widgetName, parentName):
                 col = int(str(gi.get("column", 0)).split()[0])
             except (tk.TclError, ValueError):
                 row, col = 0, 0
-            col_span, row_span, sticky_r = 1, 1, "nsew"
+            col_span, row_span, sticky_r = 1, 1, ""
             padx_r, pady_r, ipadx_r, ipady_r = 2, 2, 0, 0
         widget.grid(
             in_=parent,
@@ -1611,6 +1611,25 @@ def loadProject(project, altFileName):
                     )
                 except tk.TclError as _ce:
                     log.debug("post-load colour %s=%s ignored: %s", _ck, _cv, _ce)
+
+        # Repopulate _user_attrs for command/postcommand from the saved JSON.
+        # These keys are saved via _user_attrs (because Tkinter mangles the raw
+        # string via widget.configure()) and must be restored here so that
+        # subsequent saves from an already-loaded project still emit them correctly.
+        _cmd_keys = ("command", "postcommand")
+        for _ai in range(_nkeys):
+            _adict = wDict.get("Attribute" + str(_ai))
+            if _adict is None:
+                continue
+            _ck = _adict.get("Key", "")
+            _cv = _adict.get("Value", "")
+            if _ck in _cmd_keys and _cv and not _cv.startswith("<"):
+                if not hasattr(widget, "_user_attrs"):
+                    widget._user_attrs = {}
+                widget._user_attrs[_ck] = _cv
+                log.info(
+                    "load: restored _user_attrs %s=%s on %s", _ck, _cv, widgetId
+                )
 
         # In Grid mode, container widgets need their own row/column
         # configuration so child widgets can be reparented into them.
@@ -2374,9 +2393,124 @@ def _changeLayoutManager() -> None:
     Delegates to setGeomManager() which already blocks the change if any
     widgets exist and rebuilds the canvas when the canvas is empty.
     """
-    mgr = _askGeomManager()
+    mgr, grid_rows, grid_cols = _askGeomManager()
     if mgr:
+        if mgr == "Grid":
+            myVars.gridRows = grid_rows
+            myVars.gridCols = grid_cols
         setGeomManager(mgr)
+
+
+def compactGrid() -> None:
+    """Remove unused (empty) rows and columns from the grid and re-pack widgets.
+
+    An 'unused' row or column is one that contains no tracked widgets at all.
+    After removal, widget positions are shifted up/left to close the gaps while
+    preserving their relative order.  Works on the root geomWidgetFrame only.
+
+    Only available in Grid mode; silently does nothing otherwise.
+    """
+    if myVars.geomManager != "Grid":
+        Messagebox.show_info(
+            title="Compact Grid",
+            message="Compact Grid is only available in Grid mode.",
+        )
+        return
+    if geomWidgetFrame is None:
+        return
+
+    # Collect all tracked widgets and their current grid positions from cwo.
+    widget_cwos = []
+    for obj in cw.createWidget.widgetObjectList:
+        if obj is None:
+            continue
+        # Only consider direct children of geomWidgetFrame (not nested)
+        try:
+            gi = obj.widget.grid_info()
+        except tk.TclError:
+            continue
+        if not gi:
+            continue  # not grid-managed (e.g. notebook tab frame)
+        # Check that this widget is a direct child of geomWidgetFrame.
+        # We compare Tk path strings:
+        #   • winfo_parent() returns the widget's actual Tk parent path — reliable
+        #     even when in_= was not used (so gi["in"] would be empty).
+        #   • gi.get("in", "") reflects the in_= grid option when it was supplied.
+        # Accept the widget if EITHER matches geomWidgetFrame's path string.
+        _gwf_path = str(geomWidgetFrame)
+        _in_path = str(gi.get("in", ""))
+        _parent_path = obj.widget.winfo_parent()
+        if _in_path != _gwf_path and _parent_path != _gwf_path:
+            continue
+        widget_cwos.append(obj)
+
+    if not widget_cwos:
+        Messagebox.show_info(
+            title="Compact Grid",
+            message="No grid-managed widgets found to compact.",
+        )
+        return
+
+    # Find which rows and columns are actually used.
+    used_cols: set = set()
+    used_rows: set = set()
+    for obj in widget_cwos:
+        for dc in range(obj.columnspan):
+            used_cols.add(obj.col + dc)
+        for dr in range(obj.rowspan):
+            used_rows.add(obj.row + dr)
+
+    # Build a sorted mapping from old → new index (gaps removed).
+    all_cols = sorted(used_cols)
+    all_rows = sorted(used_rows)
+    col_map = {old: new for new, old in enumerate(all_cols)}
+    row_map = {old: new for new, old in enumerate(all_rows)}
+
+    # Check if anything needs to change.
+    if all(col_map[c] == c for c in all_cols) and all(row_map[r] == r for r in all_rows):
+        Messagebox.show_info(
+            title="Compact Grid",
+            message="Grid is already compact — no unused rows or columns to remove.",
+        )
+        return
+
+    # Apply the new positions.
+    for obj in widget_cwos:
+        new_col = col_map.get(obj.col, obj.col)
+        new_row = row_map.get(obj.row, obj.row)
+        obj.col = new_col
+        obj.row = new_row
+        try:
+            obj.widget.grid(
+                row=new_row,
+                column=new_col,
+                columnspan=obj.columnspan,
+                rowspan=obj.rowspan,
+                sticky=obj.sticky,
+                padx=obj.padx,
+                pady=obj.pady,
+                ipadx=obj.ipadx,
+                ipady=obj.ipady,
+            )
+        except tk.TclError as e:
+            log.warning("compactGrid: grid() on %s failed: %s", obj.pythonName, e)
+
+    n_cols_removed = len(set(range(max(used_cols) + 1)) - used_cols)
+    n_rows_removed = len(set(range(max(used_rows) + 1)) - used_rows)
+    myVars.projectSaved = False
+    drawGridLines()
+    log.info(
+        "compactGrid: removed %d empty col(s) and %d empty row(s)",
+        n_cols_removed,
+        n_rows_removed,
+    )
+    Messagebox.show_info(
+        title="Compact Grid",
+        message=(
+            f"Done!  Removed {n_cols_removed} empty column(s) and "
+            f"{n_rows_removed} empty row(s)."
+        ),
+    )
 
 
 def buildMenu():
@@ -2445,6 +2579,10 @@ def buildMenu():
     toolsMenu.add_command(
         label="Change Layout Manager",
         command=_changeLayoutManager,
+    )
+    toolsMenu.add_command(
+        label="Compact Grid  (remove empty rows/cols)",
+        command=compactGrid,
     )
 
     # ---- Edit menu (Undo / Redo) ----------------------------------------
@@ -2845,84 +2983,34 @@ def _drawGridLines_impl():
                 tags="gridline",
             )
 
-        # --- Draggable resize handles: small rectangles on interior col dividers ---
-        # (skip index 0 = left edge and last = right edge)
-        mid_y = oc_h // 2
-        for gx in col_xs[1:-1]:
-            hx1, hx2 = gx - _HANDLE_HALF, gx + _HANDLE_HALF
-            hy1, hy2 = mid_y - _HANDLE_HALF, mid_y + _HANDLE_HALF
-            oc.create_rectangle(
-                hx1,
-                hy1,
-                hx2,
-                hy2,
-                fill=handle_color,
-                outline="white",
-                width=1,
-                tags="gridline",
-            )
+        # Blue drag-handle squares removed — grid lines are sufficient
+        # to identify column/row boundaries.  The drag-resize behaviour is
+        # still active (bound to B1-Motion on the overlay) but there are no
+        # visible handles.  To re-enable, uncomment the blocks below.
+        #
+        # mid_y = oc_h // 2
+        # for gx in col_xs[1:-1]:  # col handle rectangles
+        #     ...
+        # mid_x = oc_w // 2
+        # for gy in row_ys[1:-1]:  # row handle rectangles
+        #     ...
 
-        # --- Draggable resize handles: small rectangles on interior row dividers ---
-        mid_x = oc_w // 2
-        for gy in row_ys[1:-1]:
-            hx1, hx2 = mid_x - _HANDLE_HALF, mid_x + _HANDLE_HALF
-            hy1, hy2 = gy - _HANDLE_HALF, gy + _HANDLE_HALF
-            oc.create_rectangle(
-                hx1,
-                hy1,
-                hx2,
-                hy2,
-                fill=handle_color,
-                outline="white",
-                width=1,
-                tags="gridline",
-            )
-
-        # --- "+" add-column circles: centred on each interior col divider at top ---
-        for gx in col_xs[1:-1]:
-            cx, cy = gx, _ADD_MARGIN
-            r = _ADD_RADIUS
-            oc.create_oval(
-                cx - r,
-                cy - r,
-                cx + r,
-                cy + r,
-                fill=add_color,
-                outline="white",
-                width=1,
-                tags="gridline",
-            )
-            oc.create_text(
-                cx,
-                cy,
-                text="+",
-                fill="white",
-                font=("TkDefaultFont", 8, "bold"),
-                tags="gridline",
-            )
-
-        # --- "+" add-row circles: centred on each interior row divider at left ---
-        for gy in row_ys[1:-1]:
-            cx, cy = _ADD_MARGIN, gy
-            r = _ADD_RADIUS
-            oc.create_oval(
-                cx - r,
-                cy - r,
-                cx + r,
-                cy + r,
-                fill=add_color,
-                outline="white",
-                width=1,
-                tags="gridline",
-            )
-            oc.create_text(
-                cx,
-                cy,
-                text="+",
-                fill="white",
-                font=("TkDefaultFont", 8, "bold"),
-                tags="gridline",
-            )
+        # Green "+" add-column/row circles disabled — grid lines alone are
+        # sufficient to identify boundaries.  Uncomment to re-enable.
+        #
+        # for gx in col_xs[1:-1]:   # add-column circles
+        #     cx, cy = gx, _ADD_MARGIN
+        #     r = _ADD_RADIUS
+        #     oc.create_oval(cx-r, cy-r, cx+r, cy+r,
+        #                    fill=add_color, outline='white', tags='gridline')
+        #     oc.create_text(cx, cy, text='+', fill='white', tags='gridline')
+        #
+        # for gy in row_ys[1:-1]:   # add-row circles
+        #     cx, cy = _ADD_MARGIN, gy
+        #     r = _ADD_RADIUS
+        #     oc.create_oval(cx-r, cy-r, cx+r, cy+r,
+        #                    fill=add_color, outline='white', tags='gridline')
+        #     oc.create_text(cx, cy, text='+', fill='white', tags='gridline')
 
 
 def sizeGripRelease(event):
@@ -2942,11 +3030,15 @@ def _configure_container_grid(widget):
     Called whenever a Frame / Labelframe / Panedwindow is created in Grid mode.
     Without this, grid(in_=container) raises a TclError because the container
     has no column/row configuration.
+
+    weight=0 means cells do NOT expand to fill space — the container keeps
+    the size Tkinter naturally assigns it.  Children that want to fill the
+    container can set sticky via the Edit popup.
     """
     for c in range(_CONTAINER_GRID_COLS):
-        widget.columnconfigure(c, weight=1, minsize=40)
+        widget.columnconfigure(c, weight=0, minsize=40)
     for r in range(_CONTAINER_GRID_ROWS):
-        widget.rowconfigure(r, weight=1, minsize=24)
+        widget.rowconfigure(r, weight=0, minsize=24)
 
 
 def _placeNewWidget(w, x: int, y: int, width: int = 72, height: int = 32) -> None:
@@ -2973,9 +3065,9 @@ def _placeNewWidget(w, x: int, y: int, width: int = 72, height: int = 32) -> Non
             else ""
         )
         _is_container = _wname in ("frame", "labelframe", "panedwindow")
-        col_span = 2 if _is_container else 1
-        row_span = 2 if _is_container else 1
-        new_sticky = "nsew"
+        col_span = 1
+        row_span = 1
+        new_sticky = ""  # no auto-expansion — user sets sticky via Edit popup
         w.grid(
             in_=parent,
             row=row,

@@ -342,28 +342,7 @@ class createWidget:
         self.col = 4
         self.columnspan = 1  # number of grid columns this widget spans
         self.rowspan = 1  # number of grid rows    this widget spans
-        self.sticky = "WENS"  # tkinter sticky string — user-controlled
-        # Large/container widgets get wider/taller default spans in Grid mode
-        # so they take up a more useful portion of the grid immediately.
-        _large_widget_names = (
-            "canvas",
-            "tk::text",
-            "text",
-            "tk::listbox",
-            "listbox",
-            "ttk::treeview",
-            "treeview",
-            "ttk::frame",
-            "frame",
-            "ttk::labelframe",
-            "labelframe",
-            "ttk::notebook",
-            "notebook",
-        )
-        _wn = getattr(widget, "widgetName", "").lower()
-        if _wn in _large_widget_names and myVars.geomManager == "Grid":
-            self.columnspan = 2
-            self.rowspan = 2
+        self.sticky = ""  # tkinter sticky string — user-controlled (empty = no stretch)
         self.padx = 2  # grid padx  (external padding)
         self.pady = 2  # grid pady  (external padding)
         self.ipadx = 0  # grid ipadx (internal padding / extra width)
