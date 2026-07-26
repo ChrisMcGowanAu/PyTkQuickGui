@@ -16,13 +16,15 @@ from typing import Any
 import coloredlogs
 import tkfontchooser as tkfc
 import ttkbootstrap as ttk
-from ttkbootstrap.constants import *
 from ttkbootstrap.dialogs import Messagebox, Querybox
 
 import cdefs as C
 import createWidget as cw
 import pytkguivars as myVars
 import undoredo
+
+# from ttkbootstrap.constants import *
+
 
 log = logging.getLogger(name="mylogger")
 
@@ -94,6 +96,7 @@ rootWin = ttk.Window(theme=useTheme, iconphoto="snake.png")
 # Must be called AFTER ttk.Window() because that creates the Style singleton.
 ttk.install_legacy_themes()
 
+
 # ── ttkbootstrap version guard ──────────────────────────────────────────────
 # This application requires ttkbootstrap 2.0 or later.
 # Version 1.x uses a different import structure and is incompatible.
@@ -109,6 +112,7 @@ def _check_ttkbootstrap_version():
     correctly installed package).
     """
     import importlib.metadata as _meta
+
     ver_str = "0.0"
     try:
         ver_str = _meta.version("ttkbootstrap")
@@ -126,6 +130,7 @@ def _check_ttkbootstrap_version():
         major = 0
     if major < 2:
         from ttkbootstrap.dialogs import Messagebox
+
         Messagebox.show_error(
             title="Unsupported ttkbootstrap version",
             message=(
@@ -137,7 +142,9 @@ def _check_ttkbootstrap_version():
         )
         rootWin.destroy()
         import sys as _sys
+
         _sys.exit(1)
+
 
 _check_ttkbootstrap_version()
 rootWin.eval("tk::PlaceWindow . pointer")
@@ -344,6 +351,7 @@ def saveProject():
     log.debug("projectFileName ->%s<-", fileName)
     saveProjectFile(fileName, myVars.fileType, projectData)
     log.debug("projectData %s", projectData)
+    # log.warning("projectData %s", projectData)
     myVars.lastProjectSaved = myVars.projectFileName
     myVars.projectSaved = True
     # Store the last project saved
@@ -520,19 +528,21 @@ def buildPython() -> str:
                     if val > "":
                         val = str(widgetName) + str(key)
 
-                if key == "command" or key == "postcommand":
+                elif key == "command" or key == "postcommand":
                     if val > "":
                         log.info("command ->%s<-", val)
                         functions.append(val)
-                if key == "textvariable":
+                elif key == "textvariable":
                     if val > "":
                         log.info("textvariable ->%s<-", val)
                         tkvars.append(val)
-                if key == "variable":
+                elif key == "variable":
                     if val > "":
                         log.info("variable ->%s<-", val)
                         tkvars.append(val)
-
+                # else:
+                # if val > "":
+                # log.error("Unknown key ->%s<- ->%s<-",key,val)
     print("")
     print(_SEC_TKVARS)
     for f in myVars.widgetImageFilenames:
@@ -552,6 +562,8 @@ def buildPython() -> str:
     print(_SEC_FUNCTIONS)
     # Deduplicate function names (a command may appear on multiple widgets)
     seen_funcs: set = set()
+
+    log.warning("functions ->%s<-", functions)
     for f in functions:
         if not f or f in seen_funcs:
             continue
@@ -1149,9 +1161,9 @@ def _askGeomManager() -> tuple:
     cols_var = tk.IntVar(value=10)
 
     rows_label = ttk.Label(grid_frame, text="Initial grid rows:")
-    rows_spin  = ttk.Spinbox(grid_frame, from_=2, to=50, textvariable=rows_var, width=6)
+    rows_spin = ttk.Spinbox(grid_frame, from_=2, to=50, textvariable=rows_var, width=6)
     cols_label = ttk.Label(grid_frame, text="columns:")
-    cols_spin  = ttk.Spinbox(grid_frame, from_=2, to=50, textvariable=cols_var, width=6)
+    cols_spin = ttk.Spinbox(grid_frame, from_=2, to=50, textvariable=cols_var, width=6)
     hint_label = ttk.Label(
         grid_frame,
         text="(Grid auto-expands if more cells are needed)",
@@ -1160,9 +1172,9 @@ def _askGeomManager() -> tuple:
     )
 
     rows_label.grid(row=0, column=0, sticky="e", padx=(0, 4))
-    rows_spin.grid( row=0, column=1, sticky="w", padx=(0, 12))
+    rows_spin.grid(row=0, column=1, sticky="w", padx=(0, 12))
     cols_label.grid(row=0, column=2, sticky="e", padx=(0, 4))
-    cols_spin.grid( row=0, column=3, sticky="w")
+    cols_spin.grid(row=0, column=3, sticky="w")
     hint_label.grid(row=1, column=0, columnspan=4, sticky="w", pady=(2, 0))
 
     def _toggle_grid_frame(*_):
@@ -1410,7 +1422,7 @@ def loadProject(project, altFileName):
             )
             return
         projFileName = myVars.projectName
-        filename = ""
+        # filename = ""
         try:
             fileName = os.path.join(myVars.projectPath, projFileName)
         except TypeError as e:
@@ -1465,7 +1477,8 @@ def loadProject(project, altFileName):
         projectTheme = runDict.get("theme")
         myVars.backgroundColor = runDict.get("backgroundColor")
         widgetNameList = runDict.get("widgetNameList")
-        nWidgets = runDict.get("widgetCount")
+        # Not used?
+        # nWidgets = runDict.get("widgetCount")
         myVars.widgetImageFilenames = runDict.get("imageFileNames")
         savedGeom = runDict.get("geomManager")
         if savedGeom and savedGeom in myVars.GEOM_MANAGERS:
@@ -1752,7 +1765,11 @@ def loadProject(project, altFileName):
                     cwo_g.ipady = ipady
                 log.debug(
                     "load grid re-apply: %s row=%d col=%d cspan=%d rspan=%d",
-                    name, row, col, columnspan, rowspan,
+                    name,
+                    row,
+                    col,
+                    columnspan,
+                    rowspan,
                 )
             except (tk.TclError, ValueError) as _ge:
                 log.warning("load grid re-apply %s: %s", name, _ge)
@@ -2486,7 +2503,7 @@ def _make_grid_overlay(frame: ttk.Frame) -> tk.Canvas:  # type: ignore[name-defi
     tk.Misc.lower(oc)
     # Right-clicks on the overlay canvas must still open the widget-creation menu
     oc.bind("<Button-3>", rightMouseDown)
-    oc.bind("<Button-1>", _grid_overlay_btn1)
+    # oc.bind("<Button-1>", _grid_overlay_btn1)
     oc.bind("<B1-Motion>", _grid_overlay_drag)
     oc.bind("<ButtonRelease-1>", _grid_overlay_release)
     _gridOverlayCanvas = oc
@@ -3300,12 +3317,16 @@ def _rebuild_canvas_for_geom():
         # the initial grid size; extra cells just have no min-size configured.
         _n_cols = max(getattr(myVars, "gridCols", 10), 10)
         _n_rows = max(getattr(myVars, "gridRows", 10), 10)
+        _msc = myVars.gridColMinsize
+        _msr = myVars.gridRowMinsize
+        _padc = myVars.gridColPad
+        _padr = myVars.gridRowPad
         for c in range(max(_n_cols, 32)):
-            _ms = 60 if c < _n_cols else 0
-            geomWidgetFrame.columnconfigure(c, weight=1, minsize=_ms)
+            # _ms = 60 if c < _n_cols else 0
+            geomWidgetFrame.columnconfigure(c, weight=1, minsize=_msc, pad=_padc)
         for r in range(max(_n_rows, 32)):
-            _ms = 30 if r < _n_rows else 0
-            geomWidgetFrame.rowconfigure(r, weight=1, minsize=_ms)
+            # _ms = 30 if r < _n_rows else 0
+            geomWidgetFrame.rowconfigure(r, weight=1, minsize=_msc, pad=_padr)
         mainCanvas.create_window(
             0, 0, window=geomWidgetFrame, anchor="nw", tags="geomframe"
         )
@@ -3323,7 +3344,8 @@ def _rebuild_canvas_for_geom():
                 tk.Misc.lower(_gridOverlayCanvas)
             drawGridLines()
 
-        mainCanvas.bind("<Configure>", _resize_geom_frame)
+        # Ignore this for now._resize_geom_frame
+        # mainCanvas.bind("<Configure>", _resize_geom_frame)
         cw.createWidget.baseRoot = geomWidgetFrame
     else:
         geomWidgetFrame = None
