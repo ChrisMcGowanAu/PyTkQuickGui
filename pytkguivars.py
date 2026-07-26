@@ -70,7 +70,7 @@ widgetsUsed = (
     "Text",
     "Listbox",
     "Separator",
-    "Panedwindow",
+    # "Panedwindow",
     # "Floodgauge",
     # "Meter",
     # "ScrolledText",  # Cannot get edit or layout
@@ -100,7 +100,10 @@ geomManager = "Place"
 # The grid auto-expands if more rows/cols are needed.
 gridRows: int = 10
 gridCols: int = 10
-
+gridRowMinsize = "2.5m"  # 2.5 mm
+gridColMinsize = "5m"  # 5 mm
+gridRowPad = "2.5m"
+gridColPad = "5m"
 # ---- Widget groups (logical, not tkinter containers) --------------------
 # {group_name: [widgetName, ...]}  — persisted to project JSON
 groups: dict = {}

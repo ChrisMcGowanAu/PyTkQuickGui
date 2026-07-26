@@ -825,8 +825,8 @@ class widgetEditPopup:
                 widgetKey = p + "Widget"
                 self.addToStringDict(widgetKey, w)
                 w.set(val)
-                lab1.grid(row=gridRow, column=0, sticky=tk.NE)
-                w.grid(row=gridRow, column=3, sticky=tk.SW)
+                lab1.grid(row=gridRow, column=0, sticky=tk.E)
+                w.grid(row=gridRow, column=3, sticky=tk.NSEW)
             # sticky combobox
             gridRow += 1
             lab1 = ttk.Label(layoutPopupFrame, text="sticky")
@@ -854,8 +854,8 @@ class widgetEditPopup:
             self.addToStringDict("stickyOrig", sticky_val)
             self.addToStringDict("stickyWidget", stickyCombo)
             stickyCombo.set(sticky_val)
-            lab1.grid(row=gridRow, column=0, sticky=tk.NE)
-            stickyCombo.grid(row=gridRow, column=3, sticky=tk.SW)
+            lab1.grid(row=gridRow, column=0, sticky=tk.E)
+            stickyCombo.grid(row=gridRow, column=3, sticky=tk.NSEW)
         elif myVars.geomManager == "Pack":
             # ---- Pack layout fields -----------------------------------
             cwo = cw.findCreateWidgetObject(self.widgetName)
@@ -877,7 +877,7 @@ class widgetEditPopup:
             # side combobox
             gridRow += 1
             ttk.Label(layoutPopupFrame, text="side").grid(
-                row=gridRow, column=0, sticky=tk.NSEW
+                row=gridRow, column=0, sticky=tk.E
             )
             sideCombo = ttk.Combobox(
                 layoutPopupFrame,
@@ -890,11 +890,11 @@ class widgetEditPopup:
             self.addToStringDict("sideOrig", side_val)
             self.addToStringDict("sideWidget", sideCombo)
             sideCombo.set(side_val)
-            sideCombo.grid(row=gridRow, column=3, sticky=tk.SW)
+            sideCombo.grid(row=gridRow, column=3, sticky=tk.NSEW)
             # fill combobox
             gridRow += 1
             ttk.Label(layoutPopupFrame, text="fill").grid(
-                row=gridRow, column=0, sticky=tk.NE
+                row=gridRow, column=0, sticky=tk.E
             )
             fillCombo = ttk.Combobox(
                 layoutPopupFrame,
@@ -907,11 +907,11 @@ class widgetEditPopup:
             self.addToStringDict("fillOrig", fill_val)
             self.addToStringDict("fillWidget", fillCombo)
             fillCombo.set(fill_val)
-            fillCombo.grid(row=gridRow, column=3, sticky=tk.SW)
+            fillCombo.grid(row=gridRow, column=3, sticky=tk.NSEW)
             # expand spinbox
             gridRow += 1
             ttk.Label(layoutPopupFrame, text="expand").grid(
-                row=gridRow, column=0, sticky=tk.NE
+                row=gridRow, column=0, sticky=tk.E
             )
             expandSpin = ttk.Spinbox(
                 layoutPopupFrame,
@@ -926,12 +926,12 @@ class widgetEditPopup:
             self.addToStringDict("expandOrig", str(expand_val))
             self.addToStringDict("expandWidget", expandSpin)
             expandSpin.set(expand_val)
-            expandSpin.grid(row=gridRow, column=3, sticky=tk.SW)
+            expandSpin.grid(row=gridRow, column=3, sticky=tk.NSEW)
             # padx / pady spinboxes
             for pname, pval in (("padx", padx_val), ("pady", pady_val)):
                 gridRow += 1
                 ttk.Label(layoutPopupFrame, text=pname).grid(
-                    row=gridRow, column=0, sticky=tk.NE
+                    row=gridRow, column=0, sticky=tk.E
                 )
                 pspin = ttk.Spinbox(
                     layoutPopupFrame,
@@ -946,12 +946,12 @@ class widgetEditPopup:
                 self.addToStringDict(pname + "Orig", str(pval))
                 self.addToStringDict(pname + "Widget", pspin)
                 pspin.set(pval)
-                pspin.grid(row=gridRow, column=3, sticky=tk.SW)
+                pspin.grid(row=gridRow, column=3, sticky=tk.NSEW)
             # anchor combobox
             anchor_val = _pi("anchor", cwo.pack_anchor if cwo else None, "center")
             gridRow += 1
             ttk.Label(layoutPopupFrame, text="anchor").grid(
-                row=gridRow, column=0, sticky=tk.NE
+                row=gridRow, column=0, sticky=tk.E
             )
             anchorCombo = ttk.Combobox(
                 layoutPopupFrame,
@@ -964,7 +964,7 @@ class widgetEditPopup:
             self.addToStringDict("anchorOrig", anchor_val)
             self.addToStringDict("anchorWidget", anchorCombo)
             anchorCombo.set(anchor_val)
-            anchorCombo.grid(row=gridRow, column=3, sticky=tk.SW)
+            anchorCombo.grid(row=gridRow, column=3, sticky=tk.NSEW)
         else:
             # ---- Place layout fields ----------------------------------
             place = self.widget.place_info()
@@ -992,8 +992,8 @@ class widgetEditPopup:
                 widgetKey = p + "Widget"
                 self.addToStringDict(widgetKey, w)
                 w.set(val)
-                lab1.grid(row=gridRow, column=0, sticky=tk.NE)
-                w.grid(row=gridRow, column=3, sticky=tk.SW)
+                lab1.grid(row=gridRow, column=0, sticky=tk.E)
+                w.grid(row=gridRow, column=3, sticky=tk.NSEW)
 
         # blank spacer
         gridRow += 1
@@ -1188,9 +1188,10 @@ class widgetEditPopup:
                     name=uniqueName,
                     text="Select a Font",
                     width=buttonWidth,
+                    bootstyle="secondary",
                     command=lambda kk=k: self.fontChange(kk),
                 )
-                w.grid(row=gridRow, column=controlCol, columnspan=3, sticky=tk.SW)
+                w.grid(row=gridRow, column=controlCol, columnspan=3, sticky=tk.NSEW)
             ###############################
             # spinbox integer tags
             ###############################
@@ -1215,7 +1216,7 @@ class widgetEditPopup:
                 )
                 widgetKey = k + "Widget"
                 self.addToStringDict(widgetKey, w)
-                w.grid(row=gridRow, column=controlCol, columnspan=3, sticky=tk.SW)
+                w.grid(row=gridRow, column=controlCol, columnspan=3, sticky=tk.NSEW)
                 w.set(val)
             ###############################
             # Combobox fields
@@ -1233,7 +1234,7 @@ class widgetEditPopup:
                 widgetKey = k + "Widget"
                 self.addToStringDict(widgetKey, w)
                 w.set(val)
-                w.grid(row=gridRow, column=controlCol, columnspan=3, sticky=tk.SW)
+                w.grid(row=gridRow, column=controlCol, columnspan=3, sticky=tk.NSEW)
             elif k == "justify":
                 self.addToStringDict(k, val)
                 w = ttk.Combobox(
@@ -1247,7 +1248,7 @@ class widgetEditPopup:
                 widgetKey = k + "Widget"
                 self.addToStringDict(widgetKey, w)
                 w.set(val)
-                w.grid(row=gridRow, column=controlCol, columnspan=3, sticky=tk.SW)
+                w.grid(row=gridRow, column=controlCol, columnspan=3, sticky=tk.NSEW)
             elif k == "relief":
                 self.addToStringDict(k, val)
                 w = ttk.Combobox(
@@ -1261,7 +1262,7 @@ class widgetEditPopup:
                 widgetKey = k + "Widget"
                 self.addToStringDict(widgetKey, w)
                 w.set(val)
-                w.grid(row=gridRow, column=controlCol, columnspan=3, sticky=tk.SW)
+                w.grid(row=gridRow, column=controlCol, columnspan=3, sticky=tk.NSEW)
             elif k == "compound":
                 self.addToStringDict(k, val)
                 w = ttk.Combobox(
@@ -1275,7 +1276,7 @@ class widgetEditPopup:
                 widgetKey = k + "Widget"
                 self.addToStringDict(widgetKey, w)
                 w.set(val)
-                w.grid(row=gridRow, column=controlCol, columnspan=3, sticky=tk.SW)
+                w.grid(row=gridRow, column=controlCol, columnspan=3, sticky=tk.NSEW)
             elif k == "cursor":
                 self.addToStringDict(k, val)
                 w = ttk.Combobox(
@@ -1289,7 +1290,7 @@ class widgetEditPopup:
                 widgetKey = k + "Widget"
                 self.addToStringDict(widgetKey, w)
                 w.set(val)
-                w.grid(row=gridRow, column=controlCol, columnspan=3, sticky=tk.SW)
+                w.grid(row=gridRow, column=controlCol, columnspan=3, sticky=tk.NSEW)
             elif k == "orient":
                 self.addToStringDict(k, val)
                 w = ttk.Combobox(
@@ -1303,7 +1304,7 @@ class widgetEditPopup:
                 widgetKey = k + "Widget"
                 self.addToStringDict(widgetKey, w)
                 w.set(val)
-                w.grid(row=gridRow, column=controlCol, columnspan=3, sticky=tk.SW)
+                w.grid(row=gridRow, column=controlCol, columnspan=3, sticky=tk.NSEW)
             ###############################
             # Style is tricky -- using ttkbootstrap
             ###############################
@@ -1356,7 +1357,7 @@ class widgetEditPopup:
                 # self.addToStringDict(k, val)
                 self.addToStringDict("bootstyle", val)
                 w.set(val)
-                w.grid(row=gridRow, column=controlCol, columnspan=4, sticky=tk.SW)
+                w.grid(row=gridRow, column=controlCol, columnspan=3, sticky=tk.NSEW)
             ###############################
             # Image need work TBD Does not get saved correctly
             ###############################
@@ -1368,9 +1369,10 @@ class widgetEditPopup:
                     name=uniqueName,
                     text="Select Image",
                     width=buttonWidth,
+                    bootstyle="secondary",
                     command=lambda kk=k: self.selectImage(kk),
                 )
-                w.grid(row=gridRow, column=controlCol, columnspan=3, sticky=tk.SW)
+                w.grid(row=gridRow, column=controlCol, columnspan=3, sticky=tk.NSEW)
             ###############################
             # Colour selection possibly a canvas with the colour
             ###############################
@@ -1380,6 +1382,7 @@ class widgetEditPopup:
                     scrollContent,
                     name=uniqueName,
                     text="Select Color",
+                    bootstyle="secondary",
                     width=buttonWidth,
                 )
                 # Pre-fill the button background with the current colour so it
@@ -1391,7 +1394,7 @@ class widgetEditPopup:
                     except tk.TclError:
                         pass
                 w.configure(command=lambda kk=k, sw=w: self.changeColour(kk, sw))
-                w.grid(row=gridRow, column=controlCol, columnspan=3, sticky=tk.SW)
+                w.grid(row=gridRow, column=controlCol, columnspan=3, sticky=tk.NSEW)
             ###############################
             # The Default --- use and entry widget for all other tags
             ###############################
@@ -1407,7 +1410,7 @@ class widgetEditPopup:
                 widgetKey = k + "Widget"
                 self.addToStringDict(widgetKey, w)
                 w.insert(tk.END, val)
-                w.grid(row=gridRow, column=controlCol, columnspan=3, sticky=tk.SW)
+                w.grid(row=gridRow, column=controlCol, columnspan=3, sticky=tk.NSEW)
 
             # if stringUsed[row]:
             l1.grid(row=gridRow, column=labelCol, columnspan=3, sticky=tk.E)
@@ -1492,7 +1495,7 @@ class widgetEditPopup:
                     )
                 widgetKey = k + "Widget"
                 self.addToStringDict(widgetKey, w)
-                w.grid(row=gridRow, column=controlCol, columnspan=3, sticky=tk.SW)
+                w.grid(row=gridRow, column=controlCol, columnspan=3, sticky=tk.NSEW)
             gridRow += 1
         if wName in ("notebook"):
             # ---- tab_count spinbox (works in both Place and Grid mode) ----
@@ -1521,7 +1524,7 @@ class widgetEditPopup:
             )
             widgetKey = key + "Widget"
             self.addToStringDict(widgetKey, tc_spin)
-            tc_spin.grid(row=gridRow, column=controlCol, columnspan=3, sticky=tk.SW)
+            tc_spin.grid(row=gridRow, column=controlCol, columnspan=3, sticky=tk.NSEW)
             tc_spin.set(val)
             # ---- tab_labels entry -----------------------------------------
             # Comma-separated list of tab labels, e.g. "Home,Config,About"
@@ -1551,24 +1554,28 @@ class widgetEditPopup:
             widgetKey2 = key2 + "Widget"
             self.addToStringDict(widgetKey2, tl_entry)
             tl_entry.insert(tk.END, val2)
-            tl_entry.grid(row=gridRow, column=controlCol, columnspan=3, sticky=tk.SW)
+            tl_entry.grid(row=gridRow, column=controlCol, columnspan=3, sticky=tk.NSEW)
 
         gridRow += 1
 
         b1 = ttk.Button(
             editPopupFrame,
             style="warning",
-            width=5,
+            # width=4,
             text="Close",
             command=editPopupFrame.destroy,
         )
         b2 = ttk.Button(
-            editPopupFrame, style="info", width=5, text="Help", command=self.getHelp
+            editPopupFrame,
+            style="info",
+            # width=4,
+            text="Help",
+            command=self.getHelp,
         )
         b3 = ttk.Button(
             editPopupFrame,
             style="success",
-            width=5,
+            # width=4,
             text="Apply",
             command=self.applyEditSettings,
         )
@@ -1578,6 +1585,9 @@ class widgetEditPopup:
         lab2.grid(row=gridRow, column=2)
 
         gridRow += 1
-        b1.grid(row=gridRow, column=0, columnspan=2, sticky="EW")
-        b2.grid(row=gridRow, column=2, columnspan=2, sticky="EW")
-        b3.grid(row=gridRow, column=4, columnspan=2, sticky="EW")
+        # b1.grid(row=gridRow, column=0, columnspan=2, sticky="EW")
+        # b2.grid(row=gridRow, column=2, columnspan=2, sticky="EW")
+        # b3.grid(row=gridRow, column=4, columnspan=2, sticky="EW")
+        b1.grid(row=gridRow, column=0, sticky="EW")
+        b2.grid(row=gridRow, column=2, sticky="EW")
+        b3.grid(row=gridRow, column=4, sticky="EW")
