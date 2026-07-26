@@ -460,6 +460,22 @@ class widgetEditPopup:
                                     self.widget, k, str(oldVal), str(newVal)
                                 )
                             )
+                            # Tkinter mangles command/textvariable/variable
+                            # values into internal Tcl references when they are
+                            # applied via configure().  Subsequent widget[k]
+                            # reads return the mangled string, not the original
+                            # user-supplied name.  Save the raw string directly
+                            # on the widget object so saveWidgetAsDict() can
+                            # recover it without going through Tkinter.
+                            if k in ("command", "postcommand",
+                                     "textvariable", "variable"):
+                                if not hasattr(self.widget, "_user_attrs"):
+                                    self.widget._user_attrs = {}
+                                self.widget._user_attrs[k] = str(newVal)
+                                log.info(
+                                    "saved user attr %s=%s on %s",
+                                    k, newVal, self.widget
+                                )
                         except tk.TclError as e:
                             log.error(e)
                             log.warning("k %s val %s", str(k), str(newVal))
