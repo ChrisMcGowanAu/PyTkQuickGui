@@ -239,7 +239,7 @@ def saveWidgetAsDict(widgetName) -> dict:
                     "column": str(gi.get("column", 0)),
                     "columnspan": str(gi.get("columnspan", 1)),
                     "rowspan": str(gi.get("rowspan", 1)),
-                    "sticky": str(gi.get("sticky", "")),
+                    "sticky": str(gi.get("sticky", "nsew")),
                     "padx": str(gi.get("padx", 2)),
                     "pady": str(gi.get("pady", 2)),
                     "ipadx": str(gi.get("ipadx", 0)),
