@@ -25,7 +25,7 @@ import undoredo
 
 # from ttkbootstrap.constants import *
 
-
+defaultGrids = 32
 log = logging.getLogger(name="mylogger")
 
 
@@ -1650,7 +1650,8 @@ def loadProject(project, altFileName):
                 col = int(geomData.get("column", 0))
                 columnspan = max(1, int(geomData.get("columnspan", 1)))
                 rowspan = max(1, int(geomData.get("rowspan", 1)))
-                sticky = geomData.get("sticky", "WE")
+                # sticky = geomData.get("sticky", "WE")
+                sticky = "NSEW"
                 padx = int(geomData.get("padx", 2))
                 pady = int(geomData.get("pady", 2))
                 ipadx = int(geomData.get("ipadx", 0))
@@ -3019,8 +3020,8 @@ def sizeGripRelease(event):
 
 
 # ---- Grid layout: number of rows/columns pre-configured in each container ----
-_CONTAINER_GRID_COLS = 16
-_CONTAINER_GRID_ROWS = 16
+_CONTAINER_GRID_COLS = 4
+_CONTAINER_GRID_ROWS = 4
 
 
 def _configure_container_grid(widget):
@@ -3067,7 +3068,9 @@ def _placeNewWidget(w, x: int, y: int, width: int = 72, height: int = 32) -> Non
         _is_container = _wname in ("frame", "labelframe", "panedwindow")
         col_span = 1
         row_span = 1
-        new_sticky = ""  # no auto-expansion — user sets sticky via Edit popup
+        # no auto-expansion — user sets sticky via Edit popup
+        # NOTE if sticky="" the widget is only a pixel or so
+        new_sticky = "NSEW"
         w.grid(
             in_=parent,
             row=row,
@@ -3320,9 +3323,9 @@ def buildGrid(rows, cols):
         # The canvas create_window will be resized on every <Configure> event.
         geomWidgetFrame.configure(width=1200, height=900)
         # Allow every column/row to expand so grid cells grow with the frame
-        for c in range(32):
+        for c in range(defaultGrids):
             geomWidgetFrame.columnconfigure(c, weight=1, minsize=60)
-        for r in range(32):
+        for r in range(defaultGrids):
             geomWidgetFrame.rowconfigure(r, weight=1, minsize=30)
         # Place the frame so it fills the whole canvas
         mainCanvas.create_window(
@@ -3413,10 +3416,10 @@ def _rebuild_canvas_for_geom():
         _msr = myVars.gridRowMinsize
         _padc = myVars.gridColPad
         _padr = myVars.gridRowPad
-        for c in range(max(_n_cols, 32)):
+        for c in range(max(_n_cols, defaultGrids)):
             # _ms = 60 if c < _n_cols else 0
             geomWidgetFrame.columnconfigure(c, weight=1, minsize=_msc, pad=_padc)
-        for r in range(max(_n_rows, 32)):
+        for r in range(max(_n_rows, defaultGrids)):
             # _ms = 30 if r < _n_rows else 0
             geomWidgetFrame.rowconfigure(r, weight=1, minsize=_msc, pad=_padr)
         mainCanvas.create_window(
