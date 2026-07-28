@@ -8,8 +8,10 @@ from typing import Any
 import ttkbootstrap as ttk
 
 import editWidget as ew
+import project_format
 import pytkguivars as myVars
 import undoredo
+from layout_model import GridGeometry
 
 string1: Any
 string2: Any
@@ -64,6 +66,8 @@ def snapToClosest(v: int) -> int:
 
 
 def findPythonWidgetNameFromWidget(widget) -> str:
+    if str(widget) == str(createWidget.baseRoot):
+        return myVars.rootWidgetName
     found: bool = False
     # [pythonName, parentName, widget, [children, ...]])
     # NAME: int = 0 PARENT: int = 1 WIDGET: int = 2 CHILDREN: int = 3
@@ -232,32 +236,35 @@ def changeParentOfTo(widget, newParentWidget):
 
     mgr = myVars.geomManager
     if mgr == "Grid":
-        # Preserve grid position if already gridded, else start at 0,0
-        try:
-            gi = widget.grid_info()
-            row = int(gi.get("row", 0))
-            col = int(gi.get("column", 0))
-        except (tk.TclError, TypeError):
-            row, col = 0, 0
-        # Look up cwo for span/sticky
         py_name = findPythonWidgetNameFromWidget(widget)
         cwo = findCreateWidgetObject(py_name) if py_name else None
-        col_span = cwo.columnspan if cwo is not None else 2
-        row_span = cwo.rowspan if cwo is not None else 2
-        sticky = cwo.sticky if cwo is not None else "nsew"
+        if cwo is not None:
+            state = cwo.capture_grid_geometry()
+            parent_name = findPythonWidgetNameFromWidget(newParentWidget)
+            if not parent_name:
+                parent_name = myVars.rootWidgetName
+            cwo.apply_grid_geometry(
+                state.updated(parent=parent_name),
+                parent_widget=newParentWidget,
+            )
+            return
+        # Untracked helper widgets are uncommon; preserve their live settings.
+        try:
+            grid_info = widget.grid_info()
+        except tk.TclError:
+            grid_info = {}
         widget.grid(
             in_=newParentWidget,
-            row=row,
-            column=col,
-            columnspan=col_span,
-            rowspan=row_span,
-            padx=2,
-            pady=2,
-            sticky=sticky,
+            row=int(grid_info.get("row", 0)),
+            column=int(grid_info.get("column", 0)),
+            columnspan=max(1, int(grid_info.get("columnspan", 1))),
+            rowspan=max(1, int(grid_info.get("rowspan", 1))),
+            padx=int(grid_info.get("padx", 2)),
+            pady=int(grid_info.get("pady", 2)),
+            ipadx=int(grid_info.get("ipadx", 0)),
+            ipady=int(grid_info.get("ipady", 0)),
+            sticky=str(grid_info.get("sticky", "nsew")),
         )
-        if cwo is not None:
-            cwo.col = col
-            cwo.row = row
     elif mgr == "Pack":
         widget.pack(in_=newParentWidget, padx=4, pady=4, anchor="nw")
     else:
@@ -342,7 +349,7 @@ class createWidget:
         self.col = 4
         self.columnspan = 1  # number of grid columns this widget spans
         self.rowspan = 1  # number of grid rows    this widget spans
-        self.sticky = ""  # tkinter sticky string — user-controlled (empty = no stretch)
+        self.sticky = "nsew"  # tkinter sticky string — user-controlled
         self.padx = 2  # grid padx  (external padding)
         self.pady = 2  # grid pady  (external padding)
         self.ipadx = 0  # grid ipadx (internal padding / extra width)
@@ -437,6 +444,181 @@ class createWidget:
     def setRoot(self, root):
         createWidget.baseRoot = root
 
+    def _design_root(self):
+        """Return the root geometry container used by designer widgets."""
+        root = createWidget.baseRoot
+        if root is any or root is None:
+            return self.root
+        return root
+
+    def grid_parent_name(self) -> str:
+        nl = findPythonWidgetNameList(self.pythonName)
+        if nl and nl[PARENT]:
+            return nl[PARENT]
+        return myVars.rootWidgetName
+
+    def grid_parent_widget(self):
+        parent_name = self.grid_parent_name()
+        if parent_name != myVars.rootWidgetName:
+            parent_nl = findPythonWidgetNameList(parent_name)
+            if parent_nl:
+                return parent_nl[WIDGET]
+        return self._design_root()
+
+    def capture_grid_geometry(self) -> GridGeometry:
+        """Return the authoritative Grid geometry for this widget."""
+        return GridGeometry(
+            parent=self.grid_parent_name(),
+            row=max(0, int(self.row)),
+            column=max(0, int(self.col)),
+            columnspan=max(1, int(self.columnspan)),
+            rowspan=max(1, int(self.rowspan)),
+            sticky=str(self.sticky),
+            padx=max(0, int(self.padx)),
+            pady=max(0, int(self.pady)),
+            ipadx=max(0, int(self.ipadx)),
+            ipady=max(0, int(self.ipady)),
+        )
+
+    @staticmethod
+    def _configure_grid_extent(parent_widget, state: GridGeometry) -> None:
+        """Ensure newly addressed cells have useful size and resize weight."""
+        try:
+            for col in range(state.column, state.column + state.columnspan):
+                info = parent_widget.columnconfigure(col)
+                minsize = str(info.get("minsize", "0"))
+                if minsize in ("", "0", "0.0"):
+                    parent_widget.columnconfigure(
+                        col,
+                        weight=1,
+                        minsize=myVars.gridColMinsize,
+                        pad=myVars.gridColPad,
+                    )
+            for row in range(state.row, state.row + state.rowspan):
+                info = parent_widget.rowconfigure(row)
+                minsize = str(info.get("minsize", "0"))
+                if minsize in ("", "0", "0.0"):
+                    parent_widget.rowconfigure(
+                        row,
+                        weight=1,
+                        minsize=myVars.gridRowMinsize,
+                        pad=myVars.gridRowPad,
+                    )
+        except (tk.TclError, TypeError, ValueError):
+            # Notebook tab frames and a few ttkbootstrap helper widgets do not
+            # expose a configurable grid.  The grid() call below will report a
+            # useful error if the target genuinely cannot manage the widget.
+            pass
+
+    def apply_grid_geometry(
+        self,
+        state: GridGeometry,
+        parent_widget=None,
+        update_hierarchy: bool = True,
+    ) -> None:
+        """Apply one complete Grid state and keep every representation in sync."""
+        if not isinstance(state, GridGeometry):
+            raise TypeError("state must be a GridGeometry")
+
+        if parent_widget is None:
+            if state.parent != myVars.rootWidgetName:
+                parent_nl = findPythonWidgetNameList(state.parent)
+                parent_widget = parent_nl[WIDGET] if parent_nl else None
+            if parent_widget is None:
+                parent_widget = self._design_root()
+
+        self.row = state.row
+        self.col = state.column
+        self.columnspan = state.columnspan
+        self.rowspan = state.rowspan
+        self.sticky = state.sticky
+        self.padx = state.padx
+        self.pady = state.pady
+        self.ipadx = state.ipadx
+        self.ipady = state.ipady
+
+        try:
+            self.widget.place_forget()
+        except tk.TclError:
+            pass
+        self._configure_grid_extent(parent_widget, state)
+        self.widget.grid(
+            in_=parent_widget,
+            row=state.row,
+            column=state.column,
+            columnspan=state.columnspan,
+            rowspan=state.rowspan,
+            padx=state.padx,
+            pady=state.pady,
+            ipadx=state.ipadx,
+            ipady=state.ipady,
+            sticky=state.sticky,
+        )
+        if update_hierarchy:
+            reparentWidget(self.pythonName, parent_widget)
+        self.widget.parent = parent_widget
+        try:
+            tk.Misc.lift(self.widget, aboveThis=None)
+            parent_widget.update_idletasks()
+        except tk.TclError:
+            pass
+
+    def _is_descendant_name(self, candidate_name: str) -> bool:
+        """Return True when *candidate_name* is below this widget in the tree."""
+        current = candidate_name
+        visited: set[str] = set()
+        while current and current != myVars.rootWidgetName and current not in visited:
+            if current == self.pythonName:
+                return True
+            visited.add(current)
+            nl = findPythonWidgetNameList(current)
+            if not nl:
+                break
+            current = nl[PARENT]
+        return False
+
+    def _find_grid_container_at(self, x_root: int, y_root: int):
+        """Return the smallest valid container containing a screen position."""
+        best = None
+        best_area = float("inf")
+        for nl in createWidget.widgetNameList:
+            candidate_name = nl[NAME]
+            candidate = nl[WIDGET]
+            if candidate is self.widget or self._is_descendant_name(candidate_name):
+                continue
+            if not hasattr(candidate, "widgetName"):
+                continue
+            widget_name = myVars.fixWidgetName(candidate.widgetName).lower()
+            if widget_name not in ("frame", "labelframe", "panedwindow"):
+                continue
+            try:
+                rx = candidate.winfo_rootx()
+                ry = candidate.winfo_rooty()
+                width = candidate.winfo_width()
+                height = candidate.winfo_height()
+            except tk.TclError:
+                continue
+            if width < 4 or height < 4:
+                continue
+            if rx <= x_root <= rx + width and ry <= y_root <= ry + height:
+                area = width * height
+                if area < best_area:
+                    best = candidate
+                    best_area = area
+        return best
+
+    @staticmethod
+    def _grid_location(parent_widget, x_root: int, y_root: int) -> tuple[int, int]:
+        """Convert screen coordinates to a non-negative cell in *parent_widget*."""
+        local_x = max(0, int(x_root) - parent_widget.winfo_rootx())
+        local_y = max(0, int(y_root) - parent_widget.winfo_rooty())
+        try:
+            col, row = parent_widget.grid_location(local_x, local_y)
+        except tk.TclError:
+            col = local_x // 60
+            row = local_y // 30
+        return max(0, int(col)), max(0, int(row))
+
     def lock_as_tab_frame(self):
         """Called when this widget has been added to a notebook as a tab frame.
         Unbinds drag/resize mouse events so the user cannot accidentally move
@@ -507,33 +689,7 @@ class createWidget:
         """
         cx = self.widget.winfo_rootx() + self.widget.winfo_width() // 2
         cy = self.widget.winfo_rooty() + self.widget.winfo_height() // 2
-        best = None
-        best_area = float("inf")
-        for nl in createWidget.widgetNameList:
-            candidate = nl[WIDGET]
-            if candidate is self.widget:
-                continue
-            # Only consider container widget types
-            if not hasattr(candidate, "widgetName"):
-                continue
-            wn = myVars.fixWidgetName(candidate.widgetName).lower()
-            if wn not in ("frame", "labelframe", "panedwindow"):
-                continue
-            try:
-                rx = candidate.winfo_rootx()
-                ry = candidate.winfo_rooty()
-                rw = candidate.winfo_width()
-                rh = candidate.winfo_height()
-            except tk.TclError:
-                continue
-            if rw < 4 or rh < 4:
-                continue
-            if rx <= cx <= rx + rw and ry <= cy <= ry + rh:
-                area = rw * rh
-                if area < best_area:
-                    best_area = area
-                    best = candidate
-        return best
+        return self._find_grid_container_at(cx, cy)
 
     def reParent(self, parentWidget):
         """Re-parent this widget.
@@ -548,10 +704,36 @@ class createWidget:
         nl = findPythonWidgetNameList(self.pythonName)
         old_parent_name = nl[PARENT] if nl else myVars.rootWidgetName
 
+        if myVars.geomManager == "Grid":
+            old_state = self.capture_grid_geometry()
+            target = parentWidget or self._find_grid_container()
+            if target is None:
+                target = self._design_root()
+            target_name = findPythonWidgetNameFromWidget(target)
+            if not target_name:
+                target_name = myVars.rootWidgetName
+            col, row = self._grid_location(
+                target,
+                self.widget.winfo_rootx(),
+                self.widget.winfo_rooty(),
+            )
+            new_state = old_state.updated(
+                parent=target_name,
+                row=row,
+                column=col,
+            )
+            self.apply_grid_geometry(new_state, parent_widget=target)
+            if new_state != old_state:
+                undoredo.stack.push_done(
+                    undoredo.GridMoveCommand(self, old_state, new_state)
+                )
+                myVars.projectSaved = False
+            return
+
         if parentWidget is not None:
             # Caller supplied an explicit target — use it directly.
             changeParentOfTo(self.widget, parentWidget)
-        elif myVars.geomManager in ("Grid", "Pack"):
+        elif myVars.geomManager == "Pack":
             # Auto-detect: find the innermost container that encloses this widget.
             target = self._find_grid_container()
             if target is not None:
@@ -631,7 +813,14 @@ class createWidget:
 
         Returns the new createWidget object.
         """
-        originalName = "Widget" + str(self.widgetId)
+        # Loaded projects may contain non-contiguous IDs. ``pythonName`` is
+        # corrected to the saved ID during load, while the historical numeric
+        # ``widgetId`` field still reflects construction order.
+        originalName = self.pythonName
+        try:
+            source_id = int(originalName.removeprefix("Widget"))
+        except ValueError:
+            source_id = self.widgetId
         origWidgetDict = myVars.saveWidgetAsDict(originalName)
         useDict = origWidgetDict[originalName]
         log.debug("duplicate useDict: %s", useDict)
@@ -648,14 +837,20 @@ class createWidget:
             else:
                 target_parent = self.root
 
-        widgetDef = myVars.buildAWidget(self.widgetId, useDict)
+        widgetDef = myVars.buildAWidget(source_id, useDict)
         log.debug("duplicate widgetDef %s", widgetDef)
-        # Inject target_parent as 'mainFrame' so eval can resolve the name.
+        # Designer widgets share one Tk master and use the geometry manager's
+        # in_= target for logical containment.  Keeping that invariant allows
+        # a cloned child to be dragged back out of its current container.
+        construction_parent = createWidget.baseRoot
+        if construction_parent is any or construction_parent is None:
+            construction_parent = self.root
         widget = eval(  # pylint: disable=eval-used
-            widgetDef, globals(), {"mainFrame": target_parent}
+            widgetDef, globals(), {"mainFrame": construction_parent}
         )
 
-        newW = createWidget(target_parent, widget)
+        newW = createWidget(construction_parent, widget)
+        project_format.remember_preserved_attributes(newW.widget, originalName, useDict)
 
         # Apply geometry appropriate to the current manager
         mgr = myVars.geomManager
@@ -676,23 +871,15 @@ class createWidget:
             # Place the duplicate in the next available cell after this widget's cell
             new_col = max(0, self.col + offsetx)  # offsetx/y are cell offsets in Grid
             new_row = max(0, self.row + offsety)
-            newW.col = new_col
-            newW.row = new_row
-            newW.columnspan = self.columnspan
-            newW.rowspan = self.rowspan
-            newW.sticky = self.sticky
-            newW.padx = self.padx
-            newW.pady = self.pady
-            newW.widget.grid(
-                in_=target_parent,
+            target_name = findPythonWidgetNameFromWidget(target_parent)
+            if not target_name:
+                target_name = myVars.rootWidgetName
+            state = self.capture_grid_geometry().updated(
+                parent=target_name,
                 row=new_row,
                 column=new_col,
-                columnspan=self.columnspan,
-                rowspan=self.rowspan,
-                sticky=self.sticky,
-                padx=self.padx,
-                pady=self.pady,
             )
+            newW.apply_grid_geometry(state, parent_widget=target_parent)
         else:
             # Pack or unknown — fall back to pack
             newW.widget.pack(in_=target_parent, padx=4, pady=4)
@@ -882,6 +1069,16 @@ class createWidget:
         height = self.widget.winfo_height()
         # Save pre-drag state so leftMouseRelease can record undo
         self._pre_drag = (self.x, self.y, width, height)
+        if myVars.geomManager == "Grid":
+            design_root = self._design_root()
+            self._pre_grid_geometry = self.capture_grid_geometry()
+            self._grid_drag_active = False
+            self._grid_drag_origin_px = (
+                self.widget.winfo_rootx() - design_root.winfo_rootx(),
+                self.widget.winfo_rooty() - design_root.winfo_rooty(),
+                width,
+                height,
+            )
         # This should be a configuration param
         jiffyW = 8
         jiffyH = 8
@@ -967,57 +1164,61 @@ class createWidget:
 
         # Grid mode: edge-drags resize the span; centre-drag moves the widget.
         if myVars.geomManager == "Grid":
-            origin = getattr(
+            self._grid_drag_active = True
+            design_root = self._design_root()
+            origin_x, origin_y, origin_w, origin_h = getattr(
                 self,
-                "_span_drag_origin",
+                "_grid_drag_origin_px",
                 (
-                    self.col,
-                    self.row,
-                    self.columnspan,
-                    self.rowspan,
-                    self.x,
-                    self.y,
+                    self.widget.winfo_rootx() - design_root.winfo_rootx(),
+                    self.widget.winfo_rooty() - design_root.winfo_rooty(),
                     width,
                     height,
                 ),
             )
-            _oc, _or, _ocs, _ors, ox, oy, ow, oh = origin
+            pointer_x = event.x_root - design_root.winfo_rootx()
+            pointer_y = event.y_root - design_root.winfo_rooty()
             if self.dragType == "dragEast":
-                # Stretch right edge rightward; left anchor stays fixed at ox
-                cur_right = self.widget.winfo_x() + width + int(deltaX)
-                new_w = max(16, cur_right - ox)
-                self.widget.place(x=ox, y=oy, width=new_w, height=oh)
+                new_x = origin_x
+                new_y = origin_y
+                new_w = max(16, pointer_x - origin_x)
+                new_h = origin_h
             elif self.dragType == "dragSouth":
-                # Stretch bottom edge downward; top anchor stays fixed at oy
-                cur_bottom = self.widget.winfo_y() + height + int(deltaY)
-                new_h = max(16, cur_bottom - oy)
-                self.widget.place(x=ox, y=oy, width=ow, height=new_h)
+                new_x = origin_x
+                new_y = origin_y
+                new_w = origin_w
+                new_h = max(16, pointer_y - origin_y)
             elif self.dragType == "dragWest":
-                # Stretch left edge leftward; right anchor stays fixed at ox+ow
-                right_edge = ox + ow
-                cur_left = self.widget.winfo_x() + int(deltaX)
-                new_x = min(max(0, cur_left), right_edge - 16)
+                right_edge = origin_x + origin_w
+                new_x = min(max(0, pointer_x), right_edge - 16)
+                new_y = origin_y
                 new_w = max(16, right_edge - new_x)
-                self.widget.place(x=new_x, y=oy, width=new_w, height=oh)
+                new_h = origin_h
             elif self.dragType == "dragNorth":
-                # Stretch top edge upward; bottom anchor stays fixed at oy+oh
-                bottom_edge = oy + oh
-                cur_top = self.widget.winfo_y() + int(deltaY)
-                new_y = min(max(0, cur_top), bottom_edge - 16)
+                bottom_edge = origin_y + origin_h
+                new_x = origin_x
+                new_y = min(max(0, pointer_y), bottom_edge - 16)
+                new_w = origin_w
                 new_h = max(16, bottom_edge - new_y)
-                self.widget.place(x=ox, y=new_y, width=ow, height=new_h)
             else:
-                # Centre-drag: float the whole widget
-                newX = self.widget.winfo_x() + int(deltaX)
-                newY = self.widget.winfo_y() + int(deltaY)
-                self.x = max(0, newX)
-                self.y = max(0, newY)
-                self.widget.place(
-                    x=self.x,
-                    y=self.y,
-                    width=self.widget.winfo_width(),
-                    height=self.widget.winfo_height(),
-                )
+                # Float relative to the design root, not the logical parent.
+                # This lets a widget cross container boundaries without its
+                # coordinates jumping between unrelated grids.
+                new_x = max(0, pointer_x - self.startX)
+                new_y = max(0, pointer_y - self.startY)
+                new_w = origin_w
+                new_h = origin_h
+            self.x = new_x
+            self.y = new_y
+            self.width = new_w
+            self.height = new_h
+            self.widget.place(
+                in_=design_root,
+                x=new_x,
+                y=new_y,
+                width=new_w,
+                height=new_h,
+            )
             self.lastX = x
             self.lastY = y
             return
@@ -1093,10 +1294,22 @@ class createWidget:
 
         self._last_drag_type = self.dragType  # read before clearing
         self.dragType = ""
-        newX = snapToClosest(self.x)
-        newY = snapToClosest(self.y)
-        newWidth = snapToClosest(self.widget.winfo_width())
-        newHeight = snapToClosest(self.widget.winfo_height())
+        if myVars.geomManager == "Grid":
+            if not getattr(self, "_grid_drag_active", False):
+                self.x, self.y, self.width, self.height = getattr(
+                    self,
+                    "_grid_drag_origin_px",
+                    (self.x, self.y, self.width, self.height),
+                )
+            newX = int(self.x)
+            newY = int(self.y)
+            newWidth = int(self.width)
+            newHeight = int(self.height)
+        else:
+            newX = snapToClosest(self.x)
+            newY = snapToClosest(self.y)
+            newWidth = snapToClosest(self.widget.winfo_width())
+            newHeight = snapToClosest(self.widget.winfo_height())
         self.x = newX
         self.y = newY
         if newWidth < 16:
@@ -1108,114 +1321,79 @@ class createWidget:
         if myVars.geomManager == "Place":
             self.widget.place(x=self.x, y=self.y, height=self.height, width=self.width)
         elif myVars.geomManager == "Grid":
-            # Widget may be floating via .place() from drag — snap back to grid.
             drag_type = getattr(self, "_last_drag_type", "")
-            origin = getattr(
-                self,
-                "_span_drag_origin",
-                (
-                    self.col,
-                    self.row,
-                    self.columnspan,
-                    self.rowspan,
-                    self.x,
-                    self.y,
-                    self.width,
-                    self.height,
-                ),
+            drag_active = getattr(self, "_grid_drag_active", False)
+            old_state = getattr(
+                self, "_pre_grid_geometry", self.capture_grid_geometry()
             )
-            anc_col, anc_row, _ocs, _ors, _ox, _oy, _ow, _oh = origin
-            try:
-                self.widget.place_forget()
-            except tk.TclError:
-                pass
-            try:
-                if drag_type == "dragEast":
-                    # Right edge dragged: anchor col unchanged, span = cols crossed
-                    right_x = self.widget.winfo_x() + self.widget.winfo_width()
-                    z_end = self.root.grid_location(right_x - 1, self.widget.winfo_y())
-                    end_col = max(anc_col, int(z_end[0]))
-                    self.col = anc_col
-                    self.columnspan = max(1, end_col - anc_col + 1)
-                    self.row = anc_row
-                    self.rowspan = _ors
-                elif drag_type == "dragSouth":
-                    # Bottom edge dragged: anchor row unchanged, span = rows crossed
-                    bot_y = self.widget.winfo_y() + self.widget.winfo_height()
-                    z_end = self.root.grid_location(self.widget.winfo_x(), bot_y - 1)
-                    end_row = max(anc_row, int(z_end[1]))
-                    self.row = anc_row
-                    self.rowspan = max(1, end_row - anc_row + 1)
-                    self.col = anc_col
-                    self.columnspan = _ocs
-                elif drag_type == "dragWest":
-                    # Left edge dragged: right col fixed, new start col moves left
-                    right_col = anc_col + _ocs - 1
-                    z_start = self.root.grid_location(
-                        self.widget.winfo_x(), self.widget.winfo_y()
-                    )
-                    new_col = min(max(0, int(z_start[0])), right_col)
-                    self.col = new_col
-                    self.columnspan = max(1, right_col - new_col + 1)
-                    self.row = anc_row
-                    self.rowspan = _ors
-                elif drag_type == "dragNorth":
-                    # Top edge dragged: bottom row fixed, new start row moves up
-                    bot_row = anc_row + _ors - 1
-                    z_start = self.root.grid_location(
-                        self.widget.winfo_x(), self.widget.winfo_y()
-                    )
-                    new_row = min(max(0, int(z_start[1])), bot_row)
-                    self.row = new_row
-                    self.rowspan = max(1, bot_row - new_row + 1)
-                    self.col = anc_col
-                    self.columnspan = _ocs
-                else:
-                    # Centre-drag: move to the cell under the widget's top-left.
-                    # Preserve existing columnspan/rowspan — only position changes.
-                    z = self.root.grid_location(self.x, self.y)
-                    self.row = max(0, int(z[1]))
-                    self.col = max(0, int(z[0]))
-                    self.columnspan = _ocs
-                    self.rowspan = _ors
-            except (tk.TclError, TypeError, ValueError):
-                pass
-            # self.sticky / self.padx / self.pady are the authoritative values —
-            # set by applyLayoutSettings or initialised in __init__.
-            # Do NOT read grid_info() here: the widget may still be floating
-            # via .place() and grid_info() would return stale or empty data.
-            #
-            # IMPORTANT: include in_= so the widget re-grids into its CURRENT
-            # recorded parent (which may be a container Frame), not back to
-            # self.root.  Without in_=, tkinter defaults to the widget's master
-            # which re-parents it to root and loses all reparenting work.
-            _nl = findPythonWidgetNameList(self.pythonName)
-            _grid_parent = self.root
-            if _nl and _nl[PARENT] != myVars.rootWidgetName:
-                _parent_nl = findPythonWidgetNameList(_nl[PARENT])
-                if _parent_nl:
-                    _grid_parent = _parent_nl[WIDGET]
-            self.widget.grid(
-                in_=_grid_parent,
-                row=self.row,
-                column=self.col,
-                columnspan=self.columnspan,
-                rowspan=self.rowspan,
-                padx=self.padx,
-                pady=self.pady,
-                ipadx=self.ipadx,
-                ipady=self.ipady,
-                sticky=self.sticky,
-            )
+            design_root = self._design_root()
+            root_x = design_root.winfo_rootx()
+            root_y = design_root.winfo_rooty()
+            left_root = root_x + self.x
+            top_root = root_y + self.y
+            right_root = left_root + max(1, self.width) - 1
+            bottom_root = top_root + max(1, self.height) - 1
+
+            # Resizing stays in the current parent. A centre drag may cross a
+            # container boundary and is automatically re-parented on release.
+            if drag_type or not drag_active:
+                target = self.grid_parent_widget()
+                target_name = old_state.parent
+            else:
+                centre_x = left_root + max(1, self.width) // 2
+                centre_y = top_root + max(1, self.height) // 2
+                target = self._find_grid_container_at(centre_x, centre_y)
+                if target is None:
+                    target = design_root
+                target_name = findPythonWidgetNameFromWidget(target)
+                if not target_name:
+                    target_name = myVars.rootWidgetName
+
+            start_col, start_row = self._grid_location(target, left_root, top_root)
+            end_col, end_row = self._grid_location(target, right_root, bottom_root)
+
+            if not drag_active:
+                new_state = old_state
+            elif drag_type == "dragEast":
+                new_state = old_state.updated(
+                    parent=target_name,
+                    columnspan=max(1, end_col - old_state.column + 1),
+                )
+            elif drag_type == "dragSouth":
+                new_state = old_state.updated(
+                    parent=target_name,
+                    rowspan=max(1, end_row - old_state.row + 1),
+                )
+            elif drag_type == "dragWest":
+                right_col = old_state.column + old_state.columnspan - 1
+                new_col = min(start_col, right_col)
+                new_state = old_state.updated(
+                    parent=target_name,
+                    column=new_col,
+                    columnspan=max(1, right_col - new_col + 1),
+                )
+            elif drag_type == "dragNorth":
+                bottom_row = old_state.row + old_state.rowspan - 1
+                new_row = min(start_row, bottom_row)
+                new_state = old_state.updated(
+                    parent=target_name,
+                    row=new_row,
+                    rowspan=max(1, bottom_row - new_row + 1),
+                )
+            else:
+                new_state = old_state.updated(
+                    parent=target_name,
+                    row=start_row,
+                    column=start_col,
+                )
+
+            self.apply_grid_geometry(new_state, parent_widget=target)
             log.debug(
-                "Left Mouse Release -- col=%s row=%s cspan=%s rspan=%s sticky=%s",
-                self.col,
-                self.row,
-                self.columnspan,
-                self.rowspan,
-                self.sticky,
+                "Grid release %s: %s -> %s",
+                self.pythonName,
+                old_state,
+                new_state,
             )
-            # Redraw grid lines so they reflect the updated cell boundaries
             if myVars.redrawGridLines is not None:
                 self.widget.after_idle(myVars.redrawGridLines)
         elif myVars.geomManager == "Pack":
@@ -1270,9 +1448,17 @@ class createWidget:
             log.error("Geometry Manager %s is TBD", myVars.geomManager)
         raiseChildren(self.pythonName)
 
-        # Record the move/resize as an undoable action (only if something changed)
-        nx, ny, nw, nh = self.x, self.y, self.width, self.height
-        if (ox, oy, ow, oh) != (nx, ny, nw, nh):
+        # Record the move/resize as an undoable action.
+        if myVars.geomManager == "Grid":
+            if old_state != new_state:
+                undoredo.stack.push_done(
+                    undoredo.GridMoveCommand(self, old_state, new_state)
+                )
+                myVars.projectSaved = False
+        else:
+            nx, ny, nw, nh = self.x, self.y, self.width, self.height
+            if (ox, oy, ow, oh) == (nx, ny, nw, nh):
+                return
             undoredo.stack.push_done(
                 undoredo.MoveCommand(self, ox, oy, ow, oh, nx, ny, nw, nh)
             )

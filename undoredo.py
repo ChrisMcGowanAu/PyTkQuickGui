@@ -22,6 +22,7 @@ Command classes (all importable from this module)
 --------------------------------------------------
     MoveCommand(cw_obj, old_x, old_y, old_w, old_h,
                          new_x, new_y, new_w, new_h)
+    GridMoveCommand(cw_obj, old_grid_state, new_grid_state)
     ResizeCommand          – alias, same signature as MoveCommand
     CreateCommand(cw_obj, widget_snapshot)
     DeleteCommand(parent_widget, widget_snapshot,
@@ -43,6 +44,9 @@ from __future__ import annotations
 import logging
 import tkinter as tk
 from typing import Any
+
+import project_format
+from layout_model import GridGeometry
 
 # import ttkbootstrap as tboot
 
@@ -106,6 +110,7 @@ def restore_widget(snapshot: dict, mainFrame) -> Any | None:
         return None
 
     w = cw.createWidget(mainFrame, widget)
+    project_format.remember_preserved_attributes(widget, widgetName, wDict)
 
     mgr = myVars.geomManager
     if mgr == "Place":
@@ -113,14 +118,11 @@ def restore_widget(snapshot: dict, mainFrame) -> Any | None:
         if place:
             w.addPlace(place)
     elif mgr == "Grid":
-        gd = wDict.get("GeomData") or {}
-        widget.grid(
-            row=int(gd.get("row", 0)),
-            column=int(gd.get("column", 0)),
-            sticky=gd.get("sticky", "WE"),
-            padx=int(gd.get("padx", 2)),
-            pady=int(gd.get("pady", 2)),
+        state = GridGeometry.from_mapping(
+            wDict.get("GeomData"),
+            parent=wDict.get("WidgetParent", myVars.rootWidgetName),
         )
+        w.apply_grid_geometry(state)
     elif mgr == "Pack":
         gd = wDict.get("GeomData") or {}
         widget.pack(
@@ -191,7 +193,7 @@ class MoveCommand(Command):
         if mgr == "Place":
             obj.widget.place(x=x, y=y, width=w, height=h)
         elif mgr == "Grid":
-            obj.widget.grid(row=obj.row, column=obj.col, padx=2, pady=2, sticky="WE")
+            obj.apply_grid_geometry(obj.capture_grid_geometry())
         elif mgr == "Pack":
             obj.widget.pack(padx=4, pady=4, anchor="nw")
 
@@ -203,6 +205,33 @@ class MoveCommand(Command):
 
 
 ResizeCommand = MoveCommand  # same data, semantic alias
+
+
+# ---------------------------------------------------------------------------
+# Grid move / resize / re-parent
+# ---------------------------------------------------------------------------
+
+
+class GridMoveCommand(Command):
+    """Restore complete before/after Grid geometry, including logical parent."""
+
+    def __init__(
+        self,
+        cw_obj,
+        old_state: GridGeometry,
+        new_state: GridGeometry,
+    ):
+        self.cw_obj = cw_obj
+        self.old_state = old_state
+        self.new_state = new_state
+        action = "reparent" if old_state.parent != new_state.parent else "move"
+        self.description = f"{action} {cw_obj.pythonName}"
+
+    def execute(self):
+        self.cw_obj.apply_grid_geometry(self.new_state)
+
+    def undo(self):
+        self.cw_obj.apply_grid_geometry(self.old_state)
 
 
 # ---------------------------------------------------------------------------
@@ -309,9 +338,8 @@ class EditAttributeCommand(Command):
         self.description = f"edit {key} on {getattr(widget, 'widgetName', str(widget))}"
 
     def _apply(self, val: str):
-        if not val:
-            return
         try:
+            project_format.remember_widget_value(self.widget, self.key, val)
             self.widget.configure(**{self.key: val})
         except tk.TclError as e:
             log.warning(

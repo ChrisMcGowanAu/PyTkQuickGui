@@ -45,7 +45,7 @@ PyTkQuickGui lets you lay out tkinter widgets by dragging, resizing, and editing
 | Feature | Details |
 |---|---|
 | **Visual layout** | Drag, resize and re-parent widgets on a live canvas |
-| **Geometry managers** | Choose **Place**, **Grid**, or **Pack** per project via the toolbar |
+| **Geometry managers** | Choose **Place** or **Grid** when creating a project; **Pack** is intentionally disabled for now |
 | **ttkbootstrap widgets** | Label, Button, Entry, Combobox, Spinbox, Checkbutton, Radiobutton, Scale, Progressbar, Floodgauge, Meter, Notebook, Canvas, Frame, Labelframe, Panedwindow |
 | **Standard tk/ttk widgets** | Text, Listbox, Treeview, Scrollbar, Separator, Sizegrip |
 | **Widget editor** | Edit every configurable attribute through generated combo/spinbox/entry controls |
@@ -197,7 +197,7 @@ When you release a widget on top of a container (Frame, Labelframe, etc.), the t
 
 ## Geometry Managers
 
-PyTkQuickGui supports all three Tk geometry managers.  Select the one you want from the **toolbar** before placing widgets – the setting is saved with the project.
+PyTkQuickGui currently supports **Place** and **Grid**. Choose the manager when creating a project; the setting is saved with the project.
 
 ### Place (default)
 Widgets are positioned with absolute `x`, `y`, `width`, `height` coordinates.  Best for pixel-perfect layouts and quick prototyping.
@@ -207,20 +207,14 @@ myWidget.place(x=80, y=40, width=120, height=28, anchor='nw', bordermode='inside
 ```
 
 ### Grid
-Widgets snap to a row/column grid.  Dropping a widget calculates the nearest grid cell.  Generated code uses `grid(row=…, column=…, sticky=…, padx=…, pady=…)`.  Best for forms and tables.
+Widgets snap to a row/column grid. Dragging across container boundaries recalculates the cell in the target container, and edge drags adjust row/column spans. Generated code configures the required rows and columns before using `grid(row=…, column=…, sticky=…, padx=…, pady=…)`. Best for responsive forms and tables.
 
 ```python
 myWidget.grid(row=1, column=2, sticky='WE', padx=2, pady=2)
 ```
 
 ### Pack
-Widgets are stacked sequentially.  Dragging and dropping still places widgets, but the pack order is determined by creation order.  Generated code uses `pack(side=…, fill=…, expand=…)`.  Best for simple vertical or horizontal stacks.
-
-```python
-myWidget.pack(side='top', fill='none', expand=0, padx=4, pady=4)
-```
-
-> **Tip:** You can change the geometry manager at any time during design.  The saved project records which manager was active so reloading restores it automatically.
+Pack remains experimental and cannot be selected for a new project. Its existing code is retained for compatibility with old project files, but work on Pack is deferred until Place and Grid are stable.
 
 ---
 
@@ -240,6 +234,7 @@ Projects are stored as plain **JSON** files in `~/.config/pytkgui/<ProjectName>/
 ### File structure (excerpt)
 ```json
 {
+  "formatVersion": 2,
   "ProjectName": "MyProject",
   "theme": "cyborg",
   "geomManager": "Place",
@@ -265,6 +260,8 @@ Projects saved by older versions of PyTkQuickGui used Python's `pickle` format (
 3. A one-time info dialog tells you the file was loaded from the legacy format and will be re-saved as JSON on next save.
 
 > **Warning:** Hand-editing JSON is powerful but risky.  An invalid JSON file will prevent the project from loading.  Keep a backup copy before editing.
+
+Project writes are validated and atomically replace the current JSON file. Callback and Tk-variable names (`command`, `postcommand`, `textvariable`, and `variable`) are stored as design-time strings so they survive save, reload, duplicate, and subsequent saves without being replaced by Tk's internal Tcl identifiers.
 
 ---
 
@@ -380,7 +377,7 @@ Popular themes: `cosmo`, `flatly`, `journal`, `litera`, `lumen`, `minty`, `pulse
 * **Meter widget** – the ttkbootstrap `Meter` widget has some quirks when used inside containers; if it does not display correctly, try running a Trial Run and see how it looks in the generated app.
 * **Scrollbar attachment** – automatic scrollbar wiring (via the Edit → `vertical_scrollbar` / `horizontal_scrollbar` controls) currently works only with the **Grid** manager.
 * **Notebook tabs** – tab count is set in the Edit popup; individual tab frames need to be re-parented manually.
-* **Pack ordering** – in Pack mode, widget draw-order follows creation order, not drag position.  Re-ordering requires editing the generated code.
+* **Pack geometry** – Pack is intentionally disabled for new projects while its interaction model is redesigned.
 * **No undo** – accidental deletions cannot be undone from the GUI; use *File ▸ Open backup file* to recover from a save point.
 
 ---

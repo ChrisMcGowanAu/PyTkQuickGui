@@ -20,12 +20,13 @@ from ttkbootstrap.dialogs import Messagebox, Querybox
 
 import cdefs as C
 import createWidget as cw
+import layout_model
+import project_format
 import pytkguivars as myVars
 import undoredo
 
 # from ttkbootstrap.constants import *
 
-defaultGrids = 32
 log = logging.getLogger(name="mylogger")
 
 
@@ -276,7 +277,7 @@ def saveProjectFile(fileName, fileType, projectData):
     """
     if not projectData:
         log.error("projectData is empty. Not saving")
-        return
+        return False
     # Ensure the directory exists (handles the 'tmp' default project case)
     dirName = os.path.dirname(fileName)
     if dirName and not os.path.isdir(dirName):
@@ -285,26 +286,17 @@ def saveProjectFile(fileName, fileType, projectData):
             log.info("Created project directory %s", dirName)
         except OSError as e:
             log.error("Cannot create project directory %s: %s", dirName, e)
-            return
-    ftails = [5, 4, 3, 2, 1]
-    completeFileName = fileName + fileType
-    for t in ftails:
-        testNameA = str(fileName) + str("-save") + str(t) + fileType
-        if os.path.isfile(testNameA):
-            testNameB = fileName + "-save" + str(t + 1) + fileType
-            os.rename(testNameA, testNameB)
-
-    if os.path.isfile(completeFileName):
-        testNameA = fileName + "-save" + str(1) + fileType
-        os.rename(completeFileName, testNameA)
-
+            return False
     try:
-        with open(completeFileName, "w", encoding="utf-8") as f:
-            json.dump(projectData, f, indent=2, default=str)
+        completeFileName = project_format.write_project_json(
+            fileName, fileType, projectData
+        )
         log.info("Project saved as JSON to %s", completeFileName)
-    except (TypeError, OSError) as e:
+        return True
+    except (json.JSONDecodeError, TypeError, OSError) as e:
         log.error("Exception saving JSON %s", str(e))
         log.warning("Error in Project Data \n%s", str(projectData))
+        return False
 
 
 def saveProject():
@@ -314,6 +306,7 @@ def saveProject():
     height = 0  # mainCanvas.winfo_height
     cleanList = createCleanNameList()
     projectData = {
+        "formatVersion": project_format.FORMAT_VERSION,
         "ProjectName": myVars.projectName,
         "ProjectPath": myVars.projectPath,
         "width": width,
@@ -349,7 +342,9 @@ def saveProject():
     myVars.projectDict = projectData
     fileName = myVars.projectFileName
     log.debug("projectFileName ->%s<-", fileName)
-    saveProjectFile(fileName, myVars.fileType, projectData)
+    if not saveProjectFile(fileName, myVars.fileType, projectData):
+        myVars.projectSaved = False
+        return False
     log.debug("projectData %s", projectData)
     # log.warning("projectData %s", projectData)
     myVars.lastProjectSaved = myVars.projectFileName
@@ -363,6 +358,7 @@ def saveProject():
     sys.stdout.close()
     sys.stdout = sys.__stdout__
     mainFrame.config(text=myVars.projectName)
+    return True
 
 
 # ---------------------------------------------------------------------------
@@ -471,12 +467,31 @@ def buildPython() -> str:
     """
     functions = []
     tkvars = []
-    saveProject()
+    if not saveProject():
+        log.error("buildPython: project save failed; generation cancelled")
+        return ""
     runDict = myVars.projectDict
     nWidgets = runDict.get("widgetCount")
     largestWidth = 200
     largestHeight = 200
     createdWidgetOrder = workOutWidgetCreationOrder()
+    functions = project_format.callback_names(
+        runDict, createdWidgetOrder, myVars.rootWidgetName
+    )
+    tkvars = project_format.variable_names(
+        runDict, createdWidgetOrder, myVars.rootWidgetName
+    )
+    grid_requirements = (
+        layout_model.grid_layout_requirements(
+            runDict,
+            createdWidgetOrder,
+            myVars.rootWidgetName,
+            container_columns=_CONTAINER_GRID_COLS,
+            container_rows=_CONTAINER_GRID_ROWS,
+        )
+        if myVars.geomManager == "Grid"
+        else {}
+    )
     log.info("nWidgets %s", nWidgets)
     configPath = getConfigPath()
     fileName = configPath + "/" + "test.py"
@@ -503,46 +518,35 @@ def buildPython() -> str:
         rootName
         + " = ttk.Frame(rootWin, width=40, height=100, relief='ridge', borderwidth=1)"
     )
-    # Create widgets on the rootFrame first
-    # for widgetName in myVars.createdWidgetOrder:
-    # First pass is to get the command and variable names
-    for widgetName in createdWidgetOrder:
-        if widgetName == rootName:
-            continue
-        wDict = runDict.get(widgetName)
-        if wDict is not None:
-            parentName = findWidgetsParent(widgetName)
-            wType = wDict.get("WidgetName")
-            t = myVars.fixWidgetTypeName(wType)
-            wType = t
-            keyCount = widgetName + "-KeyCount"
-            widgetDef = widgetName + " = " + wType + "(" + parentName
-            nKeys = wDict.get(keyCount)
-            for a in range(nKeys):
-                useValQuotes = True
-                attribute = "Attribute" + str(a)
-                aDict = wDict.get(attribute)
-                key = aDict.get("Key")
-                val = aDict.get("Value")
-                if key == "image":
-                    if val > "":
-                        val = str(widgetName) + str(key)
 
-                elif key == "command" or key == "postcommand":
-                    if val > "":
-                        log.info("command ->%s<-", val)
-                        functions.append(val)
-                elif key == "textvariable":
-                    if val > "":
-                        log.info("textvariable ->%s<-", val)
-                        tkvars.append(val)
-                elif key == "variable":
-                    if val > "":
-                        log.info("variable ->%s<-", val)
-                        tkvars.append(val)
-                # else:
-                # if val > "":
-                # log.error("Unknown key ->%s<- ->%s<-",key,val)
+    def _emit_grid_configuration(parent_name: str) -> None:
+        dimensions = grid_requirements.get(parent_name)
+        if not dimensions:
+            return
+        column_count, row_count = dimensions
+        if parent_name == rootName:
+            col_minsize = repr(myVars.gridColMinsize)
+            row_minsize = repr(myVars.gridRowMinsize)
+            col_pad = repr(myVars.gridColPad)
+            row_pad = repr(myVars.gridRowPad)
+        else:
+            col_minsize = "40"
+            row_minsize = "24"
+            col_pad = "0"
+            row_pad = "0"
+        print(f"for _grid_col in range({column_count}):")
+        print(
+            f"    {parent_name}.columnconfigure(_grid_col, weight=1,"
+            f" minsize={col_minsize}, pad={col_pad})"
+        )
+        print(f"for _grid_row in range({row_count}):")
+        print(
+            f"    {parent_name}.rowconfigure(_grid_row, weight=1,"
+            f" minsize={row_minsize}, pad={row_pad})"
+        )
+
+    if myVars.geomManager == "Grid":
+        _emit_grid_configuration(rootName)
     print("")
     print(_SEC_TKVARS)
     for f in myVars.widgetImageFilenames:
@@ -626,6 +630,15 @@ def buildPython() -> str:
                 val = aDict.get("Value")
                 if key in specialKeys:
                     useValQuotes = False
+                if key in project_format.PRESERVED_STRING_KEYS:
+                    if val and not project_format.valid_python_name(val):
+                        log.warning(
+                            "Skipping invalid Python name %s=%r on %s",
+                            key,
+                            val,
+                            widgetName,
+                        )
+                        continue
                 if key == "from":
                     # Bug in tkinter -- no
                     # 'from' is a python keyword
@@ -645,15 +658,19 @@ def buildPython() -> str:
                 if len(val) > 0:
                     # keys are not consistent ...
                     if useValQuotes:
-                        tmpWidgetDef = widgetDef + ", " + key + "='" + val + "'"
+                        tmpWidgetDef = widgetDef + ", " + key + "=" + repr(val)
                     else:
                         if key == "image":
                             val = str(widgetName) + key
                         tmpWidgetDef = widgetDef + ", " + key + "=" + val
                     widgetDef = tmpWidgetDef
             print(widgetDef + ")")
+            if myVars.geomManager == "Grid":
+                _emit_grid_configuration(widgetName)
             geomData = wDict.get("GeomData", {})
-            if myVars.geomManager == "Place":
+            if layout_model.is_saved_notebook_tab(runDict, widgetName, rootName):
+                print(f"{parentName}.add({widgetName}, text='Tab')")
+            elif myVars.geomManager == "Place":
                 place = wDict.get("Place", geomData)
                 x = place.get("x", "0")
                 y = place.get("y", "0")
@@ -759,6 +776,8 @@ def buildPython() -> str:
 
 def runMe():
     fileName = buildPython()
+    if not fileName:
+        return
     log.info("python fileName ->%s<-", fileName)
     cmd = "python3 " + fileName + " &"
     os.system(cmd)
@@ -796,6 +815,12 @@ def generatePython():
 
     # Now build (with preservation) and copy.
     fileName = buildPython()
+    if not fileName:
+        Messagebox.show_error(
+            title="Generate Error",
+            message="The project could not be saved, so Python generation was cancelled.",
+        )
+        return
     try:
         shutil.copy2(fileName, newFile)
         log.info("Generated Python written to %s", newFile)
@@ -869,127 +894,17 @@ def _is_notebook_tab_type(widget):
 
 
 def changeParentOfTo(widgetName, parentName):
-    # find both widgets
+    """Apply the saved logical parent using createWidget's central helper."""
     widgetList = cw.findPythonWidgetNameList(widgetName)
     parentList = cw.findPythonWidgetNameList(parentName)
     if widgetList == [] or parentList == []:
-        log.error("Empty Lists")
+        log.error(
+            "Unable to reparent %s to %s: widget not found", widgetName, parentName
+        )
         return
     widget = widgetList[cw.WIDGET]
     parent = parentList[cw.WIDGET]
-
-    # ------------------------------------------------------------------
-    # Notebook handling — two cases:
-    #   1. widget IS a Frame/LabelFrame → add it as a new tab (.add())
-    #   2. widget is any other type    → place it INSIDE the currently-
-    #      selected tab frame, not as a new tab
-    # ------------------------------------------------------------------
-    parent_wn = getattr(parent, "widgetName", "")
-    if parent_wn == "ttk::notebook":
-        if _is_notebook_tab_type(widget):
-            # Frame/LabelFrame: register as a notebook tab page
-            existing_tabs = list(parent.tabs())
-            if str(widget) not in existing_tabs:
-                try:
-                    parent.add(widget, text="Tab")
-                    log.info(
-                        "changeParentOfTo: added %s as tab of %s",
-                        widgetName,
-                        parentName,
-                    )
-                except tk.TclError as _te:
-                    log.warning("notebook.add(%s): %s", widgetName, _te)
-            widget.parent = parent
-            cw.reparentWidget(widgetName, parent)
-            # Lock drag/resize — tab frames are sized/positioned by the notebook
-            _tab_cwo = cw.findCreateWidgetObject(widgetName)
-            if _tab_cwo is not None:
-                _tab_cwo.lock_as_tab_frame()
-            return
-        else:
-            # Non-frame: route into the currently-selected tab frame instead
-            tab_frame = _notebook_selected_tab_frame(parent)
-            if tab_frame is not None:
-                tab_frame_name = cw.findPythonWidgetNameFromWidget(tab_frame)
-                log.info(
-                    "changeParentOfTo: routing non-frame %s into tab frame %s (%s)",
-                    widgetName,
-                    tab_frame_name,
-                    tab_frame,
-                )
-                if tab_frame_name:
-                    changeParentOfTo(widgetName, tab_frame_name)
-                else:
-                    # tab frame not in our registry — fall through to direct place
-                    log.warning(
-                        "changeParentOfTo: selected tab frame not in widgetNameList; "
-                        "placing %s directly in notebook",
-                        widgetName,
-                    )
-                    widget.place(in_=parent)
-                    widget.parent = parent
-                    cw.reparentWidget(widgetName, parent)
-                return
-            else:
-                log.warning(
-                    "changeParentOfTo: notebook %s has no selected tab; "
-                    "placing %s directly in notebook",
-                    parentName,
-                    widgetName,
-                )
-                widget.place(in_=parent)
-                widget.parent = parent
-                cw.reparentWidget(widgetName, parent)
-                return
-
-    mgr = myVars.geomManager
-    if mgr == "Place":
-        widget.place(in_=parent)
-        widget.parent = parent
-        widget.update()
-    elif mgr == "Grid":
-        # Use the authoritative createWidget object values (row/col/span/sticky)
-        # rather than grid_info() which may still reflect the old container or
-        # the createWidget.__init__ defaults (row=4, col=4).
-        cwo_r = cw.findCreateWidgetObject(widgetName)
-        if cwo_r is not None:
-            row = cwo_r.row
-            col = cwo_r.col
-            col_span = cwo_r.columnspan
-            row_span = cwo_r.rowspan
-            sticky_r = cwo_r.sticky
-            padx_r = cwo_r.padx
-            pady_r = cwo_r.pady
-            ipadx_r = cwo_r.ipadx
-            ipady_r = cwo_r.ipady
-        else:
-            # Fallback: try grid_info() from the current (old) container
-            try:
-                gi = widget.grid_info()
-                row = int(str(gi.get("row", 0)).split()[0])
-                col = int(str(gi.get("column", 0)).split()[0])
-            except (tk.TclError, ValueError):
-                row, col = 0, 0
-            col_span, row_span, sticky_r = 1, 1, ""
-            padx_r, pady_r, ipadx_r, ipady_r = 2, 2, 0, 0
-        widget.grid(
-            in_=parent,
-            row=row,
-            column=col,
-            columnspan=col_span,
-            rowspan=row_span,
-            padx=padx_r,
-            pady=pady_r,
-            ipadx=ipadx_r,
-            ipady=ipady_r,
-            sticky=sticky_r,
-        )
-    elif mgr == "Pack":
-        widget.pack(in_=parent, padx=4, pady=4, anchor="nw")
-    else:
-        log.error("Geometry Manager %s is TBD", mgr)
-    tk.Misc.lift(widget, parent)
-    cw.reparentWidget(widgetName, parent)
+    cw.changeParentOfTo(widget, parent)
 
 
 def setLabelBorderWidth(width):
@@ -1612,24 +1527,10 @@ def loadProject(project, altFileName):
                 except tk.TclError as _ce:
                     log.debug("post-load colour %s=%s ignored: %s", _ck, _cv, _ce)
 
-        # Repopulate _user_attrs for command/postcommand from the saved JSON.
-        # These keys are saved via _user_attrs (because Tkinter mangles the raw
-        # string via widget.configure()) and must be restored here so that
-        # subsequent saves from an already-loaded project still emit them correctly.
-        _cmd_keys = ("command", "postcommand")
-        for _ai in range(_nkeys):
-            _adict = wDict.get("Attribute" + str(_ai))
-            if _adict is None:
-                continue
-            _ck = _adict.get("Key", "")
-            _cv = _adict.get("Value", "")
-            if _ck in _cmd_keys and _cv and not _cv.startswith("<"):
-                if not hasattr(widget, "_user_attrs"):
-                    widget._user_attrs = {}
-                widget._user_attrs[_ck] = _cv
-                log.info(
-                    "load: restored _user_attrs %s=%s on %s", _ck, _cv, widgetId
-                )
+        # Restore raw Python callback and Tk-variable names.  These values are
+        # design metadata; asking Tkinter for them later can return an internal
+        # Tcl command instead of what the user typed.
+        project_format.remember_preserved_attributes(widget, widgetId, wDict)
 
         # In Grid mode, container widgets need their own row/column
         # configuration so child widgets can be reparented into them.
@@ -1638,68 +1539,51 @@ def loadProject(project, altFileName):
             if wn in myVars.containerWidgetsUsed:
                 _configure_container_grid(widget)
 
-            mgr = myVars.geomManager
-            if mgr == "Place":
-                place = wDict.get("Place") or {}
-                if place:
-                    log.debug(place)
-                    w.addPlace(place)
-            elif mgr == "Grid":
-                geomData = wDict.get("GeomData") or {}
-                row = int(geomData.get("row", 0))
-                col = int(geomData.get("column", 0))
-                columnspan = max(1, int(geomData.get("columnspan", 1)))
-                rowspan = max(1, int(geomData.get("rowspan", 1)))
-                # sticky = geomData.get("sticky", "WE")
-                sticky = "NSEW"
-                padx = int(geomData.get("padx", 2))
-                pady = int(geomData.get("pady", 2))
-                ipadx = int(geomData.get("ipadx", 0))
-                ipady = int(geomData.get("ipady", 0))
-                w.row = row
-                w.col = col
-                w.columnspan = columnspan
-                w.rowspan = rowspan
-                w.sticky = sticky
-                w.padx = padx
-                w.pady = pady
-                w.ipadx = ipadx
-                w.ipady = ipady
-                w.widget.grid(
-                    row=row,
-                    column=col,
-                    columnspan=columnspan,
-                    rowspan=rowspan,
-                    sticky=sticky,
-                    padx=padx,
-                    pady=pady,
-                    ipadx=ipadx,
-                    ipady=ipady,
-                )
-            elif mgr == "Pack":
-                geomData = wDict.get("GeomData") or {}
-                side = geomData.get("side", "top")
-                fill = geomData.get("fill", "none")
-                expand = int(geomData.get("expand", 0))
-                padx = int(geomData.get("padx", 4))
-                pady = int(geomData.get("pady", 4))
-                anchor = geomData.get("anchor", "center")
-                w.pack_side = side
-                w.pack_fill = fill
-                w.pack_expand = expand
-                w.pack_padx = padx
-                w.pack_pady = pady
-                w.pack_anchor = anchor
-                w.widget.pack(
-                    side=side,
-                    fill=fill,
-                    expand=expand,
-                    padx=padx,
-                    pady=pady,
-                    anchor=anchor,
-                )
-            else:
-                log.error("Geometry Manager %s unknown", mgr)
+        # Apply the saved geometry for every manager.  This block used to be
+        # indented inside the Grid-only container setup, which meant Place and
+        # Pack projects were rebuilt with createWidget's random defaults.
+        mgr = myVars.geomManager
+        if mgr == "Place":
+            place = wDict.get("Place") or {}
+            if place:
+                log.debug(place)
+                w.addPlace(place)
+        elif mgr == "Grid":
+            state = layout_model.GridGeometry.from_mapping(
+                wDict.get("GeomData"),
+                parent=wDict.get("WidgetParent", myVars.rootWidgetName),
+            )
+            # Parents are linked after every widget has been constructed.  For
+            # now apply the values in the root design frame; the hierarchy pass
+            # below moves the widget into its saved logical container.
+            w.apply_grid_geometry(
+                state.updated(parent=myVars.rootWidgetName),
+                parent_widget=_load_parent,
+            )
+        elif mgr == "Pack":
+            geomData = wDict.get("GeomData") or {}
+            side = geomData.get("side", "top")
+            fill = geomData.get("fill", "none")
+            expand = int(geomData.get("expand", 0))
+            padx = int(geomData.get("padx", 4))
+            pady = int(geomData.get("pady", 4))
+            anchor = geomData.get("anchor", "center")
+            w.pack_side = side
+            w.pack_fill = fill
+            w.pack_expand = expand
+            w.pack_padx = padx
+            w.pack_pady = pady
+            w.pack_anchor = anchor
+            w.widget.pack(
+                side=side,
+                fill=fill,
+                expand=expand,
+                padx=padx,
+                pady=pady,
+                anchor=anchor,
+            )
+        else:
+            log.error("Geometry Manager %s unknown", mgr)
 
     # After loading all widgets, advance the global widgetId counter past the
     # highest saved ID so that new widgets created after load don't collide.
@@ -1709,27 +1593,18 @@ def loadProject(project, altFileName):
             cw.createWidget.widgetId = _max_id + 1
             log.info("load: widgetId counter advanced to %d", cw.createWidget.widgetId)
 
-    # using widgetNameList, set the hierarchy
-    # NAME 0 PARENT 1 WIDGET 2 CHILDREN 3
-    # Process parents before children: sort so parents come first by walking
-    # the list in creation order (workOutWidgetCreationOrder already ensures
-    # parents precede their children when saving, so widgetNameList order is safe).
+    # Rebuild the hierarchy from each widget's canonical WidgetParent.  The
+    # CHILDREN lists are derived data and may be stale in older project files;
+    # processing both directions used to re-parent the same child repeatedly.
     for nl in widgetNameList:
-        # Does this widget have a different Parent or have Children?
-        # The tcl widget names were removed from this list ( nl[WIDGET] )
         name = nl[cw.NAME]
         parent = nl[cw.PARENT]
-        children = nl[cw.CHILDREN]
         if len(name) > 2:
-            log.debug("name %s parent %s children %s", name, parent, children)
-            for child in children:
-                log.debug("    %s has a child %s", name, child)
-                changeParentOfTo(child, name)
             if parent != myVars.rootWidgetName:
                 log.debug("%s is the parent of %s", parent, name)
                 changeParentOfTo(name, parent)
         else:
-            log.warning("name %s parent %s children %s", name, parent, children)
+            log.warning("name %s parent %s", name, parent)
             log.warning("widgetNameList %s", str(widgetNameList))
 
     # Grid mode: after reparenting, re-apply the saved grid geometry for every
@@ -1744,54 +1619,30 @@ def loadProject(project, altFileName):
             wDict = runDict.get(name)
             if wDict is None:
                 continue
-            geomData = wDict.get("GeomData") or {}
-            if not geomData:
-                continue
-            nl_live = cw.findPythonWidgetNameList(name)
-            if not nl_live:
-                continue
-            widget = nl_live[cw.WIDGET]
             cwo_g = cw.findCreateWidgetObject(name)
+            if cwo_g is None:
+                continue
             try:
-                row = int(geomData.get("row", 0))
-                col = int(geomData.get("column", 0))
-                columnspan = max(1, int(geomData.get("columnspan", 1)))
-                rowspan = max(1, int(geomData.get("rowspan", 1)))
-                sticky = geomData.get("sticky", "nsew")
-                padx = int(geomData.get("padx", 2))
-                pady = int(geomData.get("pady", 2))
-                ipadx = int(geomData.get("ipadx", 0))
-                ipady = int(geomData.get("ipady", 0))
-                widget.grid(
-                    row=row,
-                    column=col,
-                    columnspan=columnspan,
-                    rowspan=rowspan,
-                    sticky=sticky,
-                    padx=padx,
-                    pady=pady,
-                    ipadx=ipadx,
-                    ipady=ipady,
+                state = layout_model.GridGeometry.from_mapping(
+                    wDict.get("GeomData"),
+                    parent=wDict.get("WidgetParent", myVars.rootWidgetName),
                 )
-                if cwo_g is not None:
-                    cwo_g.row = row
-                    cwo_g.col = col
-                    cwo_g.columnspan = columnspan
-                    cwo_g.rowspan = rowspan
-                    cwo_g.sticky = sticky
-                    cwo_g.padx = padx
-                    cwo_g.pady = pady
-                    cwo_g.ipadx = ipadx
-                    cwo_g.ipady = ipady
-                log.debug(
-                    "load grid re-apply: %s row=%d col=%d cspan=%d rspan=%d",
-                    name,
-                    row,
-                    col,
-                    columnspan,
-                    rowspan,
+                # Notebook tab frames are managed by notebook.add(), not grid().
+                parent_nl = (
+                    cw.findPythonWidgetNameList(state.parent)
+                    if state.parent != myVars.rootWidgetName
+                    else []
                 )
-            except (tk.TclError, ValueError) as _ge:
+                if (
+                    parent_nl
+                    and getattr(parent_nl[cw.WIDGET], "widgetName", "")
+                    == "ttk::notebook"
+                    and _is_notebook_tab_type(cwo_g.widget)
+                ):
+                    continue
+                cwo_g.apply_grid_geometry(state)
+                log.debug("load grid re-apply: %s %s", name, state)
+            except (tk.TclError, ValueError, TypeError) as _ge:
                 log.warning("load grid re-apply %s: %s", name, _ge)
 
     # Place mode: after reparenting, reapply full place geometry for every
@@ -2468,7 +2319,9 @@ def compactGrid() -> None:
     row_map = {old: new for new, old in enumerate(all_rows)}
 
     # Check if anything needs to change.
-    if all(col_map[c] == c for c in all_cols) and all(row_map[r] == r for r in all_rows):
+    if all(col_map[c] == c for c in all_cols) and all(
+        row_map[r] == r for r in all_rows
+    ):
         Messagebox.show_info(
             title="Compact Grid",
             message="Grid is already compact — no unused rows or columns to remove.",
@@ -3032,14 +2885,33 @@ def _configure_container_grid(widget):
     Without this, grid(in_=container) raises a TclError because the container
     has no column/row configuration.
 
-    weight=0 means cells do NOT expand to fill space — the container keeps
-    the size Tkinter naturally assigns it.  Children that want to fill the
-    container can set sticky via the Edit popup.
+    Cells expand with the container so ``sticky='nsew'`` behaves the same in
+    the designer and generated code.
     """
     for c in range(_CONTAINER_GRID_COLS):
-        widget.columnconfigure(c, weight=0, minsize=40)
+        widget.columnconfigure(c, weight=1, minsize=40)
     for r in range(_CONTAINER_GRID_ROWS):
-        widget.rowconfigure(r, weight=0, minsize=24)
+        widget.rowconfigure(r, weight=1, minsize=24)
+
+
+def _configure_root_grid(widget):
+    """Configure exactly the user-requested initial Grid dimensions."""
+    columns = max(2, int(getattr(myVars, "gridCols", 10)))
+    rows = max(2, int(getattr(myVars, "gridRows", 10)))
+    for col in range(columns):
+        widget.columnconfigure(
+            col,
+            weight=1,
+            minsize=myVars.gridColMinsize,
+            pad=myVars.gridColPad,
+        )
+    for row in range(rows):
+        widget.rowconfigure(
+            row,
+            weight=1,
+            minsize=myVars.gridRowMinsize,
+            pad=myVars.gridRowPad,
+        )
 
 
 def _placeNewWidget(w, x: int, y: int, width: int = 72, height: int = 32) -> None:
@@ -3066,31 +2938,35 @@ def _placeNewWidget(w, x: int, y: int, width: int = 72, height: int = 32) -> Non
             else ""
         )
         _is_container = _wname in ("frame", "labelframe", "panedwindow")
-        col_span = 1
-        row_span = 1
+        col_span = 2 if _is_container else 1
+        row_span = 2 if _is_container else 1
         # no auto-expansion — user sets sticky via Edit popup
-        # NOTE if sticky="" the widget is only a pixel or so
-        new_sticky = "NSEW"
-        w.grid(
-            in_=parent,
-            row=row,
-            column=col,
-            columnspan=col_span,
-            rowspan=row_span,
-            padx=2,
-            pady=2,
-            sticky=new_sticky,
-        )
+        new_sticky = "nsew"
         # Sync the authoritative cwo fields so drags and popups see the defaults.
         cwo = cw.findCreateWidgetObject(
             w.pythonName if hasattr(w, "pythonName") else ""
         )
         if cwo is not None:
-            cwo.col = col
-            cwo.row = row
-            cwo.columnspan = col_span
-            cwo.rowspan = row_span
-            cwo.sticky = new_sticky
+            state = cwo.capture_grid_geometry().updated(
+                parent=myVars.rootWidgetName,
+                row=row,
+                column=col,
+                columnspan=col_span,
+                rowspan=row_span,
+                sticky=new_sticky,
+            )
+            cwo.apply_grid_geometry(state, parent_widget=parent)
+        else:
+            w.grid(
+                in_=parent,
+                row=row,
+                column=col,
+                columnspan=col_span,
+                rowspan=row_span,
+                padx=2,
+                pady=2,
+                sticky=new_sticky,
+            )
         # Re-lower the overlay canvas so it stays behind the new widget
         if _gridOverlayCanvas is not None:
             try:
@@ -3322,11 +3198,7 @@ def buildGrid(rows, cols):
         # Give the inner frame a large initial size so widgets aren't clipped.
         # The canvas create_window will be resized on every <Configure> event.
         geomWidgetFrame.configure(width=1200, height=900)
-        # Allow every column/row to expand so grid cells grow with the frame
-        for c in range(defaultGrids):
-            geomWidgetFrame.columnconfigure(c, weight=1, minsize=60)
-        for r in range(defaultGrids):
-            geomWidgetFrame.rowconfigure(r, weight=1, minsize=30)
+        _configure_root_grid(geomWidgetFrame)
         # Place the frame so it fills the whole canvas
         mainCanvas.create_window(
             0, 0, window=geomWidgetFrame, anchor="nw", tags="geomframe"
@@ -3407,21 +3279,7 @@ def _rebuild_canvas_for_geom():
         geomWidgetFrame = ttk.Frame(mainCanvas)
         # Give the inner frame a large initial size so widgets aren't clipped.
         geomWidgetFrame.configure(width=1200, height=900)
-        # Configure the requested number of rows/cols (default 10×10, auto-expands).
-        # We always configure a wider range (32) so widgets can be placed beyond
-        # the initial grid size; extra cells just have no min-size configured.
-        _n_cols = max(getattr(myVars, "gridCols", 10), 10)
-        _n_rows = max(getattr(myVars, "gridRows", 10), 10)
-        _msc = myVars.gridColMinsize
-        _msr = myVars.gridRowMinsize
-        _padc = myVars.gridColPad
-        _padr = myVars.gridRowPad
-        for c in range(max(_n_cols, defaultGrids)):
-            # _ms = 60 if c < _n_cols else 0
-            geomWidgetFrame.columnconfigure(c, weight=1, minsize=_msc, pad=_padc)
-        for r in range(max(_n_rows, defaultGrids)):
-            # _ms = 30 if r < _n_rows else 0
-            geomWidgetFrame.rowconfigure(r, weight=1, minsize=_msc, pad=_padr)
+        _configure_root_grid(geomWidgetFrame)
         mainCanvas.create_window(
             0, 0, window=geomWidgetFrame, anchor="nw", tags="geomframe"
         )
@@ -3439,8 +3297,7 @@ def _rebuild_canvas_for_geom():
                 tk.Misc.lower(_gridOverlayCanvas)
             drawGridLines()
 
-        # Ignore this for now._resize_geom_frame
-        # mainCanvas.bind("<Configure>", _resize_geom_frame)
+        mainCanvas.bind("<Configure>", _resize_geom_frame)
         cw.createWidget.baseRoot = geomWidgetFrame
     else:
         geomWidgetFrame = None

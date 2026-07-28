@@ -7,6 +7,7 @@ from tkinter import PhotoImage
 import ttkbootstrap as ttk
 
 import createWidget as cw
+import project_format
 
 # import cdefs as C
 # import io
@@ -233,18 +234,15 @@ def saveWidgetAsDict(widgetName) -> dict:
         geomData = {}
         try:
             if geomManager == "Grid":
-                gi = w.grid_info()
-                geomData = {
-                    "row": str(gi.get("row", 0)),
-                    "column": str(gi.get("column", 0)),
-                    "columnspan": str(gi.get("columnspan", 1)),
-                    "rowspan": str(gi.get("rowspan", 1)),
-                    "sticky": str(gi.get("sticky", "nsew")),
-                    "padx": str(gi.get("padx", 2)),
-                    "pady": str(gi.get("pady", 2)),
-                    "ipadx": str(gi.get("ipadx", 0)),
-                    "ipady": str(gi.get("ipady", 0)),
-                }
+                cwo = cw.findCreateWidgetObject(widgetName)
+                if cwo is not None:
+                    geomData = cwo.capture_grid_geometry().to_json()
+                else:
+                    # Compatibility fallback for untracked helper widgets.
+                    gi = w.grid_info()
+                    from layout_model import GridGeometry
+
+                    geomData = GridGeometry.from_mapping(gi).to_json()
             elif geomManager == "Pack":
                 pi = w.pack_info()
                 geomData = {
@@ -289,20 +287,29 @@ def saveWidgetAsDict(widgetName) -> dict:
         # via widget.configure() Tkinter wraps these in Tcl references, making
         # widget["command"] return a mangled string.  editWidget.py saves the
         # raw user string in widget._user_attrs so we can recover it here.
-        _CALLABLE_KEYS = ("yscrollcommand", "xscrollcommand")
-        # command/postcommand: Tkinter mangles these to internal Tcl addresses
-        # when set via widget.configure(), so widget["command"] is NOT the
-        # user-supplied string.  We save them exclusively from widget._user_attrs
-        # which editWidget.py stamps with the raw user string.
-        #
-        # textvariable/variable: Tkinter does NOT mangle these — widget["textvariable"]
-        # reliably returns the variable name the user typed.  So we let these go
-        # through the normal widget[key] path below (no _user_attrs needed).
-        _USER_STRING_KEYS = ("command", "postcommand")
-        # Emit command/postcommand from _user_attrs first (before the key loop).
+        _CALLABLE_KEYS = project_format.RUNTIME_CALLABLE_KEYS
+        # Keep all Python callback and Tk-variable names in explicit design
+        # metadata. This avoids depending on Tk's internal Tcl representation
+        # and gives every save/load/duplicate path the same source of truth.
+        _USER_STRING_KEYS = project_format.PRESERVED_STRING_KEYS
+        # Emit preserved design strings before reading live Tk attributes.
         _user_attrs = getattr(w, "_user_attrs", {})
-        for _ukey, _uval in _user_attrs.items():
-            if _ukey in _USER_STRING_KEYS and _uval:  # skip empty / non-command attrs
+        if not isinstance(_user_attrs, dict):
+            _user_attrs = {}
+        for _ukey in _USER_STRING_KEYS:
+            _uval = _user_attrs.get(_ukey, "")
+            if not _uval:
+                # Compatibility path for widgets created before explicit raw
+                # metadata was introduced. Plain identifiers are safe design
+                # names; Tcl-generated callback handles start with digits.
+                try:
+                    live_value = str(w[_ukey])
+                except (KeyError, tk.TclError):
+                    live_value = ""
+                if project_format.valid_python_name(live_value):
+                    _uval = live_value
+                    project_format.remember_widget_value(w, _ukey, live_value)
+            if _uval:
                 attrId = "Attribute" + str(keyCount)
                 widgetAttribute = {attrId: {"Key": _ukey, "Value": str(_uval)}}
                 newWidget = Merge(widgetDict, widgetAttribute)
@@ -317,7 +324,7 @@ def saveWidgetAsDict(widgetName) -> dict:
                     if key in _CALLABLE_KEYS:
                         log.debug("saveWidgetAsDict: skipping callable key %s", key)
                         continue
-                    # Skip command/postcommand — already emitted from _user_attrs above.
+                    # Skip preserved strings — already emitted from _user_attrs.
                     if key in _USER_STRING_KEYS:
                         log.debug("saveWidgetAsDict: skipping (in _user_attrs) %s", key)
                         continue
@@ -442,7 +449,7 @@ def buildAWidget(widgetId: object, wDictOrig: dict) -> str:
         if len(val) > 0:
             tmpWidgetDef: str = ""
             if useValQuotes:
-                tmpWidgetDef = f"{widgetDef},{key}='{val}'"
+                tmpWidgetDef = f"{widgetDef},{key}={val!r}"
                 # tmpWidgetDef = C.sprintf(widgetDef,"%s,%s='%s'",widgetDef,key,val)
             else:
                 tmpWidgetDef = f"{widgetDef},{key}={val}"

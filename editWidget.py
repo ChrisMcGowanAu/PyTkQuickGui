@@ -10,6 +10,7 @@ from tkfontchooser import askfont
 from ttkbootstrap.dialogs.colorchooser import ColorChooserDialog
 
 import createWidget as cw
+import project_format
 import pytkguivars as myVars
 import undoredo
 
@@ -313,7 +314,10 @@ class widgetEditPopup:
                 ipadx = int(self.stringDict.get("ipadx", 0))
                 ipady = int(self.stringDict.get("ipady", 0))
                 sticky = str(self.stringDict.get("sticky", "nsew"))
-                self.widget.grid(
+                if cwo is None:
+                    raise ValueError(f"no createWidget object for {self.widgetName}")
+                old_state = cwo.capture_grid_geometry()
+                state = old_state.updated(
                     row=row,
                     column=col,
                     columnspan=columnspan,
@@ -324,16 +328,12 @@ class widgetEditPopup:
                     ipady=ipady,
                     sticky=sticky,
                 )
-                if cwo:
-                    cwo.row = row
-                    cwo.col = col
-                    cwo.columnspan = columnspan
-                    cwo.rowspan = rowspan
-                    cwo.sticky = sticky
-                    cwo.padx = padx
-                    cwo.pady = pady
-                    cwo.ipadx = ipadx
-                    cwo.ipady = ipady
+                cwo.apply_grid_geometry(state)
+                if state != old_state:
+                    undoredo.stack.push_done(
+                        undoredo.GridMoveCommand(cwo, old_state, state)
+                    )
+                    myVars.projectSaved = False
                 log.debug(
                     logString,
                     "grid",
@@ -421,6 +421,13 @@ class widgetEditPopup:
                 newVal = self.stringDict.get(k)
                 if newVal == "None" or newVal is None:
                     newVal = ""
+                if k in project_format.PRESERVED_STRING_KEYS:
+                    oldVal = project_format.preserved_widget_value(
+                        self.widget, k, oldVal
+                    )
+                    # Always refresh the explicit design-time value.  This is
+                    # intentionally independent of Tk's transformed cget().
+                    project_format.remember_widget_value(self.widget, k, newVal)
                 if oldVal != newVal:
                     log.debug(
                         "Widget %s Key %s old ->%s<- new ->%s<-",
@@ -467,14 +474,12 @@ class widgetEditPopup:
                             # user-supplied name.  Save the raw string directly
                             # on the widget object so saveWidgetAsDict() can
                             # recover it without going through Tkinter.
-                            if k in ("command", "postcommand",
-                                     "textvariable", "variable"):
-                                if not hasattr(self.widget, "_user_attrs"):
-                                    self.widget._user_attrs = {}
-                                self.widget._user_attrs[k] = str(newVal)
+                            if k in project_format.PRESERVED_STRING_KEYS:
                                 log.info(
                                     "saved user attr %s=%s on %s",
-                                    k, newVal, self.widget
+                                    k,
+                                    newVal,
+                                    self.widget,
                                 )
                         except tk.TclError as e:
                             log.error(e)
@@ -1190,6 +1195,7 @@ class widgetEditPopup:
                 val = child_widget.cget(k)
             else:
                 val = self.widget.cget(k)
+                val = project_format.preserved_widget_value(self.widget, k, val)
             l1 = ttk.Label(scrollContent, text=k)
             uniqueName = k + str(row)
             if k in ignoredKeys:
