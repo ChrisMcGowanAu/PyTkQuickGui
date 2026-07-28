@@ -1,4 +1,5 @@
 import ast
+import importlib.metadata as _meta
 import json
 import logging
 import os
@@ -6,7 +7,7 @@ import os.path
 import pickle
 import re
 import shutil
-import sys
+import sys as _sys
 import tkinter as tk
 from collections import defaultdict
 from functools import partial
@@ -24,8 +25,6 @@ import layout_model
 import project_format
 import pytkguivars as myVars
 import undoredo
-
-# from ttkbootstrap.constants import *
 
 log = logging.getLogger(name="mylogger")
 
@@ -98,7 +97,7 @@ rootWin = ttk.Window(theme=useTheme, iconphoto="snake.png")
 ttk.install_legacy_themes()
 
 
-# ── ttkbootstrap version guard ──────────────────────────────────────────────
+# ── ttkbootstrap version guard ─────
 # This application requires ttkbootstrap 2.0 or later.
 # Version 1.x uses a different import structure and is incompatible.
 def _check_ttkbootstrap_version():
@@ -112,7 +111,6 @@ def _check_ttkbootstrap_version():
     Falls back to "0.0" only if all three fail (should never happen on a
     correctly installed package).
     """
-    import importlib.metadata as _meta
 
     ver_str = "0.0"
     try:
@@ -126,11 +124,10 @@ def _check_ttkbootstrap_version():
                 break
     try:
         # Parse major version — handle "2.0.1", "2.0.1.dev0", "2.0.1b1", etc.
-        major = int(str(ver_str).split(".")[0])
+        major = int(str(ver_str).split(".", maxsplit=1)[0])
     except (ValueError, AttributeError):
         major = 0
     if major < 2:
-        from ttkbootstrap.dialogs import Messagebox
 
         Messagebox.show_error(
             title="Unsupported ttkbootstrap version",
@@ -142,7 +139,6 @@ def _check_ttkbootstrap_version():
             ),
         )
         rootWin.destroy()
-        import sys as _sys
 
         _sys.exit(1)
 
@@ -353,10 +349,10 @@ def saveProject():
     # Store myVars.projectName in configPath
     configPath = getConfigPath()
     name = createFileName(configPath, None, myVars.lastProjectFile)
-    sys.stdout = open(name, "w", encoding="utf8")
+    _sys.stdout = open(name, "w", encoding="utf8")
     print(myVars.projectName)
-    sys.stdout.close()
-    sys.stdout = sys.__stdout__
+    _sys.stdout.close()
+    _sys.stdout = _sys.__stdout__
     mainFrame.config(text=myVars.projectName)
     return True
 
@@ -418,7 +414,6 @@ def _parseExistingPython(filePath: str) -> tuple[dict, dict]:
     # ---- Extract user-modified tk variable lines -------------------------
     if sec_tkvars is not None:
         end = sec_functions if sec_functions is not None else len(lines)
-        # pattern: <name> = tk.StringVar(rootWin, ...)
         var_pat = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*tk\.StringVar\s*\(.*\)")
         for line in lines[sec_tkvars + 1 : end]:
             m = var_pat.match(line.strip())
@@ -505,8 +500,8 @@ def buildPython() -> str:
             len(_preserved_tkvars),
             myVars.generatedPyFile,
         )
-    # sys.stdout = open("/tmp/test.py", "w", encoding="utf8")
-    sys.stdout = open(fileName, "w", encoding="utf8")
+    # _sys.stdout = open("/tmp/test.py", "w", encoding="utf8")
+    _sys.stdout = open(fileName, "w", encoding="utf8")
     print("import tkinter as tk\nimport ttkbootstrap as ttk\n")
     themeName = myVars.theme
     title = myVars.projectName
@@ -766,9 +761,9 @@ def buildPython() -> str:
     elif myVars.geomManager == "Pack":
         print(rootName + ".pack(fill='both', expand=True)")
     print("\nrootWin.mainloop()")
-    sys.stdout.close()
-    sys.stdout = sys.__stdout__
-    # sys.stdout = open(fileName, "w", encoding="utf8")
+    _sys.stdout.close()
+    _sys.stdout = _sys.__stdout__
+    # _sys.stdout = open(fileName, "w", encoding="utf8")
     # cmd = "python3 " + fileName + " &"
     # os.system(cmd)
     return fileName
@@ -1072,8 +1067,8 @@ def _askGeomManager() -> tuple:
     grid_frame = ttk.Frame(top, padding=(24, 4, 24, 4))
     grid_frame.pack(fill="x")
 
-    rows_var = tk.IntVar(value=10)
-    cols_var = tk.IntVar(value=10)
+    rows_var = tk.IntVar(value=20)
+    cols_var = tk.IntVar(value=20)
 
     rows_label = ttk.Label(grid_frame, text="Initial grid rows:")
     rows_spin = ttk.Spinbox(grid_frame, from_=2, to=50, textvariable=rows_var, width=6)
@@ -1725,7 +1720,7 @@ def loadProject(project, altFileName):
                     # Re-apply full place geometry including in_= parent.
                     # Exception: if the parent is a Notebook, the widget is a
                     # tab frame managed by .add() — do NOT place() it inside
-                    # the notebook or it escapes the tab system.
+                    # the notebook or it escapes the tab _system.
                     parent_nl = cw.findPythonWidgetNameList(parent)
                     if parent_nl:
                         parent_widget = parent_nl[cw.WIDGET]
@@ -2800,8 +2795,9 @@ def _drawGridLines_impl():
 
         line_color = "#c0c0c0"
         label_color = "#a0a0a0"
-        handle_color = "#7090c0"  # blue-grey handles on interior dividers
-        add_color = "#50b050"  # green "+" add buttons
+        # handle_color and add_color may be intridyced later
+        # handle_color = "#7090c0"  # blue-grey handles on interior dividers
+        # add_color = "#50b050"  # green "+" add buttons
 
         col_xs, row_ys = _grid_collect_lines(geomWidgetFrame, oc_w, oc_h)
 
@@ -3131,6 +3127,7 @@ def createWidgetPopup(event, widgetName):
     # NOTE: the ttk. branches above now use ttkbootstrap's ttk (imported as ttk)
     # which is a superset of tkinter.ttk — no separate import needed
     """
+    Look at these later -- may remove  this block
     elif widgetName == "ttk.Scale":
         w = ttk.Scale(_parent, orient=tk.HORIZONTAL, from_=0, to=100)
     elif widgetName == "ttk.Treeview":
@@ -3377,7 +3374,7 @@ if __name__ == "__main__":
     # arg1 = "warn"
     # arg1 = "info"
     try:
-        arg1 = sys.argv[1]
+        arg1 = _sys.argv[1]
     except IndexError:
         # arg1 = "warn"
         arg1 = "warning"
