@@ -8,6 +8,7 @@ import ttkbootstrap as ttk
 
 import createWidget as cw
 import project_format
+from layout_model import GridGeometry
 
 # import cdefs as C
 # import io
@@ -96,11 +97,11 @@ widgetsUsed = (
 # Some objects use Grid and Pack internally; the root window uses Grid.
 GEOM_MANAGERS = ("Place", "Grid", "Pack")
 # Default
-geomManager = "Place"
+geomManager = "Grid"
 # Number of rows/columns in the initial grid (Grid mode only).
 # The grid auto-expands if more rows/cols are needed.
-gridRows: int = 10
-gridCols: int = 10
+gridRows: int = 25
+gridCols: int = 25
 gridRowMinsize = "2.5m"  # 2.5 mm
 gridColMinsize = "5m"  # 5 mm
 gridRowPad = "2.5m"
@@ -240,7 +241,6 @@ def saveWidgetAsDict(widgetName) -> dict:
                 else:
                     # Compatibility fallback for untracked helper widgets.
                     gi = w.grid_info()
-                    from layout_model import GridGeometry
 
                     geomData = GridGeometry.from_mapping(gi).to_json()
             elif geomManager == "Pack":
