@@ -122,6 +122,29 @@ class WidgetPersistenceTests(unittest.TestCase):
         self.assertEqual(attributes["command"], "run_report")
         self.assertEqual(self.widget._user_attrs["command"], "run_report")
 
+    def test_saved_identity_gaps_never_reuse_an_existing_name(self):
+        old_counter = cw.createWidget.widgetId
+        old_names = cw.createWidget.widgetNameList
+        try:
+            cw.createWidget.widgetId = 0
+            cw.createWidget.widgetNameList = []
+
+            self.assertEqual(
+                cw.createWidget._allocate_identity("Widget10"), (10, "Widget10")
+            )
+            cw.createWidget.widgetNameList.append(["Widget10", "rootWidget", None, []])
+            self.assertEqual(
+                cw.createWidget._allocate_identity("Widget12"), (12, "Widget12")
+            )
+            cw.createWidget.widgetNameList.append(["Widget12", "rootWidget", None, []])
+            self.assertEqual(
+                cw.createWidget._allocate_identity("Widget13"), (13, "Widget13")
+            )
+            self.assertEqual(cw.createWidget.widgetId, 14)
+        finally:
+            cw.createWidget.widgetId = old_counter
+            cw.createWidget.widgetNameList = old_names
+
 
 if __name__ == "__main__":
     unittest.main()

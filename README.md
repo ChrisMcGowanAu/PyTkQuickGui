@@ -199,15 +199,15 @@ When you release a widget on top of a container (Frame, Labelframe, etc.), the t
 
 PyTkQuickGui currently supports **Place** and **Grid**. Choose the manager when creating a project; the setting is saved with the project.
 
-### Place (default)
+### Place
 Widgets are positioned with absolute `x`, `y`, `width`, `height` coordinates.  Best for pixel-perfect layouts and quick prototyping.
 
 ```python
 myWidget.place(x=80, y=40, width=120, height=28, anchor='nw', bordermode='inside')
 ```
 
-### Grid
-Widgets snap to a row/column grid. Dragging across container boundaries recalculates the cell in the target container, and edge drags adjust row/column spans. Generated code configures the required rows and columns before using `grid(row=…, column=…, sticky=…, padx=…, pady=…)`. Best for responsive forms and tables.
+### Grid (default)
+Widgets snap to a row/column grid. Dragging across container boundaries recalculates the cell in the target container, and edge drags adjust row/column spans. The toolbar controls how many rows and columns are drawn and lets you choose a guide colour or use the active theme colour. **Tools ▸ Compact Grid** closes unused gaps and reduces the configured grid to its occupied extent. Generated code configures the required rows and columns before using `grid(row=…, column=…, sticky=…, padx=…, pady=…)`. Best for responsive forms and tables.
 
 ```python
 myWidget.grid(row=1, column=2, sticky='WE', padx=2, pady=2)

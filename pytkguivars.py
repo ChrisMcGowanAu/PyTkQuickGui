@@ -102,6 +102,7 @@ geomManager = "Grid"
 # The grid auto-expands if more rows/cols are needed.
 gridRows: int = 25
 gridCols: int = 25
+gridLineColor: str = ""
 gridRowMinsize = "2.5m"  # 2.5 mm
 gridColMinsize = "5m"  # 5 mm
 gridRowPad = "2.5m"
@@ -156,11 +157,13 @@ def initVars():
     generatedPyFile = ""
     global groups
     global selectedWidgets
-    global gridRows, gridCols
+    global gridRows, gridCols, gridLineColor
     groups = {}
     selectedWidgets = []
-    gridRows = 10
-    gridCols = 10
+    gridRows = 25
+    gridCols = 25
+    # Empty means use a readable foreground from the active tool theme.
+    gridLineColor = ""
 
 
 # Common Procs

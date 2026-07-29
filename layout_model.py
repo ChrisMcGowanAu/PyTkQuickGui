@@ -120,8 +120,8 @@ def grid_layout_requirements(
     """Return ``parent -> (column_count, row_count)`` for generated code."""
     requirements: dict[str, list[int]] = {
         root_name: [
-            max(2, _as_int(project_data.get("gridCols"), 10)),
-            max(2, _as_int(project_data.get("gridRows"), 10)),
+            max(2, _as_int(project_data.get("gridCols"), 25)),
+            max(2, _as_int(project_data.get("gridRows"), 25)),
         ]
     }
     for widget_name in widget_order:
@@ -148,3 +148,63 @@ def grid_layout_requirements(
         parent: (max(1, values[0]), max(1, values[1]))
         for parent, values in requirements.items()
     }
+
+
+def compact_grid_geometries(
+    states: Iterable[GridGeometry],
+    configured_columns: int,
+    configured_rows: int,
+    minimum_columns: int = 2,
+    minimum_rows: int = 2,
+) -> tuple[list[GridGeometry], int, int, int, int]:
+    """Close unused root-grid gaps and return new dimensions and removal counts."""
+    original = list(states)
+    if not original:
+        return (
+            [],
+            max(minimum_columns, configured_columns),
+            max(minimum_rows, configured_rows),
+            0,
+            0,
+        )
+
+    used_columns = {
+        column
+        for state in original
+        for column in range(state.column, state.column + state.columnspan)
+    }
+    used_rows = {
+        row for state in original for row in range(state.row, state.row + state.rowspan)
+    }
+    column_map = {
+        old_column: new_column
+        for new_column, old_column in enumerate(sorted(used_columns))
+    }
+    row_map = {old_row: new_row for new_row, old_row in enumerate(sorted(used_rows))}
+    compacted = [
+        state.updated(column=column_map[state.column], row=row_map[state.row])
+        for state in original
+    ]
+    column_count = max(
+        minimum_columns,
+        max(state.column + state.columnspan for state in compacted),
+    )
+    row_count = max(
+        minimum_rows,
+        max(state.row + state.rowspan for state in compacted),
+    )
+    old_column_count = max(
+        configured_columns,
+        max(state.column + state.columnspan for state in original),
+    )
+    old_row_count = max(
+        configured_rows,
+        max(state.row + state.rowspan for state in original),
+    )
+    return (
+        compacted,
+        column_count,
+        row_count,
+        max(0, old_column_count - column_count),
+        max(0, old_row_count - row_count),
+    )

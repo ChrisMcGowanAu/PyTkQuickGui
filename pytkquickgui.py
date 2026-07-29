@@ -161,6 +161,9 @@ _grid_drag_state: dict = {}
 # Re-entrancy guard: prevents drawGridLines() from triggering itself via
 # mainCanvas.update() → <Configure> → drawGridLines() → recursion.
 _drawing_grid_lines: bool = False
+_gridRowsVar = None
+_gridColsVar = None
+_gridToolbarWidgets: list = []
 
 
 def setTheme(theme: object):
@@ -169,9 +172,45 @@ def setTheme(theme: object):
     log.debug(theme)
     # style = ttk.Style(rootWin)
     myVars.style.theme_use(theme)
+    _sync_grid_overlay_style()
+    drawGridLines()
     # for color_label in style.colors:
     #     color = style.colors.get(color_label)
     #     print(color_label,color)
+
+
+def _theme_grid_background() -> str:
+    """Return the active ttk theme's normal frame background."""
+    try:
+        color = ttk.Style().lookup("TFrame", "background")
+        if color:
+            return str(color)
+    except tk.TclError:
+        pass
+    return str(rootWin.cget("background"))
+
+
+def _current_grid_line_color() -> str:
+    custom = str(getattr(myVars, "gridLineColor", "") or "")
+    if custom:
+        return custom
+    try:
+        color = ttk.Style().lookup("TLabel", "foreground")
+        if color:
+            return str(color)
+    except tk.TclError:
+        pass
+    return "#808080"
+
+
+def _sync_grid_overlay_style() -> None:
+    if _gridOverlayCanvas is None:
+        return
+    try:
+        if _gridOverlayCanvas.winfo_exists():
+            _gridOverlayCanvas.configure(background=_theme_grid_background())
+    except tk.TclError:
+        pass
 
 
 def tree():
@@ -309,8 +348,9 @@ def saveProject():
         "height": height,
         "theme": myVars.theme,
         "geomManager": myVars.geomManager,
-        "gridRows": getattr(myVars, "gridRows", 10),
-        "gridCols": getattr(myVars, "gridCols", 10),
+        "gridRows": getattr(myVars, "gridRows", 25),
+        "gridCols": getattr(myVars, "gridCols", 25),
+        "gridLineColor": getattr(myVars, "gridLineColor", ""),
         "generatedPyFile": myVars.generatedPyFile,
         "widgetNameList": cleanList,
         "backgroundColor": myVars.backgroundColor,
@@ -1028,9 +1068,8 @@ def newProject():
     if geom_choice == "Grid":
         myVars.gridRows = grid_rows
         myVars.gridCols = grid_cols
-    if hasattr(rootWin, "_geomLabel"):
-        rootWin._geomLabel.config(text="Layout: " + geom_choice)
     _rebuild_canvas_for_geom()
+    _refresh_grid_toolbar()
     mainFrame.config(text=myVars.projectName)
 
 
@@ -1393,11 +1432,10 @@ def loadProject(project, altFileName):
         savedGeom = runDict.get("geomManager")
         if savedGeom and savedGeom in myVars.GEOM_MANAGERS:
             myVars.geomManager = savedGeom
-            if hasattr(rootWin, "_geomLabel"):
-                rootWin._geomLabel.config(text="Layout: " + savedGeom)
-        # Restore grid dimensions (default 10×10 for projects saved before this feature)
-        myVars.gridRows = int(runDict.get("gridRows", 10))
-        myVars.gridCols = int(runDict.get("gridCols", 10))
+        # Restore grid dimensions (default 25×25 for older project files).
+        myVars.gridRows = int(runDict.get("gridRows", 25))
+        myVars.gridCols = int(runDict.get("gridCols", 25))
+        myVars.gridLineColor = str(runDict.get("gridLineColor", "") or "")
         savedPyFile = runDict.get("generatedPyFile", "")
         if savedPyFile and os.path.isfile(savedPyFile):
             myVars.generatedPyFile = savedPyFile
@@ -1415,6 +1453,7 @@ def loadProject(project, altFileName):
     # Rebuild the canvas inner frame BEFORE creating widgets so they land in
     # the correct (new) geomWidgetFrame for the loaded project's geometry manager.
     _rebuild_canvas_for_geom()
+    _refresh_grid_toolbar()
 
     # Build the ordered list of widget IDs to load from widgetNameList.
     # This handles projects saved after deletions where IDs are non-contiguous
@@ -1461,7 +1500,10 @@ def loadProject(project, altFileName):
         except TypeError as e:
             log.error("%s dict %s eval() TypeError %s", widgetId, str(wDict), str(e))
             continue
-        w = cw.createWidget(_load_parent, widget)
+        # Assign the persisted identity during construction. Renaming an
+        # auto-generated ID afterwards is unsafe when saved IDs contain gaps:
+        # a later auto-ID can collide with a name already restored earlier.
+        w = cw.createWidget(_load_parent, widget, python_name=widgetId)
 
         # Tab-frame fix: createWidget.__init__ calls widget.place(x,y) for
         # every widget in Place mode, including frames that are notebook tabs.
@@ -1485,21 +1527,6 @@ def loadProject(project, altFileName):
                         )
                     except tk.TclError as _pfe:
                         log.debug("load: place_forget on %s: %s", widgetId, _pfe)
-
-        # createWidget.__init__ auto-assigns pythonName = "Widget" + widgetId
-        # (starting from 0), which will be wrong for non-contiguous saved IDs.
-        # Correct the pythonName in both the object and the widgetNameList entry
-        # to match the saved name (e.g. "Widget2" instead of "Widget0").
-        if w.pythonName != widgetId:
-            _old_name = w.pythonName
-            # Find the auto-assigned entry and rename it
-            for _nl in cw.createWidget.widgetNameList:
-                if _nl[cw.NAME] == _old_name:
-                    _nl[cw.NAME] = widgetId
-                    break
-            w.pythonName = widgetId
-            w.widget.pythonName = widgetId
-            log.info("load: renamed auto-id %s → %s", _old_name, widgetId)
 
         # Post-construction colour restore: ttkbootstrap's theming engine
         # overrides bg=/background= kwargs during widget construction, so
@@ -1862,6 +1889,27 @@ def chooseBackground():
         mainCanvas.configure(bg=colors[1])
         mainCanvas.update()
         myVars.backgroundColor = colors[1]
+
+
+def chooseGridColor():
+    """Choose the guide-line and index-label colour for Grid projects."""
+    colors = askcolor(
+        color=_current_grid_line_color(),
+        title="Grid line colour",
+        parent=rootWin,
+    )
+    if colors[1] is None:
+        return
+    myVars.gridLineColor = colors[1]
+    myVars.projectSaved = False
+    drawGridLines()
+
+
+def useThemeGridColor():
+    """Return Grid guides to the foreground colour supplied by the theme."""
+    myVars.gridLineColor = ""
+    myVars.projectSaved = False
+    drawGridLines()
 
 
 def welcome():
@@ -2266,30 +2314,15 @@ def compactGrid() -> None:
     if geomWidgetFrame is None:
         return
 
-    # Collect all tracked widgets and their current grid positions from cwo.
-    widget_cwos = []
-    for obj in cw.createWidget.widgetObjectList:
-        if obj is None:
-            continue
-        # Only consider direct children of geomWidgetFrame (not nested)
-        try:
-            gi = obj.widget.grid_info()
-        except tk.TclError:
-            continue
-        if not gi:
-            continue  # not grid-managed (e.g. notebook tab frame)
-        # Check that this widget is a direct child of geomWidgetFrame.
-        # We compare Tk path strings:
-        #   • winfo_parent() returns the widget's actual Tk parent path — reliable
-        #     even when in_= was not used (so gi["in"] would be empty).
-        #   • gi.get("in", "") reflects the in_= grid option when it was supplied.
-        # Accept the widget if EITHER matches geomWidgetFrame's path string.
-        _gwf_path = str(geomWidgetFrame)
-        _in_path = str(gi.get("in", ""))
-        _parent_path = obj.widget.winfo_parent()
-        if _in_path != _gwf_path and _parent_path != _gwf_path:
-            continue
-        widget_cwos.append(obj)
+    # Every designer widget has the same physical Tk master, so winfo_parent()
+    # cannot distinguish root widgets from logical children. Use the canonical
+    # GridGeometry parent instead.
+    widget_cwos = [
+        obj
+        for obj in cw.createWidget.widgetObjectList
+        if obj is not None
+        and obj.capture_grid_geometry().parent == myVars.rootWidgetName
+    ]
 
     if not widget_cwos:
         Messagebox.show_info(
@@ -2298,24 +2331,18 @@ def compactGrid() -> None:
         )
         return
 
-    # Find which rows and columns are actually used.
-    used_cols: set = set()
-    used_rows: set = set()
-    for obj in widget_cwos:
-        for dc in range(obj.columnspan):
-            used_cols.add(obj.col + dc)
-        for dr in range(obj.rowspan):
-            used_rows.add(obj.row + dr)
-
-    # Build a sorted mapping from old → new index (gaps removed).
-    all_cols = sorted(used_cols)
-    all_rows = sorted(used_rows)
-    col_map = {old: new for new, old in enumerate(all_cols)}
-    row_map = {old: new for new, old in enumerate(all_rows)}
-
-    # Check if anything needs to change.
-    if all(col_map[c] == c for c in all_cols) and all(
-        row_map[r] == r for r in all_rows
+    old_states = [obj.capture_grid_geometry() for obj in widget_cwos]
+    new_states, new_cols, new_rows, n_cols_removed, n_rows_removed = (
+        layout_model.compact_grid_geometries(
+            old_states,
+            configured_columns=myVars.gridCols,
+            configured_rows=myVars.gridRows,
+        )
+    )
+    if (
+        old_states == new_states
+        and new_cols == myVars.gridCols
+        and new_rows == myVars.gridRows
     ):
         Messagebox.show_info(
             title="Compact Grid",
@@ -2323,29 +2350,13 @@ def compactGrid() -> None:
         )
         return
 
-    # Apply the new positions.
-    for obj in widget_cwos:
-        new_col = col_map.get(obj.col, obj.col)
-        new_row = row_map.get(obj.row, obj.row)
-        obj.col = new_col
-        obj.row = new_row
-        try:
-            obj.widget.grid(
-                row=new_row,
-                column=new_col,
-                columnspan=obj.columnspan,
-                rowspan=obj.rowspan,
-                sticky=obj.sticky,
-                padx=obj.padx,
-                pady=obj.pady,
-                ipadx=obj.ipadx,
-                ipady=obj.ipady,
-            )
-        except tk.TclError as e:
-            log.warning("compactGrid: grid() on %s failed: %s", obj.pythonName, e)
+    for obj, state in zip(widget_cwos, new_states):
+        obj.apply_grid_geometry(state, parent_widget=geomWidgetFrame)
 
-    n_cols_removed = len(set(range(max(used_cols) + 1)) - used_cols)
-    n_rows_removed = len(set(range(max(used_rows) + 1)) - used_rows)
+    myVars.gridCols = new_cols
+    myVars.gridRows = new_rows
+    _configure_root_grid(geomWidgetFrame, reset=True)
+    _refresh_grid_toolbar()
     myVars.projectSaved = False
     drawGridLines()
     log.info(
@@ -2479,6 +2490,7 @@ def _make_grid_overlay(frame: ttk.Frame) -> tk.Canvas:  # type: ignore[name-defi
             pass
     oc = tk.Canvas(
         frame,
+        background=_theme_grid_background(),
         highlightthickness=0,
         bd=0,
         takefocus=False,
@@ -2516,6 +2528,9 @@ def _grid_collect_lines(frame, oc_w, oc_h):
         n_cols, n_rows = frame.grid_size()
     except tk.TclError:
         n_cols, n_rows = 0, 0
+    if frame is geomWidgetFrame:
+        n_cols = max(2, int(myVars.gridCols))
+        n_rows = max(2, int(myVars.gridRows))
 
     col_xs = {0}
     for col in range(n_cols):
@@ -2793,12 +2808,8 @@ def _drawGridLines_impl():
 
         oc.delete("gridline")
 
-        line_color = "#c0c0c0"
-        label_color = "#a0a0a0"
-        # handle_color and add_color may be intridyced later
-        # handle_color = "#7090c0"  # blue-grey handles on interior dividers
-        # add_color = "#50b050"  # green "+" add buttons
-
+        line_color = _current_grid_line_color()
+        label_color = line_color
         col_xs, row_ys = _grid_collect_lines(geomWidgetFrame, oc_w, oc_h)
 
         # --- Draw vertical column-boundary lines ---
@@ -2873,6 +2884,57 @@ _CONTAINER_GRID_COLS = 4
 _CONTAINER_GRID_ROWS = 4
 
 
+def _minimum_root_grid_extent() -> tuple[int, int]:
+    columns = 2
+    rows = 2
+    for obj in cw.createWidget.widgetObjectList:
+        if obj is None:
+            continue
+        state = obj.capture_grid_geometry()
+        if state.parent != myVars.rootWidgetName:
+            continue
+        columns = max(columns, state.column + state.columnspan)
+        rows = max(rows, state.row + state.rowspan)
+    return columns, rows
+
+
+def _apply_grid_dimensions(_event=None) -> None:
+    """Apply toolbar row/column counts without hiding occupied cells."""
+    if myVars.geomManager != "Grid" or _gridRowsVar is None or _gridColsVar is None:
+        return
+    try:
+        requested_rows = max(2, min(100, int(_gridRowsVar.get())))
+        requested_cols = max(2, min(100, int(_gridColsVar.get())))
+    except (tk.TclError, TypeError, ValueError):
+        _refresh_grid_toolbar()
+        return
+    minimum_cols, minimum_rows = _minimum_root_grid_extent()
+    myVars.gridRows = max(requested_rows, minimum_rows)
+    myVars.gridCols = max(requested_cols, minimum_cols)
+    _gridRowsVar.set(myVars.gridRows)
+    _gridColsVar.set(myVars.gridCols)
+    if geomWidgetFrame is not None:
+        _configure_root_grid(geomWidgetFrame, reset=True)
+    myVars.projectSaved = False
+    drawGridLines()
+
+
+def _refresh_grid_toolbar() -> None:
+    """Synchronize toolbar controls with the active project."""
+    if hasattr(rootWin, "_geomLabel"):
+        rootWin._geomLabel.configure(text=myVars.geomManager)
+    if _gridRowsVar is not None:
+        _gridRowsVar.set(int(myVars.gridRows))
+    if _gridColsVar is not None:
+        _gridColsVar.set(int(myVars.gridCols))
+    state = "normal" if myVars.geomManager == "Grid" else "disabled"
+    for widget in _gridToolbarWidgets:
+        try:
+            widget.configure(state=state)
+        except tk.TclError:
+            pass
+
+
 def _configure_container_grid(widget):
     """Give a container widget its own internal grid so child widgets can
     be reparented into it using Grid layout.
@@ -2890,10 +2952,19 @@ def _configure_container_grid(widget):
         widget.rowconfigure(r, weight=1, minsize=24)
 
 
-def _configure_root_grid(widget):
+def _configure_root_grid(widget, reset: bool = False):
     """Configure exactly the user-requested initial Grid dimensions."""
-    columns = max(2, int(getattr(myVars, "gridCols", 10)))
-    rows = max(2, int(getattr(myVars, "gridRows", 10)))
+    columns = max(2, int(getattr(myVars, "gridCols", 25)))
+    rows = max(2, int(getattr(myVars, "gridRows", 25)))
+    if reset:
+        try:
+            old_columns, old_rows = widget.grid_size()
+        except tk.TclError:
+            old_columns, old_rows = columns, rows
+        for col in range(max(old_columns, columns)):
+            widget.columnconfigure(col, weight=0, minsize=0, pad=0)
+        for row in range(max(old_rows, rows)):
+            widget.rowconfigure(row, weight=0, minsize=0, pad=0)
     for col in range(columns):
         widget.columnconfigure(
             col,
@@ -3247,10 +3318,9 @@ def setGeomManager(mgr: str) -> None:
         return
     myVars.geomManager = mgr
     log.info("Geometry manager set to %s", mgr)
-    if hasattr(rootWin, "_geomLabel"):
-        rootWin._geomLabel.config(text="Layout: " + mgr)
     # Rebuild the canvas inner frame for the new manager
     _rebuild_canvas_for_geom()
+    _refresh_grid_toolbar()
 
 
 def _rebuild_canvas_for_geom():
@@ -3304,7 +3374,7 @@ def _rebuild_canvas_for_geom():
 
 
 def buildMainGui():
-    global mainFrame
+    global mainFrame, _gridRowsVar, _gridColsVar, _gridToolbarWidgets
 
     buildMenu()
 
@@ -3319,6 +3389,45 @@ def buildMainGui():
     geomLabel = ttk.Label(toolbarFrame, text=myVars.geomManager, bootstyle="info")
     geomLabel.pack(side=tk.LEFT, padx=(0, 8))
     rootWin._geomLabel = geomLabel
+
+    # Grid controls live beside the layout name so the drawn grid can be
+    # adjusted without starting a new project.
+    ttk.Label(toolbarFrame, text="Rows:").pack(side=tk.LEFT, padx=(0, 2))
+    _gridRowsVar = tk.IntVar(value=myVars.gridRows)
+    gridRowsSpin = ttk.Spinbox(
+        toolbarFrame,
+        from_=2,
+        to=100,
+        width=4,
+        textvariable=_gridRowsVar,
+        command=_apply_grid_dimensions,
+    )
+    gridRowsSpin.pack(side=tk.LEFT, padx=(0, 6))
+
+    ttk.Label(toolbarFrame, text="Cols:").pack(side=tk.LEFT, padx=(0, 2))
+    _gridColsVar = tk.IntVar(value=myVars.gridCols)
+    gridColsSpin = ttk.Spinbox(
+        toolbarFrame,
+        from_=2,
+        to=100,
+        width=4,
+        textvariable=_gridColsVar,
+        command=_apply_grid_dimensions,
+    )
+    gridColsSpin.pack(side=tk.LEFT, padx=(0, 8))
+
+    for spinbox in (gridRowsSpin, gridColsSpin):
+        spinbox.bind("<Return>", _apply_grid_dimensions)
+        spinbox.bind("<FocusOut>", _apply_grid_dimensions)
+
+    gridColorButton = ttk.Menubutton(toolbarFrame, text="Grid colour")
+    gridColorMenu = ttk.Menu(gridColorButton, tearoff=0)
+    gridColorMenu.add_command(label="Choose…", command=chooseGridColor)
+    gridColorMenu.add_command(label="Use theme colour", command=useThemeGridColor)
+    gridColorButton.configure(menu=gridColorMenu)
+    gridColorButton.pack(side=tk.LEFT)
+    _gridToolbarWidgets = [gridRowsSpin, gridColsSpin, gridColorButton]
+    _refresh_grid_toolbar()
 
     # ---- Undo/Redo status label (right side of toolbar) ---------------
     undoLabel = ttk.Label(

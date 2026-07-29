@@ -109,7 +109,7 @@ def restore_widget(snapshot: dict, mainFrame) -> Any | None:
         log.error("restore_widget: eval failed for %s: %s", widgetName, e)
         return None
 
-    w = cw.createWidget(mainFrame, widget)
+    w = cw.createWidget(mainFrame, widget, python_name=widgetName)
     project_format.remember_preserved_attributes(widget, widgetName, wDict)
 
     mgr = myVars.geomManager
