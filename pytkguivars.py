@@ -109,6 +109,7 @@ gridColMinsize = tool_defaults.GRID_DEFAULTS["gridColMinsize"]
 gridRowPad = tool_defaults.GRID_DEFAULTS["gridRowPad"]
 gridColPad = tool_defaults.GRID_DEFAULTS["gridColPad"]
 gridWidgetDefaults = tool_defaults.normalise_widget_layouts(None)
+placeWidgetDefaults = tool_defaults.normalise_place_widget_layouts(None)
 # ---- Widget groups (logical, not tkinter containers) --------------------
 # {group_name: [widgetName, ...]}  — persisted to project JSON
 groups: dict = {}
@@ -161,7 +162,7 @@ def initVars():
     global selectedWidgets
     global gridRows, gridCols, gridLineColor
     global gridRowMinsize, gridColMinsize, gridRowPad, gridColPad
-    global gridWidgetDefaults
+    global gridWidgetDefaults, placeWidgetDefaults
     groups = {}
     selectedWidgets = []
     gridRows = tool_defaults.GRID_DEFAULTS["gridRows"]
@@ -173,13 +174,14 @@ def initVars():
     gridRowPad = tool_defaults.GRID_DEFAULTS["gridRowPad"]
     gridColPad = tool_defaults.GRID_DEFAULTS["gridColPad"]
     gridWidgetDefaults = tool_defaults.normalise_widget_layouts(None)
+    placeWidgetDefaults = tool_defaults.normalise_place_widget_layouts(None)
 
 
 def applyToolDefaults(data: dict) -> None:
     """Apply a validated tool-defaults dictionary to the live settings."""
     global gridRows, gridCols, gridLineColor
     global gridRowMinsize, gridColMinsize, gridRowPad, gridColPad
-    global gridWidgetDefaults
+    global gridWidgetDefaults, placeWidgetDefaults
     defaults = tool_defaults.normalise(data)
     gridRows = defaults["gridRows"]
     gridCols = defaults["gridCols"]
@@ -189,10 +191,11 @@ def applyToolDefaults(data: dict) -> None:
     gridRowPad = defaults["gridRowPad"]
     gridColPad = defaults["gridColPad"]
     gridWidgetDefaults = defaults["gridWidgetDefaults"]
+    placeWidgetDefaults = defaults["placeWidgetDefaults"]
 
 
 def currentToolDefaults() -> dict:
-    """Return the current Grid settings in tool_defaults.json format."""
+    """Return the current geometry settings in tool_defaults.json format."""
     return {
         "gridRows": gridRows,
         "gridCols": gridCols,
@@ -202,12 +205,18 @@ def currentToolDefaults() -> dict:
         "gridRowPad": gridRowPad,
         "gridColPad": gridColPad,
         "gridWidgetDefaults": gridWidgetDefaults,
+        "placeWidgetDefaults": placeWidgetDefaults,
     }
 
 
 def gridDefaultsForWidget(widgetName: str) -> dict:
     """Return configured Grid defaults for a Tk widget type."""
     return tool_defaults.widget_layout(widgetName, gridWidgetDefaults)
+
+
+def placeDefaultsForWidget(widgetName: str) -> dict:
+    """Return configured Place dimensions for a Tk widget type."""
+    return tool_defaults.place_size(widgetName, placeWidgetDefaults)
 
 
 # Common Procs
@@ -277,7 +286,7 @@ def saveWidgetAsDict(widgetName) -> dict:
             # Pack/Grid widgets are not in .place() — place_info() may raise
             # TclError if the widget path is stale.  Log and continue; geomData
             # will capture the real geometry below.
-            log.warning("place_info() on ->%s<- raised %s (ignored)", str(w), str(ex))
+            log.debug("place_info() on ->%s<- raised %s (ignored)", str(w), str(ex))
         # Capture geometry info for all supported managers
         geomData = {}
         try:
@@ -325,11 +334,12 @@ def saveWidgetAsDict(widgetName) -> dict:
         try:
             keys = w.keys()
         except tk.TclError as _ke:
-            log.warning(
+            log.debug(
                 "saveWidgetAsDict: w.keys() failed for %s: %s (skipping attributes)",
                 widgetName,
                 _ke,
             )
+            widgetDict[widgetName + "-KeyCount"] = 0
             return {widgetName: widgetDict}
         # Keys whose values are bound Python callables (e.g. scrollbar.set,
         # canvas.yview).  Tkinter returns them as strings like
@@ -443,20 +453,37 @@ def buildAWidget(widgetId: object, wDictOrig: dict) -> str:
     t = fixWidgetTypeName(wType)
     wType = t
     keyCount = widgetName + "-KeyCount"
-
-    nKeys = 0
-
+    raw_key_count = wDict.get(keyCount)
     try:
-        nKeys = wDict[keyCount]
-    except KeyError as e:
-        log.error("KeyError in json? ->%s<- ->%s<- %s", keyCount, str(nKeys), e)
+        nKeys = max(0, int(raw_key_count))
+    except (TypeError, ValueError):
+        log.error(
+            "buildAWidget: %s has missing/invalid attribute count %r; "
+            "rebuilding %s without saved attributes (available keys: %s)",
+            keyCount,
+            raw_key_count,
+            widgetName,
+            sorted(wDict),
+        )
+        nKeys = 0
 
     widgetDef = wType + "(mainFrame"
     for a in range(nKeys):
         attribute = "Attribute" + str(a)
-        aDict = wDict[attribute]
-        key = aDict["Key"]
-        val = aDict["Value"]
+        aDict = wDict.get(attribute)
+        if not isinstance(aDict, dict):
+            log.error(
+                "buildAWidget: %s declares %d attributes but %s is missing/invalid",
+                widgetName,
+                nKeys,
+                attribute,
+            )
+            continue
+        key = str(aDict.get("Key", ""))
+        val = str(aDict.get("Value", ""))
+        if not key:
+            log.error("buildAWidget: %s has no Key value", attribute)
+            continue
         useValQuotes = True
         if key == "image":
             if val:

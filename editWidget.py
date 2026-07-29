@@ -427,33 +427,50 @@ class widgetEditPopup:
                     log.warning("k %s val %s", str(p), str(newVal))
 
     def saveLayoutAsTypeDefault(self) -> None:
-        """Apply this Grid layout and save it for future widgets of this type."""
-        if myVars.geomManager != "Grid":
+        """Apply this layout and save type defaults for Grid or Place."""
+        manager = myVars.geomManager
+        if manager not in ("Grid", "Place"):
             return
         self.applyLayoutSettings()
-        cwo = cw.findCreateWidgetObject(self.widgetName)
-        if cwo is None:
-            return
-        state = cwo.capture_grid_geometry()
         widget_type = myVars.fixWidgetName(self.widget.widgetName).lower()
-        myVars.gridWidgetDefaults[widget_type] = {
-            "columnspan": state.columnspan,
-            "rowspan": state.rowspan,
-            "padx": state.padx,
-            "pady": state.pady,
-            "ipadx": state.ipadx,
-            "ipady": state.ipady,
-            "sticky": state.sticky,
-        }
         try:
-            path = tool_defaults.update_widget_layout(
-                tool_defaults.default_path(myVars.programName),
-                widget_type,
-                myVars.gridWidgetDefaults[widget_type],
+            path = tool_defaults.default_path(myVars.programName)
+            if manager == "Grid":
+                cwo = cw.findCreateWidgetObject(self.widgetName)
+                if cwo is None:
+                    return
+                state = cwo.capture_grid_geometry()
+                layout = {
+                    "columnspan": state.columnspan,
+                    "rowspan": state.rowspan,
+                    "padx": state.padx,
+                    "pady": state.pady,
+                    "ipadx": state.ipadx,
+                    "ipady": state.ipady,
+                    "sticky": state.sticky,
+                }
+                path = tool_defaults.update_widget_layout(
+                    path,
+                    widget_type,
+                    layout,
+                )
+            else:
+                place = self.widget.place_info()
+                layout = {
+                    "width": int(place.get("width") or self.widget.winfo_width()),
+                    "height": int(place.get("height") or self.widget.winfo_height()),
+                }
+                path = tool_defaults.update_place_widget_layout(
+                    path,
+                    widget_type,
+                    layout,
+                )
+            saved_defaults, _loaded_paths = tool_defaults.read_discovered(
+                myVars.programName
             )
-            saved_defaults = tool_defaults.read(path)
             myVars.gridWidgetDefaults = saved_defaults["gridWidgetDefaults"]
-        except (OSError, TypeError, ValueError) as exc:
+            myVars.placeWidgetDefaults = saved_defaults["placeWidgetDefaults"]
+        except (OSError, TypeError, ValueError, tk.TclError) as exc:
             Messagebox.show_error(
                 title="Cannot save layout default",
                 message=str(exc),
@@ -461,7 +478,7 @@ class widgetEditPopup:
             return
         Messagebox.show_info(
             title="Layout default saved",
-            message=f"Saved {widget_type} Grid defaults to {path}",
+            message=f"Saved {widget_type} {manager} defaults to {path}",
         )
 
     def applyEditSettings(self) -> None:
@@ -843,29 +860,37 @@ class widgetEditPopup:
         layoutPopupFrame.place(x=300, y=10)
         self.createDragPoint(layoutPopupFrame, "triangle")
 
-        # Match the Edit Attributes popup: actions stay visible above the
-        # fields rather than moving to the bottom as the form grows.
-        buttonBar = ttk.Frame(layoutPopupFrame)
-        buttonBar.grid(row=1, column=0, columnspan=4, sticky="ew", pady=(2, 5))
-        ttk.Button(
-            buttonBar,
-            style="warning",
-            text="Close",
-            command=layoutPopupFrame.destroy,
-        ).pack(side=tk.LEFT, expand=True, fill=tk.X, padx=2)
-        ttk.Button(
-            buttonBar,
-            style="success",
-            text="Apply",
-            command=self.applyLayoutSettings,
-        ).pack(side=tk.LEFT, expand=True, fill=tk.X, padx=2)
-        if myVars.geomManager == "Grid":
+        def _add_button_bar(bar_row: int, pady) -> None:
+            buttonBar = ttk.Frame(layoutPopupFrame)
+            buttonBar.grid(
+                row=bar_row,
+                column=0,
+                columnspan=4,
+                sticky="ew",
+                pady=pady,
+            )
             ttk.Button(
                 buttonBar,
-                style="info",
-                text="Save default",
-                command=self.saveLayoutAsTypeDefault,
+                style="warning",
+                text="Close",
+                command=layoutPopupFrame.destroy,
             ).pack(side=tk.LEFT, expand=True, fill=tk.X, padx=2)
+            ttk.Button(
+                buttonBar,
+                style="success",
+                text="Apply",
+                command=self.applyLayoutSettings,
+            ).pack(side=tk.LEFT, expand=True, fill=tk.X, padx=2)
+            if myVars.geomManager in ("Grid", "Place"):
+                ttk.Button(
+                    buttonBar,
+                    style="info",
+                    text="Save default",
+                    command=self.saveLayoutAsTypeDefault,
+                ).pack(side=tk.LEFT, expand=True, fill=tk.X, padx=2)
+
+        # Duplicate actions above and below the form so either end is convenient.
+        _add_button_bar(1, (2, 5))
         gridRow = 1
 
         if myVars.geomManager == "Grid":
@@ -939,6 +964,7 @@ class widgetEditPopup:
                 w.set(val)
                 lab1.grid(row=gridRow, column=0, sticky=tk.E)
                 w.grid(row=gridRow, column=3, sticky=tk.NSEW)
+
             # sticky combobox
             gridRow += 1
             lab1 = ttk.Label(layoutPopupFrame, text="sticky")
@@ -1107,6 +1133,8 @@ class widgetEditPopup:
                 lab1.grid(row=gridRow, column=0, sticky=tk.E)
                 w.grid(row=gridRow, column=3, sticky=tk.NSEW)
 
+        _add_button_bar(gridRow + 1, (5, 2))
+
     # Map each widget's lower-case tcl name (after fixWidgetName) to the best
     # available docs URL.  ttkbootstrap widgets go to the ttkbootstrap API docs;
     # plain tk widgets go to the standard tkinter reference.
@@ -1180,28 +1208,36 @@ class widgetEditPopup:
         editPopupFrame.place(x=300, y=10)
         self.createDragPoint(editPopupFrame, "triangle")
 
-        # Keep actions outside the scrolling area and at the top so they are
-        # always reachable, even for widgets with a long attribute list.
-        buttonBar = ttk.Frame(editPopupFrame)
-        buttonBar.grid(row=1, column=0, columnspan=7, sticky="ew", pady=(2, 4))
-        ttk.Button(
-            buttonBar,
-            style="warning",
-            text="Close",
-            command=editPopupFrame.destroy,
-        ).pack(side=tk.LEFT, expand=True, fill=tk.X, padx=2)
-        ttk.Button(
-            buttonBar,
-            style="info",
-            text="Help",
-            command=self.getHelp,
-        ).pack(side=tk.LEFT, expand=True, fill=tk.X, padx=2)
-        ttk.Button(
-            buttonBar,
-            style="success",
-            text="Apply",
-            command=self.applyEditSettings,
-        ).pack(side=tk.LEFT, expand=True, fill=tk.X, padx=2)
+        def _add_button_bar(bar_row: int, pady) -> None:
+            buttonBar = ttk.Frame(editPopupFrame)
+            buttonBar.grid(
+                row=bar_row,
+                column=0,
+                columnspan=7,
+                sticky="ew",
+                pady=pady,
+            )
+            ttk.Button(
+                buttonBar,
+                style="warning",
+                text="Close",
+                command=editPopupFrame.destroy,
+            ).pack(side=tk.LEFT, expand=True, fill=tk.X, padx=2)
+            ttk.Button(
+                buttonBar,
+                style="info",
+                text="Help",
+                command=self.getHelp,
+            ).pack(side=tk.LEFT, expand=True, fill=tk.X, padx=2)
+            ttk.Button(
+                buttonBar,
+                style="success",
+                text="Apply",
+                command=self.applyEditSettings,
+            ).pack(side=tk.LEFT, expand=True, fill=tk.X, padx=2)
+
+        # Keep actions outside the scrolling area at both ends.
+        _add_button_bar(1, (2, 4))
 
         # ---- Scrollable content area ------------------------------------
         # Height is computed from the number of attribute rows so there is
@@ -1682,3 +1718,5 @@ class widgetEditPopup:
             self.addToStringDict(widgetKey2, tl_entry)
             tl_entry.insert(tk.END, val2)
             tl_entry.grid(row=gridRow, column=controlCol, columnspan=3, sticky=tk.NSEW)
+
+        _add_button_bar(3, (4, 2))

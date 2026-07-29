@@ -781,7 +781,21 @@ class createWidget:
         if myVars.geomManager != "Place":
             return
 
-        place = self.widget.place_info()
+        try:
+            if not self.widget.winfo_exists():
+                log.debug(
+                    "reParent: %s no longer exists; request ignored",
+                    self.pythonName,
+                )
+                return
+            place = self.widget.place_info()
+        except tk.TclError as exc:
+            log.debug(
+                "reParent: %s is no longer available (%s); request ignored",
+                self.pythonName,
+                exc,
+            )
+            return
         x_str = place.get("x")
         y_str = place.get("y")
         w_str = place.get("width")
@@ -803,7 +817,18 @@ class createWidget:
         for sib in createWidget.widgetList:
             if sib is None or sib is self.widget:
                 continue
-            sib_place = sib.place_info()
+            try:
+                if not sib.winfo_exists():
+                    log.debug("reParent: skipping destroyed sibling %s", sib)
+                    continue
+                sib_place = sib.place_info()
+            except tk.TclError as exc:
+                log.debug(
+                    "reParent: skipping unavailable sibling %s (%s)",
+                    sib,
+                    exc,
+                )
+                continue
             wx_str = sib_place.get("x")
             wy_str = sib_place.get("y")
             if wx_str is None or wy_str is None:

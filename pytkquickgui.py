@@ -52,16 +52,19 @@ def _toolDefaultsPath() -> str:
 
 
 def loadToolDefaults() -> None:
-    """Load tool-wide Grid defaults, falling back to shipped values."""
-    defaults = tool_defaults.read(_toolDefaultsPath())
+    """Load layered tool-wide geometry defaults."""
+    defaults, loaded_paths = tool_defaults.read_discovered(myVars.programName)
     myVars.applyToolDefaults(defaults)
-    log.info("Loaded Grid tool defaults from %s", _toolDefaultsPath())
+    if loaded_paths:
+        log.info("Loaded tool defaults from %s", ", ".join(loaded_paths))
+    else:
+        log.info("Using built-in tool defaults")
 
 
 def saveToolDefaults() -> str:
-    """Persist the current Grid settings as defaults for future projects."""
+    """Persist current tool settings in the user's highest-priority file."""
     path = tool_defaults.write(_toolDefaultsPath(), myVars.currentToolDefaults())
-    log.info("Saved Grid tool defaults to %s", path)
+    log.info("Saved tool defaults to %s", path)
     return path
 
 
@@ -640,7 +643,7 @@ def buildPython() -> str:
     # Deduplicate function names (a command may appear on multiple widgets)
     seen_funcs: set = set()
 
-    log.warning("functions ->%s<-", functions)
+    log.debug("functions ->%s<-", functions)
     for f in functions:
         if not f or f in seen_funcs:
             continue
@@ -685,9 +688,22 @@ def buildPython() -> str:
             wType = wDict.get("WidgetName")
             t = myVars.fixWidgetTypeName(wType)
             wType = t
-            keyCount = widgetName + "-KeyCount"
             widgetArguments = [parentName]
-            nKeys = wDict.get(keyCount)
+            keyCount = widgetName + "-KeyCount"
+            raw_key_count = wDict.get(keyCount)
+            try:
+                nKeys = max(0, int(raw_key_count))
+            except (TypeError, ValueError):
+                log.error(
+                    "buildPython: %s has missing/invalid attribute count %r; "
+                    "generating %s without saved attributes "
+                    "(available keys: %s)",
+                    keyCount,
+                    raw_key_count,
+                    widgetName,
+                    sorted(wDict),
+                )
+                nKeys = 0
             specialKeys = [
                 "postcommand",
                 "command",
@@ -699,8 +715,20 @@ def buildPython() -> str:
                 useValQuotes = True
                 attribute = "Attribute" + str(a)
                 aDict = wDict.get(attribute)
-                key = aDict.get("Key")
-                val = aDict.get("Value")
+                if not isinstance(aDict, dict):
+                    log.error(
+                        "buildPython: %s declares %d attributes but %s "
+                        "is missing/invalid",
+                        widgetName,
+                        nKeys,
+                        attribute,
+                    )
+                    continue
+                key = str(aDict.get("Key", ""))
+                val = str(aDict.get("Value", ""))
+                if not key:
+                    log.error("buildPython: %s has no Key value", attribute)
+                    continue
                 if key in specialKeys:
                     useValQuotes = False
                 if key in project_format.PRESERVED_STRING_KEYS:
@@ -1132,12 +1160,21 @@ def newProject():
     if not name:
         return
 
-    # New projects start from the saved tool-wide Grid settings.
+    # New projects start from the layered tool-wide geometry settings.
     loadToolDefaults()
     # Ask for geometry manager (and grid dimensions) once at project creation
     geom_choice, grid_rows, grid_cols = _askGeomManager()
     if not geom_choice:
         return
+
+    # Clear live Tk widgets and every parallel registry before destroying the
+    # old geometry frame.  Rebuilding the frame first leaves dead Tcl paths in
+    # widgetList/widgetNameList and causes later re-parent/save operations to
+    # call place_info() on widgets that no longer exist.
+    deleteWidgetData()
+    myVars.groups = {}
+    myVars.selectedWidgets = []
+    undoredo.stack.clear()
 
     # Keep the last output directory, but never preserve functions from a
     # different project's previously generated Python file.
@@ -1153,7 +1190,7 @@ def newProject():
     myVars.projectFileName = fileName
     log.info("projectFileName %s", myVars.projectFileName)
 
-    # Apply geometry manager (canvas is empty so setGeomManager will accept it)
+    # Apply geometry manager after the old project has been fully cleared.
     myVars.geomManager = geom_choice
     if geom_choice == "Grid":
         myVars.gridRows = grid_rows
@@ -1161,6 +1198,7 @@ def newProject():
     _rebuild_canvas_for_geom()
     _refresh_grid_toolbar()
     mainFrame.config(text=myVars.projectName)
+    myVars.projectSaved = False
 
 
 def _askGeomManager() -> tuple:
@@ -1196,9 +1234,8 @@ def _askGeomManager() -> tuple:
     grid_frame = ttk.Frame(top, padding=(24, 4, 24, 4))
     grid_frame.pack(fill="x")
 
-    have_tool_defaults = os.path.isfile(_toolDefaultsPath())
-    rows_var = tk.IntVar(value=myVars.gridRows if have_tool_defaults else 20)
-    cols_var = tk.IntVar(value=myVars.gridCols if have_tool_defaults else 20)
+    rows_var = tk.IntVar(value=myVars.gridRows)
+    cols_var = tk.IntVar(value=myVars.gridCols)
 
     rows_label = ttk.Label(grid_frame, text="Initial grid rows:")
     rows_spin = ttk.Spinbox(grid_frame, from_=2, to=50, textvariable=rows_var, width=6)
@@ -1648,13 +1685,7 @@ def loadProject(project, altFileName):
         # the saved colour values are discarded.  We must apply them again
         # immediately after the widget is created, before the theme has
         # a chance to override them a second time.
-        _nkeys = wDict.get(widgetId + "-KeyCount", 0)
-        for _ai in range(_nkeys):
-            _adict = wDict.get("Attribute" + str(_ai))
-            if _adict is None:
-                continue
-            _ck = _adict.get("Key", "")
-            _cv = _adict.get("Value", "")
+        for _ck, _cv in project_format.iter_attributes(widgetId, wDict):
             if _ck in _colour_keys and _cv and not _cv.startswith("<"):
                 try:
                     widget.configure(**{_ck: _cv})
@@ -3282,11 +3313,14 @@ def _configure_root_grid(widget, reset: bool = False):
         )
 
 
-def _placeNewWidget(w, x: int, y: int, width: int = 72, height: int = 32) -> None:
+def _placeNewWidget(w, x: int, y: int) -> None:
     """Position a newly created widget according to the active geometry manager."""
     mgr = myVars.geomManager
     if mgr == "Place":
-        w.place(x=x, y=y, width=width, height=height)
+        defaults = myVars.placeDefaultsForWidget(
+            w.widgetName if hasattr(w, "widgetName") else ""
+        )
+        w.place(x=x, y=y, **defaults)
     elif mgr == "Grid":
         # Map pixel click to grid cell using grid_location (exact) or fallback.
         parent = geomWidgetFrame if geomWidgetFrame is not None else mainCanvas
@@ -3507,7 +3541,7 @@ def createWidgetPopup(event, widgetName):
         w = ttk.Panedwindow(_parent, orient=tk.HORIZONTAL)
     """
     cw.createWidget(_parent, w)
-    _placeNewWidget(w, x, y, width=72, height=32)
+    _placeNewWidget(w, x, y)
 
 
 def rightMouseDown(event):

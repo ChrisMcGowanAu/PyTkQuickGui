@@ -1,4 +1,5 @@
 import unittest
+import tkinter as tk
 
 import createWidget as cw
 import project_format
@@ -39,6 +40,14 @@ class FakeContainer(FakeWidget):
 
     def grid_size(self):
         return 7, 6
+
+
+class StaleWidget(FakeWidget):
+    def place_info(self):
+        raise tk.TclError("bad window path name")
+
+    def keys(self):
+        raise tk.TclError("invalid command name")
 
 
 class FakeCreateWidget:
@@ -143,6 +152,31 @@ class WidgetPersistenceTests(unittest.TestCase):
 
         self.assertEqual(attributes["command"], "run_report")
         self.assertEqual(self.widget._user_attrs["command"], "run_report")
+
+    def test_stale_widget_save_still_records_zero_attribute_count(self):
+        self.widget = StaleWidget()
+        self.cwo = FakeCreateWidget(self.widget)
+        cw.createWidget.widgetNameList = [
+            ["Widget0", "rootWidget", self.widget, []],
+        ]
+        cw.createWidget.widgetObjectList = [self.cwo]
+
+        saved = my_vars.saveWidgetAsDict("Widget0")["Widget0"]
+
+        self.assertEqual(saved["Widget0-KeyCount"], 0)
+        self.assertEqual(list(project_format.iter_attributes("Widget0", saved)), [])
+
+    def test_invalid_attribute_count_does_not_crash_widget_rebuild(self):
+        malformed = {
+            "WidgetName": "ttk::button",
+            "WidgetParent": "rootWidget",
+            "Widget0-KeyCount": None,
+        }
+
+        self.assertEqual(
+            my_vars.buildAWidget(0, malformed),
+            "ttk.Button(mainFrame)",
+        )
 
     def test_saved_identity_gaps_never_reuse_an_existing_name(self):
         old_counter = cw.createWidget.widgetId
