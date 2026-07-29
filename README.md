@@ -1,410 +1,396 @@
 # PyTkQuickGui
 
-Notice: The current version relies on ttkbootstrap version 2.0. Still getting the gremlins out. I will uppdate a stable usable version by the end of July 2026. 
+PyTkQuickGui is a visual drag-and-drop builder for Python desktop interfaces
+using tkinter and ttkbootstrap. Design a window on the live canvas, edit widget
+attributes and layout, save the project as JSON, then generate a readable Python
+program.
 
-Note: This is in active development. It is "alpha" code with quite a few knows glitches and errors. At this stage it is usefull enough to try out and do simple tasks. At present some widgest are not included as there are issues to resolve. Only two grid methods are available, the "Place" gridder being the most stable, "Grid" works reasonably well but re-parenting is an issue.  "Pack" is greayed out for now, this will be tackeked later.
-
-**A visual drag-and-drop GUI builder for Python / ttkbootstrap applications.**
-
-PyTkQuickGui lets you lay out tkinter widgets by dragging, resizing, and editing them on a live canvas, then generates a complete, ready-to-run Python file with all the boilerplate already written.  You fill in the business logic; PyTkQuickGui handles the widget creation and placement code.
-
-> **Status:** Alpha – functional and actively used, but still growing.  Some widget types have not been fully integrated. Feedback and contributions are very welcome.
-
----
+The project is approaching beta. Grid and Place projects are usable and under
+active testing; Pack remains disabled while the other two geometry managers are
+stabilised.
 
 ## Screenshots
 
-| Place mode — multi-container layout | Place mode — instrument test tool |
+| Place layout | Instrument-style project |
 |---|---|
-| ![PyTkQuickGui Place mode – platypus project](docs/screenshot_place_platypus.png) | ![PyTkQuickGui Place mode – test tool project](docs/screenshot_place_test_tool.png) |
+| ![PyTkQuickGui Place project](docs/screenshot_place_platypus.png) | ![PyTkQuickGui instrument project](docs/screenshot_place_test_tool.png) |
 
----
+## What it does
 
-## Table of Contents
-
-1. [Features](#features)
-2. [Requirements](#requirements)
-3. [Installation](#installation)
-4. [Quick Start](#quick-start)
-5. [Interface Overview](#interface-overview)
-6. [Working with Widgets](#working-with-widgets)
-7. [Geometry Managers](#geometry-managers)
-8. [Project Files (JSON)](#project-files-json)
-9. [Generating Python Code](#generating-python-code)
-10. [Keyboard & Mouse Reference](#keyboard--mouse-reference)
-11. [Widget Reference](#widget-reference)
-12. [Themes](#themes)
-13. [Known Limitations](#known-limitations)
-14. [Contributing](#contributing)
-15. [License](#license)
-
----
-
-## Features
-
-| Feature | Details |
-|---|---|
-| **Visual layout** | Drag, resize and re-parent widgets on a live canvas |
-| **Geometry managers** | Choose **Place** or **Grid** when creating a project; **Pack** is intentionally disabled for now |
-| **ttkbootstrap widgets** | Label, Button, Entry, Combobox, Spinbox, Checkbutton, Radiobutton, Scale, Progressbar, Floodgauge, Meter, Notebook, Canvas, Frame, Labelframe, Panedwindow |
-| **Standard tk/ttk widgets** | Text, Listbox, Treeview, Scrollbar, Separator, Sizegrip |
-| **Widget editor** | Edit every configurable attribute through generated combo/spinbox/entry controls |
-| **Colour & font pickers** | Integrated colour chooser and font dialog |
-| **Image support** | Attach PNG/JPG images to Label or Button widgets |
-| **Themes** | All ttkbootstrap themes available from the Theme menu |
-| **Code generation** | Produces a single, clean Python file – import + window setup + all widgets + blank callbacks + tk variables |
-| **JSON project files** | Human-readable save format; easily version-controlled or hand-edited |
-| **Legacy format** | Old `.pk1` (pickle) project files are detected and loaded automatically; re-saved as JSON |
-| **Rolling backups** | Up to 5 automatic backup copies (`.json-save1` … `.json-save5`) |
-
----
+- Builds ttkbootstrap interfaces visually on a live design surface.
+- Uses responsive Grid layout by default, or free-form Place layout.
+- Moves, resizes, duplicates, deep-clones, deletes, groups, and re-parents
+  widgets.
+- Edits widget attributes with colour, font, image, entry, combo, and spinbox
+  controls.
+- Gives Grid and Place widgets useful type-specific layout defaults.
+- Keeps child layouts inside Frame, Labelframe, and Panedwindow containers.
+- Saves human-readable JSON projects with atomic writes and rolling backups.
+- Preserves design-time callback and Tk-variable names through save, reload,
+  duplication, and code generation.
+- Generates clean multiline Python calls and preserves callback bodies edited
+  in a previously generated file.
+- Supports undo and redo for the main editing operations.
+- Applies ttkbootstrap themes to the builder and generated program.
 
 ## Requirements
 
-```
-Python >= 3.10
-ttkbootstrap >= 1.10
-tkfontchooser
-coloredlogs
-Pillow
-```
+- Python 3.10 or newer
+- tkinter (sometimes supplied as a separate operating-system package)
+- ttkbootstrap 2.0 or newer
+- tkfontchooser
+- coloredlogs
+- Pillow
 
-See `requirments.txt` for the full list.
+The complete Python dependency list is in
+[`requirments.txt`](requirments.txt). The filename is retained for compatibility
+with existing setup instructions.
 
----
-
-## Installation
-
-```bash
-# 1. Clone the repository
-git clone https://github.com/ChrisMcGowanAu/PyTkQuickGui.git
-cd PyTkQuickGui
-
-# 2. Create and activate a virtual environment (recommended)
-python -m venv .venv
-source .venv/bin/activate      # Windows: .venv\Scripts\activate
-
-# 3. Install dependencies
-pip install -r requirments.txt
-
-# 4. Run
-python pytkquickgui.py
-```
-
-On Linux you may need `python3-tk` installed at the system level:
+On Debian or Ubuntu, install tkinter if it is not already present:
 
 ```bash
 sudo apt install python3-tk
 ```
 
----
+## Installation
 
-## Quick Start
+```bash
+git clone https://github.com/ChrisMcGowanAu/PyTkQuickGui.git
+cd PyTkQuickGui
 
-1. **Launch** `python pytkquickgui.py`
-2. **New project** → *File ▸ New Project* – enter a name and click OK.
-3. **Add a widget** → right-click anywhere on the canvas; pick a widget from the pop-up menu.  It appears under your cursor.
-4. **Move** → left-click and drag.
-5. **Resize** → left-click near an edge and drag.
-6. **Edit** → right-click a widget → *Edit* to change text, colour, font, style, etc.
-7. **Save** → *File ▸ Save Project* (saves a `.json` file).
-8. **Generate** → *File ▸ Generate Python* – choose where to save the `.py` file and open it in your IDE.
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirments.txt
 
----
-
-## Interface Overview
-
-```
-┌──────────────────────────────────────────────────────────────┐
-│  Menu bar: File | Theme | Tools | Help                        │
-├──────────────────────────────────────────────────────────────┤
-│  Toolbar: [Geometry Manager] Place | Grid | Pack   Layout: X │
-├──────────────────────────────────────────────────────────────┤
-│                                                              │
-│   Canvas  (drag & drop widgets here)                         │
-│                                                              │
-│                                                        ▣     │  ← size-grip
-└──────────────────────────────────────────────────────────────┘
+python pytkquickgui.py
 ```
 
-### Menu Items
+On Windows, activate the environment with:
 
-| Menu | Item | Action |
-|---|---|---|
-| File | New Project | Create a new project folder |
-| File | Open last Project | Reload the most recently saved project |
-| File | Open Project | Browse to a project directory |
-| File | Save Project | Save to JSON |
-| File | Trial Run | Generate code and run it in a subprocess |
-| File | Generate Python | Generate code and save to a location you choose |
-| File | Exit | Save-prompt then quit |
-| Theme | (theme names) | Switch ttkbootstrap theme live |
-| Tools | Hide/Show Label Borders | Toggle 1-pixel border on all Labels |
-| Tools | Set default label font | Change font on all Label widgets |
-| Tools | Set default style font | Change font for all ttk widget types |
-| Tools | Open backup file | Load one of the rolling `.json-saveN` backups |
-| Tools | Widget Tree | Print widget hierarchy to the terminal |
-| Help | Welcome | About box |
-| Help | Help | In-app tabbed help window |
+```powershell
+.venv\Scripts\activate
+```
 
----
+## Quick start
 
-## Working with Widgets
+1. Run `python pytkquickgui.py`.
+2. Select **File → New Project**, enter a project name, and choose Grid or
+   Place.
+3. Right-click the design surface and choose a widget.
+4. Drag the widget to move it. In Place mode, drag an edge to resize it.
+   In Grid mode, movement changes its row and column and edge drags adjust its
+   span.
+5. Right-click the widget and use **Edit** for attributes or **Layout** for
+   geometry.
+6. Use **File → Save Project** to save the JSON project.
+7. Use **File → Trial Run** to preview it or **File → Generate Python** to
+   write a program.
 
-### Adding a Widget
-Right-click on the **canvas** to open the widget palette.  Container widgets (Frame, Labelframe, Panedwindow) appear at the top, followed by all other widget types.  Click a name and the widget is placed at the cursor position.
+## Interface
 
-### Selecting and Moving
-Left-click and hold anywhere in the middle of a widget, then drag to reposition.
+The top toolbar shows the active layout manager. Grid projects also expose:
 
-### Resizing
-Left-click and hold **near an edge** (within ~8 pixels) of a widget, then drag.  Each edge acts independently:
+- **Rows** and **Cols** controls for the root design grid.
+- **Grid settings** for guide colour, row and column minimum sizes, padding,
+  and saving the current settings as tool defaults.
+- An undo status at the right.
 
-| Drag zone | Effect |
+The geometry manager is selected for the project. Once widgets exist, switching
+manager is blocked because mixing managers in one Tk parent leads to invalid
+layouts. Start a new project to use a different manager.
+
+### Main menus
+
+| Menu | Important actions |
 |---|---|
-| Right edge | Expand / shrink width |
-| Left edge | Move left edge (changes x and width) |
-| Bottom edge | Expand / shrink height |
-| Top edge | Move top edge (changes y and height) |
+| File | New, open, close, save, save as, Trial Run, Generate Python |
+| Edit | Undo, redo, group selected widgets, ungroup |
+| Theme | Light, dark, and legacy ttkbootstrap themes |
+| Tools | Label borders, default fonts/styles, backups, widget tree, Compact Grid |
+| Help | Welcome and the in-application guide |
 
-After release, the position and size are snapped to a 16-pixel grid.
+## Working with widgets
 
-### Right-Click Context Menu (on a widget)
+Right-click empty space to open the widget palette. The current palette contains
+these container widgets:
 
-| Item | Effect |
+- Frame
+- Labelframe
+- Panedwindow
+
+These regular widgets are currently enabled:
+
+- Label
+- Button
+- Entry
+- Combobox
+- Spinbox
+- Checkbutton
+- Radiobutton
+- Scale
+- Progressbar
+- Canvas
+- Text
+- Listbox
+- Separator
+
+Other Tk and ttkbootstrap widget implementations remain in the source while
+their designer behaviour is completed, but they are not offered in the palette.
+
+### Widget context menu
+
+| Action | Result |
 |---|---|
-| Edit | Opens the attribute editor popup |
-| Layout | Opens the x / y / width / height editor (Place manager only) |
-| Clone | Creates a copy at the same position |
-| DeepClone | Copies a container widget *and* all its children |
-| Re-Parent | Drops the widget into whichever container currently encloses it |
+| Edit | Opens the scrollable attribute editor |
+| Layout | Opens geometry values for the current manager |
+| Duplicate | Copies one widget |
+| Clone | Deep-copies a container and its children |
+| Re-Parent | Places the widget in the enclosing container, or back at the root |
 | Delete | Removes the widget |
+| Add to Selection | Adds the widget to the current multi-selection |
+| Group Selected | Creates a logical group from selected widgets |
 
-### Attribute Editor
-The **Edit** popup shows every configurable key for the selected widget.  Controls are chosen based on the key type:
+The Edit and Layout popups put the action buttons at both the top and bottom.
+The duplicate controls are intentional: short forms remain convenient while
+long forms do not force the user to scroll to a particular end. Popups can be
+moved with the yellow drag handle.
 
-* **Combobox** – anchor, relief, justify, orient, cursor, style/bootstyle
-* **Spinbox** – height, width, borderwidth, padding
-* **Button** – font picker, colour picker, image selector
-* **Entry** – everything else (text, command, variable names, etc.)
+The attribute editor stores callback fields such as `command` and variable
+fields such as `textvariable` as Python names, rather than trusting Tk's
+internal Tcl command strings. Use valid top-level Python identifiers for these
+values, for example `save_record` or `customer_name`.
 
-Click **Apply** to commit changes; **Close** to discard.
-
-### Re-parenting
-When you release a widget on top of a container (Frame, Labelframe, etc.), the tool automatically detects the overlap and re-parents the widget.  You can also trigger this manually via the right-click *Re-Parent* command.
-
----
-
-## Geometry Managers
-
-PyTkQuickGui currently supports **Place** and **Grid**. Choose the manager when creating a project; the setting is saved with the project.
-
-### Place (default)
-Widgets are positioned with absolute `x`, `y`, `width`, `height` coordinates.  Best for pixel-perfect layouts and quick prototyping.
-
-```python
-myWidget.place(x=80, y=40, width=120, height=28, anchor='nw', bordermode='inside')
-```
+## Geometry managers
 
 ### Grid
-Widgets snap to a row/column grid. Dragging across container boundaries recalculates the cell in the target container, and edge drags adjust row/column spans. Generated code configures the required rows and columns before using `grid(row=…, column=…, sticky=…, padx=…, pady=…)`. Best for responsive forms and tables.
+
+Grid is the default and is recommended for responsive forms. Widgets use
+`row`, `column`, `columnspan`, `rowspan`, `padx`, `pady`, `ipadx`, `ipady`, and
+`sticky`.
+
+New widgets receive type-specific defaults. For example, entries span more
+columns than labels, while text areas and containers span several rows and
+columns. Open a widget's **Layout** popup and select **Save default** to make
+its current Grid layout the default for future widgets of that type.
+
+Rows and columns expand with the design surface. Container widgets keep their
+own internal grid dimensions, including extra tracks created while editing.
+Those dimensions are stored in the project and reproduced in Trial Run and
+generated Python.
+
+Use **Tools → Compact Grid** to remove unoccupied gaps and reduce the configured
+root grid to its occupied extent.
+
+Example generated geometry:
 
 ```python
-myWidget.grid(row=1, column=2, sticky='WE', padx=2, pady=2)
+Widget0.grid(
+    row=2,
+    column=1,
+    columnspan=3,
+    rowspan=1,
+    sticky="nsew",
+    padx=2,
+    pady=2,
+)
+```
+
+### Place
+
+Place is useful for free-form prototypes and fixed-position controls. It stores
+`x`, `y`, `width`, and `height`.
+
+The drop position always follows the pointer. Initial `width` and `height` are
+type-specific: containers and text areas start larger than buttons and labels.
+Resize a widget, open **Layout**, and select **Save default** to use that size
+for future widgets of the same type.
+
+Example generated geometry:
+
+```python
+Widget0.place(
+    x=80,
+    y=48,
+    width=180,
+    height=32,
+    anchor="nw",
+    bordermode="inside",
+)
 ```
 
 ### Pack
-Pack remains experimental and cannot be selected for a new project. Its existing code is retained for compatibility with old project files, but work on Pack is deferred until Place and Grid are stable.
 
----
+Pack is disabled for new projects. Compatibility code remains for older project
+files, but its visual editing model is deferred until Grid and Place are stable.
 
-## Project Files (JSON)
+## Tool defaults
 
-Projects are stored as plain **JSON** files in `~/.config/pytkgui/<ProjectName>/`.  The file format is intentional – you can open a `.json` project in any text editor and tweak values directly.
+`tool_defaults.py` contains the built-in Grid and Place defaults. Optional
+`tool_defaults.json` files are layered in this order, from lowest to highest
+precedence:
 
-```
-~/.config/pytkgui/
-└── MyProject/
-    ├── MyProject.json          ← current save
-    ├── MyProject-save1.json    ← previous save
-    ├── MyProject-save2.json
-    └── ...
-```
+1. `/etc/pytkgui/tool_defaults.json`
+2. `tool_defaults.json` beside the PyTkQuickGui source modules
+3. `tool_defaults.json` in the directory from which the tool was launched
+4. The user's configuration file
 
-### File structure (excerpt)
+The user file is normally:
+
+- Linux: `~/.config/pytkgui/tool_defaults.json`
+- Linux with `XDG_CONFIG_HOME`: `$XDG_CONFIG_HOME/pytkgui/tool_defaults.json`
+- Windows: `%APPDATA%\pytkgui\tool_defaults.json`
+
+Missing files are ignored. Files may contain only the values they need to
+override; nested widget defaults are merged field by field. The user file has
+highest priority so **Save as tool default** and **Save default** take effect
+without modifying a system or source installation.
+
+The top-level Grid settings are:
+
 ```json
 {
-  "formatVersion": 2,
-  "ProjectName": "MyProject",
-  "theme": "cyborg",
-  "geomManager": "Place",
-  "widgetCount": 3,
-  "widgetNameList": [...],
-  "Widget0": {
-    "WidgetName": "ttk::button",
-    "WidgetParent": "rootWidget",
-    "Place": {"x": "80", "y": "48", "width": "120", "height": "32", ...},
-    "Widget0-KeyCount": 4,
-    "Attribute0": {"Key": "text",  "Value": "Click Me"},
-    "Attribute1": {"Key": "style", "Value": "primary"},
-    ...
-  }
+  "gridRows": 25,
+  "gridCols": 25,
+  "gridLineColor": "",
+  "gridRowMinsize": "2.5m",
+  "gridColMinsize": "5m",
+  "gridRowPad": "2.5m",
+  "gridColPad": "5m"
 }
 ```
 
-### Legacy pickle files (`.pk1`)
-Projects saved by older versions of PyTkQuickGui used Python's `pickle` format (`.pk1` extension).  The loader **automatically detects** whether a file is JSON or pickle — no manual conversion needed:
+Per-widget records live under `gridWidgetDefaults` and
+`placeWidgetDefaults`. Place records contain only `width` and `height`.
 
-1. When you open a project directory PyTkQuickGui looks for `<name>.json` first, then `<name>.pk1`.
-2. When you use *File ▸ Open backup file* both `.json` and `.pk1` entries appear in the file dialog.
-3. A one-time info dialog tells you the file was loaded from the legacy format and will be re-saved as JSON on next save.
+Grid rows, columns, guide colour, minimum sizes, and padding are also saved in
+each project. Project values override tool defaults when that project is
+opened; tool defaults remain the starting values for new projects.
 
-> **Warning:** Hand-editing JSON is powerful but risky.  An invalid JSON file will prevent the project from loading.  Keep a backup copy before editing.
+## Project files
 
-Project writes are validated and atomically replace the current JSON file. Callback and Tk-variable names (`command`, `postcommand`, `textvariable`, and `variable`) are stored as design-time strings so they survive save, reload, duplicate, and subsequent saves without being replaced by Tk's internal Tcl identifiers.
+New projects are stored below the platform configuration directory, normally:
 
----
-
-## Generating Python Code
-
-*File ▸ Generate Python* produces a single `.py` file structured in clearly-marked sections:
-
-```python
-import tkinter as tk
-import ttkbootstrap as tboot
-
-themeName = 'cyborg'
-title     = 'MyProject'
-rootWin   = tboot.Window(themename=themeName, title=title)
-rootWidget = tboot.Frame(rootWin, ...)
-
-####### TK variables #######
-myStringVar = tk.StringVar(rootWin, '0.0')
-
-####### Functions #######
-def onClickMe():
-    # AUTO-GENERATED STUB
-    print('onClickMe')
-
-####### Widgets #######
-Widget0 = tboot.Button(rootWidget, text='Click Me', command=onClickMe, ...)
-Widget0.place(x=80, y=48, width=120, height=32, ...)
-
-####### Main  #######
-rootWin.geometry('800x600')
-rootWin.mainloop()
+```text
+~/.config/pytkgui/MyProject/
 ```
 
-### Preserving your code across re-generations
+The active file is `MyProject.json`. Each save is written to a temporary file,
+parsed for validation, and atomically replaces the active file. Up to five
+earlier versions are rotated as:
 
-Re-generating **does not overwrite code you have already written**.  The tool uses the section markers and a stub-sentinel comment to decide what to keep:
+```text
+MyProject-save1.json
+MyProject-save2.json
+...
+MyProject-save5.json
+```
 
-| Section | Behaviour on re-generate |
-|---|---|
-| `####### TK variables #######` | Variables still at the default `StringVar(rootWin,'0.0')` are replaced; ones you've changed are **preserved** |
-| `####### Functions #######` | Stubs containing `# AUTO-GENERATED STUB` are replaced with a fresh stub; functions you've edited (sentinel removed / real code added) are **preserved verbatim** |
-| `####### Widgets #######` | Always regenerated from the current builder state |
-| `####### Main  #######` | Always regenerated |
+**Tools → Open backup file** can load a saved backup.
 
-**Recommended workflow:**
-1. Build the layout in PyTkQuickGui.
-2. *File ▸ Generate Python* → choose (or accept) a `.py` path.
-3. Open that file in your IDE and write your logic (remove the `# AUTO-GENERATED STUB` lines as you go).
-4. Return to PyTkQuickGui, adjust the layout, re-run *Generate Python* — PyTkQuickGui auto-fills the dialog with the last used path and merges your code back in.
+Project JSON includes:
 
-> **Note:** *File ▸ Trial Run* generates a **temporary** internal file and runs it.  It does **not** update your saved `.py` file and does not trigger code preservation — it is intended only for a quick layout preview.
+- project name, theme, and geometry manager
+- window and Grid settings
+- widget identity and creation order
+- parent/child relationships
+- Place or Grid geometry
+- container Grid dimensions
+- editable widget attributes
+- callback and Tk-variable design names
+- image references and logical groups
+- the last generated Python path, when available
 
----
+Older `.pk1` pickle projects can still be detected and opened. Because pickle
+can execute code while loading, open legacy files only when you trust their
+source. The next save writes the project in JSON format.
 
-## Keyboard & Mouse Reference
+## Generating Python
 
-| Action | Gesture |
-|---|---|
-| Add widget | Right-click canvas → select widget name |
-| Move widget | Left-drag widget (centre area) |
-| Resize widget | Left-drag near widget edge |
-| Widget context menu | Right-click widget |
-| Snap-to-grid size | 16 px (fixed) |
+**File → Generate Python** proposes `<project-name>.py` in the last output
+directory. Widget constructors and geometry calls are formatted one argument
+per line:
 
----
+```python
+Widget1 = ttk.Frame(
+    rootWidget,
+    width="0",
+    height="0",
+    cursor="arrow",
+    style="primary.TFrame",
+)
+```
 
-## Widget Reference
+The generated file contains marked sections for Tk variables, callback
+functions, widgets, and the main program. Callback names referenced by widgets
+receive an initial stub:
 
-### ttkbootstrap Widgets
+```python
+def save_record():
+    # AUTO-GENERATED STUB
+    print("save_record")
+```
 
-| Widget | Notes |
-|---|---|
-| **Frame** | Container; can hold other widgets |
-| **Labelframe** | Frame with a title label |
-| **Panedwindow** | Splitter container |
-| **Label** | Static text or image |
-| **Button** | Clickable button; supports `command`, `image`, `style` |
-| **Entry** | Single-line text input; supports `textvariable` |
-| **Combobox** | Drop-down selection; set `values` in the editor |
-| **Spinbox** | Numeric or list spinner |
-| **Checkbutton** | Tick-box; supports `variable` |
-| **Radiobutton** | Radio selector; supports `variable`, `value` |
-| **Scale** | Slider; supports `from_`, `to`, `orient` |
-| **Progressbar** | Progress indicator; supports `value`, `orient` |
-| **Floodgauge** | ttkbootstrap animated fill gauge |
-| **Meter** | ttkbootstrap circular gauge; supports `metertype` (`full`/`semi`) |
-| **Notebook** | Tabbed container; use the editor to set tab count |
-| **Canvas** | Drawing surface; scrollbars can be added via the editor |
+When the same generated file is selected again, PyTkQuickGui preserves edited
+callback bodies and customised Tk-variable initialisers. Widget construction
+and geometry sections are rebuilt from the current project. User functions no
+longer referenced by a widget are also retained.
 
-### Standard tk / ttk Widgets
-
-| Widget | Notes |
-|---|---|
-| **Text** | Multi-line text area |
-| **Listbox** | Scrollable list; set `selectmode` in the editor |
-| **Treeview** | Table / tree view; add columns via the editor |
-| **Scrollbar** | Attach to Canvas / Text / Listbox via the editor |
-| **Separator** | Horizontal or vertical divider line |
-| **Sizegrip** | Resize handle for the window corner |
-
----
+**Trial Run** writes and launches a temporary generated file. It is intended for
+layout testing and does not replace the explicitly saved Python file.
 
 ## Themes
 
-PyTkQuickGui uses **ttkbootstrap** themes.  The *Theme* menu lists all available themes.  Selecting one applies it live to both the builder and to the project (it is saved and used in generated code).
+The Theme menu groups ttkbootstrap 2.0 light and dark themes and retains legacy
+theme names for older projects. The selected theme is stored in the project and
+used by generated Python.
 
-Popular themes: `cosmo`, `flatly`, `journal`, `litera`, `lumen`, `minty`, `pulse`, `sandstone`, `united`, `yeti` (light) · `cyborg`, `darkly`, `solar`, `superhero`, `vapor` (dark).
+Changing a theme can alter requested widget sizes. Grid layouts normally absorb
+those differences; check a Trial Run when exact Place dimensions matter.
 
----
+## Troubleshooting
 
-## Known Limitations
+- If a project JSON was hand-edited, validate its JSON syntax first.
+- If a generated callback is skipped, check that its name is a valid Python
+  identifier and not a Python keyword.
+- If Grid guides appear stale after resizing, resize the main window once and
+  report the project JSON and steps needed to reproduce it.
+- Use the most recent `-saveN.json` backup if an active project file is damaged.
+- Runtime detail is written through Python logging. Benign Tk lookups on a
+  widget already destroyed during cleanup are logged at debug level.
 
-* **Meter widget** – the ttkbootstrap `Meter` widget has some quirks when used inside containers; if it does not display correctly, try running a Trial Run and see how it looks in the generated app.
-* **Scrollbar attachment** – automatic scrollbar wiring (via the Edit → `vertical_scrollbar` / `horizontal_scrollbar` controls) currently works only with the **Grid** manager.
-* **Notebook tabs** – tab count is set in the Edit popup; individual tab frames need to be re-parented manually.
-* **Pack geometry** – Pack is intentionally disabled for new projects while its interaction model is redesigned.
-* **No undo** – accidental deletions cannot be undone from the GUI; use *File ▸ Open backup file* to recover from a save point.
+## Current limitations
 
----
+- Pack cannot be selected for a new project.
+- The palette deliberately exposes a smaller widget set while remaining widgets
+  are stabilised.
+- Some complex widgets require application-specific setup that a visual builder
+  cannot infer, such as connecting scrollbars to targets.
+- Trial Run and visual editing require a desktop session with Tk support.
+- Legacy pickle compatibility is temporary and should be treated as a migration
+  path to JSON.
 
-## Contributing
+## Development and testing
 
-Pull requests are welcome!  Please:
+Run the unit tests from the repository root:
 
-1. Fork the repository and create a feature branch.
-2. Follow the existing code style (PEP 8, `log.xxx()` for logging).
-3. Test manually with at least the `cyborg` and `flatly` themes.
-4. Open a PR with a clear description of the change.
+```bash
+python -m unittest discover -s tests -v
+```
 
-Areas that need work:
+When contributing:
 
-- [ ] Undo / redo history
-- [ ] Notebook tab management in the editor
-- [ ] More widget attributes exposed in the editor (e.g. Treeview columns)
-- [ ] Pack mode drag re-ordering
-- [ ] Website / video tutorial
+1. Work on a focused branch.
+2. Keep generated and persistence formats backwards-compatible where practical.
+3. Use `logging` instead of diagnostic `print` calls in application code.
+4. Test both Grid and Place, including a child widget inside a container.
+5. Test a save, reload, Trial Run, and generated Python file.
+6. Check at least one light and one dark ttkbootstrap theme.
 
----
+Bug reports are most useful when they include the project JSON, the selected
+geometry manager, the sequence of editing actions, and the complete traceback.
 
 ## License
 
-MIT – see [LICENSE](LICENSE) for details.
+MIT. See [`LICENSE`](LICENSE).
 
----
-
-*PyTkQuickGui – Chris McGowan 2024-2026*
+PyTkQuickGui — Chris McGowan, 2024–2026.

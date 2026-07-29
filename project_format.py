@@ -23,6 +23,28 @@ PRESERVED_STRING_KEYS = CALLBACK_KEYS + VARIABLE_KEYS
 RUNTIME_CALLABLE_KEYS = ("yscrollcommand", "xscrollcommand")
 
 
+def format_python_call(call_expression: str, arguments: Iterable[str]) -> str:
+    """Format a generated Python call with one argument per line."""
+    values = [str(value) for value in arguments if str(value)]
+    if not values:
+        return f"{call_expression}()"
+    body = "\n".join(f"    {value}," for value in values)
+    return f"{call_expression}(\n{body}\n)"
+
+
+def generated_python_dialog_defaults(
+    project_name: str,
+    save_directory: str,
+    generated_file: str,
+    home_directory: str,
+) -> tuple[str, str]:
+    """Return the last output directory and a project-derived Python name."""
+    previous_directory = os.path.dirname(generated_file) if generated_file else ""
+    directory = previous_directory or save_directory or home_directory
+    filename = (str(project_name).strip() or "project") + ".py"
+    return directory, filename
+
+
 def write_project_json(
     file_name: str,
     file_type: str,

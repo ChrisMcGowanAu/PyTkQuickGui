@@ -69,6 +69,7 @@ class GridGeometryTests(unittest.TestCase):
                 "WidgetName": "ttk::frame",
                 "WidgetParent": "rootWidget",
                 "GeomData": {"row": "1", "column": "2", "columnspan": "2"},
+                "ContainerGrid": {"columns": "7", "rows": "8"},
             },
             "Widget1": {
                 "WidgetName": "ttk::button",
@@ -94,12 +95,40 @@ class GridGeometryTests(unittest.TestCase):
         )
 
         self.assertEqual(requirements["rootWidget"], (4, 2))
-        self.assertEqual(requirements["Widget0"], (6, 6))
+        self.assertEqual(requirements["Widget0"], (7, 8))
         self.assertNotIn("Widget2", requirements)
         self.assertEqual(requirements["Widget3"], (4, 4))
         self.assertTrue(
             layout_model.is_saved_notebook_tab(project, "Widget3", "rootWidget")
         )
+
+    def test_container_grid_dimensions_are_persisted_with_legacy_fallback(self):
+        self.assertEqual(
+            layout_model.container_grid_dimensions(
+                {"ContainerGrid": {"columns": "9", "rows": "6"}}
+            ),
+            (9, 6),
+        )
+        self.assertEqual(layout_model.container_grid_dimensions({}), (4, 4))
+
+    def test_compaction_closes_internal_and_trailing_grid_gaps(self):
+        states = [
+            layout_model.GridGeometry(row=0, column=0, columnspan=2),
+            layout_model.GridGeometry(row=4, column=5, rowspan=2),
+        ]
+
+        compacted, columns, rows, removed_columns, removed_rows = (
+            layout_model.compact_grid_geometries(
+                states,
+                configured_columns=10,
+                configured_rows=8,
+            )
+        )
+
+        self.assertEqual((compacted[0].row, compacted[0].column), (0, 0))
+        self.assertEqual((compacted[1].row, compacted[1].column), (1, 2))
+        self.assertEqual((columns, rows), (3, 3))
+        self.assertEqual((removed_columns, removed_rows), (7, 5))
 
 
 if __name__ == "__main__":

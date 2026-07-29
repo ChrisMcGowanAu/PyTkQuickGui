@@ -324,7 +324,22 @@ class createWidget:
     lastCreated = None
     dragType = ["move", "dragEast", "dragWest", "dragNorth", "dragSouth"]
 
-    def __init__(self, root, widget):
+    @classmethod
+    def _allocate_identity(cls, python_name: str | None = None) -> tuple[int, str]:
+        """Allocate a new ID or reserve an exact persisted ``WidgetN`` name."""
+        if python_name is None:
+            widget_id = cls.widgetId
+            cls.widgetId += 1
+            return widget_id, "Widget" + str(widget_id)
+        if not python_name.startswith("Widget") or not python_name[6:].isdigit():
+            raise ValueError(f"invalid saved widget name: {python_name!r}")
+        if any(nl[NAME] == python_name for nl in cls.widgetNameList):
+            raise ValueError(f"duplicate saved widget name: {python_name}")
+        widget_id = int(python_name[6:])
+        cls.widgetId = max(cls.widgetId, widget_id + 1)
+        return widget_id, python_name
+
+    def __init__(self, root, widget, python_name: str | None = None):
         self.bordermode = None
         self.parentX = 0
         self.parentY = 0
@@ -347,13 +362,14 @@ class createWidget:
         # log.debug(random.randint(3,  9))
         self.row = 4
         self.col = 4
-        self.columnspan = 1  # number of grid columns this widget spans
-        self.rowspan = 1  # number of grid rows    this widget spans
-        self.sticky = "nsew"  # tkinter sticky string — user-controlled
-        self.padx = 2  # grid padx  (external padding)
-        self.pady = 2  # grid pady  (external padding)
-        self.ipadx = 0  # grid ipadx (internal padding / extra width)
-        self.ipady = 0  # grid ipady (internal padding / extra height)
+        grid_defaults = myVars.gridDefaultsForWidget(self.widget.widgetName)
+        self.columnspan = grid_defaults["columnspan"]
+        self.rowspan = grid_defaults["rowspan"]
+        self.sticky = grid_defaults["sticky"]
+        self.padx = grid_defaults["padx"]
+        self.pady = grid_defaults["pady"]
+        self.ipadx = grid_defaults["ipadx"]
+        self.ipady = grid_defaults["ipady"]
         # Pack geometry fields — authoritative user-set values
         self.pack_side = "top"  # pack side
         self.pack_fill = "none"  # pack fill
@@ -379,17 +395,15 @@ class createWidget:
         )
 
         log.debug(self.widget.widgetName)
-        self.pythonName = "Widget" + str(createWidget.widgetId)
+        self.widgetId, self.pythonName = createWidget._allocate_identity(python_name)
         # Stamp pythonName onto the tk widget itself so editWidget.py can
         # look up the createWidget object via findCreateWidgetObject().
         self.widget.pythonName = self.pythonName
-        log.debug("Widget ID %s", str(createWidget.widgetId))
+        log.debug("Widget ID %s", str(self.widgetId))
         createWidget.widgetList.append(self.widget)
         createWidget.widgetNameList.append(
             [self.pythonName, myVars.rootWidgetName, self.widget, []]
         )
-        self.widgetId = createWidget.widgetId
-        createWidget.widgetId += 1
         #  K_UP,  K_DOWN,  K_LEFT,  and K_RIGHT
         self.widget.bind("<Button-3>", self.rightMouseDown)
         self.widget.bind("<Button-1>", self.leftMouseDown)
@@ -483,6 +497,11 @@ class createWidget:
     @staticmethod
     def _configure_grid_extent(parent_widget, state: GridGeometry) -> None:
         """Ensure newly addressed cells have useful size and resize weight."""
+        is_root_grid = parent_widget is createWidget.baseRoot
+        column_minsize = myVars.gridColMinsize if is_root_grid else 40
+        row_minsize = myVars.gridRowMinsize if is_root_grid else 24
+        column_pad = myVars.gridColPad if is_root_grid else 0
+        row_pad = myVars.gridRowPad if is_root_grid else 0
         try:
             for col in range(state.column, state.column + state.columnspan):
                 info = parent_widget.columnconfigure(col)
@@ -491,8 +510,8 @@ class createWidget:
                     parent_widget.columnconfigure(
                         col,
                         weight=1,
-                        minsize=myVars.gridColMinsize,
-                        pad=myVars.gridColPad,
+                        minsize=column_minsize,
+                        pad=column_pad,
                     )
             for row in range(state.row, state.row + state.rowspan):
                 info = parent_widget.rowconfigure(row)
@@ -501,8 +520,8 @@ class createWidget:
                     parent_widget.rowconfigure(
                         row,
                         weight=1,
-                        minsize=myVars.gridRowMinsize,
-                        pad=myVars.gridRowPad,
+                        minsize=row_minsize,
+                        pad=row_pad,
                     )
         except (tk.TclError, TypeError, ValueError):
             # Notebook tab frames and a few ttkbootstrap helper widgets do not
@@ -762,7 +781,21 @@ class createWidget:
         if myVars.geomManager != "Place":
             return
 
-        place = self.widget.place_info()
+        try:
+            if not self.widget.winfo_exists():
+                log.debug(
+                    "reParent: %s no longer exists; request ignored",
+                    self.pythonName,
+                )
+                return
+            place = self.widget.place_info()
+        except tk.TclError as exc:
+            log.debug(
+                "reParent: %s is no longer available (%s); request ignored",
+                self.pythonName,
+                exc,
+            )
+            return
         x_str = place.get("x")
         y_str = place.get("y")
         w_str = place.get("width")
@@ -784,7 +817,18 @@ class createWidget:
         for sib in createWidget.widgetList:
             if sib is None or sib is self.widget:
                 continue
-            sib_place = sib.place_info()
+            try:
+                if not sib.winfo_exists():
+                    log.debug("reParent: skipping destroyed sibling %s", sib)
+                    continue
+                sib_place = sib.place_info()
+            except tk.TclError as exc:
+                log.debug(
+                    "reParent: skipping unavailable sibling %s (%s)",
+                    sib,
+                    exc,
+                )
+                continue
             wx_str = sib_place.get("x")
             wy_str = sib_place.get("y")
             if wx_str is None or wy_str is None:

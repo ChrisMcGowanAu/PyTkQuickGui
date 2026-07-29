@@ -22,6 +22,45 @@ class FakeWidget:
 
 
 class ProjectFormatTests(unittest.TestCase):
+    def test_generated_calls_are_readable_multiline_python(self):
+        formatted = project_format.format_python_call(
+            "Widget1 = ttk.Frame",
+            (
+                "rootWidget",
+                "width='0'",
+                "style='primary.TFrame'",
+            ),
+        )
+
+        self.assertEqual(
+            formatted,
+            "Widget1 = ttk.Frame(\n"
+            "    rootWidget,\n"
+            "    width='0',\n"
+            "    style='primary.TFrame',\n"
+            ")",
+        )
+
+    def test_generated_filename_uses_project_name_and_last_directory(self):
+        self.assertEqual(
+            project_format.generated_python_dialog_defaults(
+                "gridtest16",
+                "/tmp/older",
+                "/home/chris/previous-name.py",
+                "/home/chris",
+            ),
+            ("/home/chris", "gridtest16.py"),
+        )
+        self.assertEqual(
+            project_format.generated_python_dialog_defaults(
+                "new-project",
+                "/common/python",
+                "",
+                "/home/chris",
+            ),
+            ("/common/python", "new-project.py"),
+        )
+
     def test_callbacks_and_variables_survive_attribute_round_trip(self):
         data = widget_data(
             [
