@@ -18,12 +18,14 @@ import coloredlogs
 import tkfontchooser as tkfc
 import ttkbootstrap as ttk
 from ttkbootstrap.dialogs import Messagebox, Querybox
+from ttkbootstrap.dialogs.colorchooser import ColorChooserDialog
 
 import cdefs as C
 import createWidget as cw
 import layout_model
 import project_format
 import pytkguivars as myVars
+import tool_defaults
 import undoredo
 
 log = logging.getLogger(name="mylogger")
@@ -43,6 +45,24 @@ def getConfigPath() -> str:
         os.mkdir(configPath)
         log.info("Creating configPath %s", configPath)
     return configPath
+
+
+def _toolDefaultsPath() -> str:
+    return tool_defaults.default_path(myVars.programName)
+
+
+def loadToolDefaults() -> None:
+    """Load tool-wide Grid defaults, falling back to shipped values."""
+    defaults = tool_defaults.read(_toolDefaultsPath())
+    myVars.applyToolDefaults(defaults)
+    log.info("Loaded Grid tool defaults from %s", _toolDefaultsPath())
+
+
+def saveToolDefaults() -> str:
+    """Persist the current Grid settings as defaults for future projects."""
+    path = tool_defaults.write(_toolDefaultsPath(), myVars.currentToolDefaults())
+    log.info("Saved Grid tool defaults to %s", path)
+    return path
 
 
 def getDefaultTheme() -> str:
@@ -164,6 +184,7 @@ _drawing_grid_lines: bool = False
 _gridRowsVar = None
 _gridColsVar = None
 _gridToolbarWidgets: list = []
+_gridSyncAfterId = None
 
 
 def setTheme(theme: object):
@@ -351,6 +372,10 @@ def saveProject():
         "gridRows": getattr(myVars, "gridRows", 25),
         "gridCols": getattr(myVars, "gridCols", 25),
         "gridLineColor": getattr(myVars, "gridLineColor", ""),
+        "gridRowMinsize": myVars.gridRowMinsize,
+        "gridColMinsize": myVars.gridColMinsize,
+        "gridRowPad": myVars.gridRowPad,
+        "gridColPad": myVars.gridColPad,
         "generatedPyFile": myVars.generatedPyFile,
         "widgetNameList": cleanList,
         "backgroundColor": myVars.backgroundColor,
@@ -1047,6 +1072,8 @@ def newProject():
     if not name:
         return
 
+    # New projects start from the saved tool-wide Grid settings.
+    loadToolDefaults()
     # Ask for geometry manager (and grid dimensions) once at project creation
     geom_choice, grid_rows, grid_cols = _askGeomManager()
     if not geom_choice:
@@ -1106,8 +1133,9 @@ def _askGeomManager() -> tuple:
     grid_frame = ttk.Frame(top, padding=(24, 4, 24, 4))
     grid_frame.pack(fill="x")
 
-    rows_var = tk.IntVar(value=20)
-    cols_var = tk.IntVar(value=20)
+    have_tool_defaults = os.path.isfile(_toolDefaultsPath())
+    rows_var = tk.IntVar(value=myVars.gridRows if have_tool_defaults else 20)
+    cols_var = tk.IntVar(value=myVars.gridCols if have_tool_defaults else 20)
 
     rows_label = ttk.Label(grid_frame, text="Initial grid rows:")
     rows_spin = ttk.Spinbox(grid_frame, from_=2, to=50, textvariable=rows_var, width=6)
@@ -1342,6 +1370,9 @@ def _loadProjectData(fullFileName: str):
 
 def loadProject(project, altFileName):
     """Load a project from a saved file (JSON or legacy pickle)."""
+    # Establish tool defaults first; project-specific settings below override
+    # them when present.
+    loadToolDefaults()
     configPath = getConfigPath()
     folder = createFileName(configPath, None, project)
     fileName = ""
@@ -1415,9 +1446,16 @@ def loadProject(project, altFileName):
     projectTheme = myVars.theme
     data = _loadProjectData(fullFileName)
     if data is None:
-        # Brand new or empty project – just start fresh
+        # Rebuild the design surface as well as clearing the widget lists.
+        # Returning before this step left an empty Grid project blank until a
+        # widget drop or resize happened to force another redraw.
         log.info("No data found in %s – starting with empty canvas.", fullFileName)
+        _rebuild_canvas_for_geom()
+        _refresh_grid_toolbar()
         mainFrame.config(text=myVars.projectName)
+        _schedule_grid_sync()
+        undoredo.stack.clear()
+        myVars.projectSaved = True
         return
 
     try:
@@ -1432,10 +1470,20 @@ def loadProject(project, altFileName):
         savedGeom = runDict.get("geomManager")
         if savedGeom and savedGeom in myVars.GEOM_MANAGERS:
             myVars.geomManager = savedGeom
-        # Restore grid dimensions (default 25×25 for older project files).
-        myVars.gridRows = int(runDict.get("gridRows", 25))
-        myVars.gridCols = int(runDict.get("gridCols", 25))
-        myVars.gridLineColor = str(runDict.get("gridLineColor", "") or "")
+        # Older project files inherit the current tool-wide defaults.
+        myVars.gridRows = int(runDict.get("gridRows", myVars.gridRows))
+        myVars.gridCols = int(runDict.get("gridCols", myVars.gridCols))
+        myVars.gridLineColor = str(
+            runDict.get("gridLineColor", myVars.gridLineColor) or ""
+        )
+        myVars.gridRowMinsize = str(
+            runDict.get("gridRowMinsize", myVars.gridRowMinsize)
+        )
+        myVars.gridColMinsize = str(
+            runDict.get("gridColMinsize", myVars.gridColMinsize)
+        )
+        myVars.gridRowPad = str(runDict.get("gridRowPad", myVars.gridRowPad))
+        myVars.gridColPad = str(runDict.get("gridColPad", myVars.gridColPad))
         savedPyFile = runDict.get("generatedPyFile", "")
         if savedPyFile and os.path.isfile(savedPyFile):
             myVars.generatedPyFile = savedPyFile
@@ -1834,6 +1882,7 @@ def loadProject(project, altFileName):
     # Force tkinter to process all pending geometry requests so that
     # winfo_x() / winfo_y() return correct values immediately after load.
     rootWin.update_idletasks()
+    _schedule_grid_sync()
     # Clear undo history – actions from the old project aren't reachable
     undoredo.stack.clear()
     # A freshly loaded project has no unsaved changes yet
@@ -1893,14 +1942,13 @@ def chooseBackground():
 
 def chooseGridColor():
     """Choose the guide-line and index-label colour for Grid projects."""
-    colors = askcolor(
-        color=_current_grid_line_color(),
-        title="Grid line colour",
-        parent=rootWin,
-    )
-    if colors[1] is None:
+    colorDialog = ColorChooserDialog()
+    colorDialog.initialcolor = _current_grid_line_color()
+    colorDialog.show()
+    colors = colorDialog.result
+    if colors is None:
         return
-    myVars.gridLineColor = colors[1]
+    myVars.gridLineColor = colors[2] if colors[2] else ""
     myVars.projectSaved = False
     drawGridLines()
 
@@ -1910,6 +1958,177 @@ def useThemeGridColor():
     myVars.gridLineColor = ""
     myVars.projectSaved = False
     drawGridLines()
+
+
+def editGridSettings():
+    """Edit project Grid dimensions, guide colour, minsize, and padding."""
+    top = tk.Toplevel(rootWin)
+    top.title("Grid settings")
+    top.resizable(False, False)
+    top.transient(rootWin)
+
+    values = {
+        "gridRows": tk.StringVar(value=str(myVars.gridRows)),
+        "gridCols": tk.StringVar(value=str(myVars.gridCols)),
+        "gridRowMinsize": tk.StringVar(value=str(myVars.gridRowMinsize)),
+        "gridColMinsize": tk.StringVar(value=str(myVars.gridColMinsize)),
+        "gridRowPad": tk.StringVar(value=str(myVars.gridRowPad)),
+        "gridColPad": tk.StringVar(value=str(myVars.gridColPad)),
+        "gridLineColor": tk.StringVar(value=str(myVars.gridLineColor)),
+    }
+
+    fields = (
+        ("Rows drawn", "gridRows"),
+        ("Columns drawn", "gridCols"),
+        ("Row minsize", "gridRowMinsize"),
+        ("Column minsize", "gridColMinsize"),
+        ("Row pad", "gridRowPad"),
+        ("Column pad", "gridColPad"),
+    )
+    for row, (label, name) in enumerate(fields):
+        ttk.Label(top, text=label).grid(
+            row=row, column=0, sticky="e", padx=(10, 6), pady=3
+        )
+        if name in ("gridRows", "gridCols"):
+            control = ttk.Spinbox(
+                top, from_=2, to=100, width=8, textvariable=values[name]
+            )
+        else:
+            control = ttk.Entry(top, width=10, textvariable=values[name])
+        control.grid(row=row, column=1, sticky="ew", padx=(0, 10), pady=3)
+
+    colour_row = len(fields)
+    ttk.Label(top, text="Guide colour").grid(
+        row=colour_row, column=0, sticky="e", padx=(10, 6), pady=3
+    )
+    colourButton = ttk.Button(top, text="Select Color", bootstyle="secondary")
+
+    def _refresh_colour_button():
+        color = values["gridLineColor"].get()
+        colourButton.configure(text=color or "Use theme colour")
+        if color:
+            try:
+                colourButton.configure(background=color)
+            except tk.TclError:
+                pass
+
+    def _choose_colour():
+        colorDialog = ColorChooserDialog()
+        colorDialog.initialcolor = (
+            values["gridLineColor"].get() or _current_grid_line_color()
+        )
+        colorDialog.show()
+        colors = colorDialog.result
+        if colors is not None and colors[2]:
+            values["gridLineColor"].set(colors[2])
+            _refresh_colour_button()
+
+    colourButton.configure(command=_choose_colour)
+    colourButton.grid(row=colour_row, column=1, sticky="ew", padx=(0, 10), pady=3)
+    _refresh_colour_button()
+
+    def _use_theme_colour():
+        values["gridLineColor"].set("")
+        _refresh_colour_button()
+
+    ttk.Button(top, text="Theme colour", command=_use_theme_colour).grid(
+        row=colour_row + 1, column=1, sticky="ew", padx=(0, 10), pady=(0, 6)
+    )
+
+    def _apply() -> bool:
+        old_values = myVars.currentToolDefaults()
+        try:
+            requested_rows = max(2, min(100, int(values["gridRows"].get())))
+            requested_cols = max(2, min(100, int(values["gridCols"].get())))
+            distances = {
+                name: values[name].get().strip()
+                for name in (
+                    "gridRowMinsize",
+                    "gridColMinsize",
+                    "gridRowPad",
+                    "gridColPad",
+                )
+            }
+            for name, value in distances.items():
+                if not value or rootWin.winfo_pixels(value) < 0:
+                    raise ValueError(f"{name} must be a non-negative Tk distance")
+        except (tk.TclError, TypeError, ValueError) as exc:
+            Messagebox.show_error(
+                title="Invalid Grid setting",
+                message=str(exc),
+                parent=top,
+            )
+            return False
+
+        minimum_cols, minimum_rows = _minimum_root_grid_extent()
+        myVars.gridRows = max(requested_rows, minimum_rows)
+        myVars.gridCols = max(requested_cols, minimum_cols)
+        myVars.gridRowMinsize = distances["gridRowMinsize"]
+        myVars.gridColMinsize = distances["gridColMinsize"]
+        myVars.gridRowPad = distances["gridRowPad"]
+        myVars.gridColPad = distances["gridColPad"]
+        myVars.gridLineColor = values["gridLineColor"].get()
+        try:
+            if geomWidgetFrame is not None:
+                _configure_root_grid(geomWidgetFrame, reset=True)
+            _sync_grid_overlay_style()
+            _refresh_grid_toolbar()
+            myVars.projectSaved = False
+            _schedule_grid_sync()
+        except tk.TclError as exc:
+            myVars.applyToolDefaults(old_values)
+            if geomWidgetFrame is not None:
+                try:
+                    _configure_root_grid(geomWidgetFrame, reset=True)
+                except tk.TclError:
+                    pass
+            _sync_grid_overlay_style()
+            _refresh_grid_toolbar()
+            _schedule_grid_sync()
+            Messagebox.show_error(
+                title="Grid setting error",
+                message=str(exc),
+                parent=top,
+            )
+            return False
+        return True
+
+    def _save_as_default():
+        if not _apply():
+            return
+        try:
+            path = saveToolDefaults()
+        except (OSError, TypeError) as exc:
+            Messagebox.show_error(
+                title="Cannot save defaults",
+                message=str(exc),
+                parent=top,
+            )
+            return
+        Messagebox.show_info(
+            title="Grid defaults saved",
+            message=f"Saved to {path}",
+            parent=top,
+        )
+
+    buttonRow = ttk.Frame(top)
+    buttonRow.grid(
+        row=colour_row + 2, column=0, columnspan=2, sticky="ew", padx=8, pady=8
+    )
+    ttk.Button(buttonRow, text="Close", bootstyle="warning", command=top.destroy).pack(
+        side=tk.LEFT, expand=True, fill=tk.X, padx=2
+    )
+    ttk.Button(buttonRow, text="Apply", bootstyle="success", command=_apply).pack(
+        side=tk.LEFT, expand=True, fill=tk.X, padx=2
+    )
+    ttk.Button(
+        buttonRow,
+        text="Save as tool default",
+        bootstyle="info",
+        command=_save_as_default,
+    ).pack(side=tk.LEFT, expand=True, fill=tk.X, padx=2)
+
+    top.grab_set()
 
 
 def welcome():
@@ -2876,7 +3095,7 @@ def _drawGridLines_impl():
 
 def sizeGripRelease(event):
     log.debug(event)
-    drawGridLines()
+    _schedule_grid_sync()
 
 
 # ---- Grid layout: number of rows/columns pre-configured in each container ----
@@ -2916,7 +3135,7 @@ def _apply_grid_dimensions(_event=None) -> None:
     if geomWidgetFrame is not None:
         _configure_root_grid(geomWidgetFrame, reset=True)
     myVars.projectSaved = False
-    drawGridLines()
+    _schedule_grid_sync()
 
 
 def _refresh_grid_toolbar() -> None:
@@ -2997,18 +3216,9 @@ def _placeNewWidget(w, x: int, y: int, width: int = 72, height: int = 32) -> Non
             cell = 60
             col = max(0, x // cell)
             row = max(0, y // cell)
-        # Determine whether this widget is a container (Frame / Labelframe /
-        # Panedwindow).  Containers get a 2×2 default span; leaf widgets get 1×1.
-        _wname = (
-            myVars.fixWidgetName(w.widgetName).lower()
-            if hasattr(w, "widgetName")
-            else ""
+        defaults = myVars.gridDefaultsForWidget(
+            w.widgetName if hasattr(w, "widgetName") else ""
         )
-        _is_container = _wname in ("frame", "labelframe", "panedwindow")
-        col_span = 2 if _is_container else 1
-        row_span = 2 if _is_container else 1
-        # no auto-expansion — user sets sticky via Edit popup
-        new_sticky = "nsew"
         # Sync the authoritative cwo fields so drags and popups see the defaults.
         cwo = cw.findCreateWidgetObject(
             w.pythonName if hasattr(w, "pythonName") else ""
@@ -3018,9 +3228,7 @@ def _placeNewWidget(w, x: int, y: int, width: int = 72, height: int = 32) -> Non
                 parent=myVars.rootWidgetName,
                 row=row,
                 column=col,
-                columnspan=col_span,
-                rowspan=row_span,
-                sticky=new_sticky,
+                **defaults,
             )
             cwo.apply_grid_geometry(state, parent_widget=parent)
         else:
@@ -3028,11 +3236,7 @@ def _placeNewWidget(w, x: int, y: int, width: int = 72, height: int = 32) -> Non
                 in_=parent,
                 row=row,
                 column=col,
-                columnspan=col_span,
-                rowspan=row_span,
-                padx=2,
-                pady=2,
-                sticky=new_sticky,
+                **defaults,
             )
         # Re-lower the overlay canvas so it stays behind the new widget
         if _gridOverlayCanvas is not None:
@@ -3244,6 +3448,50 @@ def rightMouseDown(event):
         popup.grab_release()
 
 
+def _sync_geom_frame_to_canvas(event=None):
+    """Size the Grid design frame and overlay to the canvas's current area."""
+    if mainCanvas is None or not mainCanvas.winfo_exists():
+        return
+    if event is None:
+        mainCanvas.update_idletasks()
+        width = mainCanvas.winfo_width()
+        height = mainCanvas.winfo_height()
+    else:
+        width = event.width
+        height = event.height
+    if width < 2 or height < 2:
+        return
+    if geomWidgetFrame is not None and geomWidgetFrame.winfo_exists():
+        mainCanvas.itemconfigure("geomframe", width=width, height=height)
+        if _gridOverlayCanvas is not None and _gridOverlayCanvas.winfo_exists():
+            _gridOverlayCanvas.place(x=0, y=0, width=width, height=height)
+            tk.Misc.lower(_gridOverlayCanvas)
+        geomWidgetFrame.update_idletasks()
+    drawGridLines()
+
+
+def _schedule_grid_sync():
+    """Coalesce Grid synchronisation until Tk has completed geometry layout."""
+    global _gridSyncAfterId
+    if mainCanvas is None:
+        return
+    if _gridSyncAfterId is not None:
+        try:
+            mainCanvas.after_cancel(_gridSyncAfterId)
+        except tk.TclError:
+            pass
+
+    def _run():
+        global _gridSyncAfterId
+        _gridSyncAfterId = None
+        _sync_geom_frame_to_canvas()
+
+    try:
+        _gridSyncAfterId = mainCanvas.after_idle(_run)
+    except tk.TclError:
+        _gridSyncAfterId = None
+
+
 def buildGrid(rows, cols):
     """
     :rtype: object
@@ -3278,17 +3526,7 @@ def buildGrid(rows, cols):
         # they appear above the frame background but below child widgets).
         _make_grid_overlay(geomWidgetFrame)
 
-        # Expand the window when the canvas is resized; also redraw guides
-        def _resize_geom_frame(event):
-            mainCanvas.itemconfig("geomframe", width=event.width, height=event.height)
-            if _gridOverlayCanvas is not None:
-                _gridOverlayCanvas.place(
-                    x=0, y=0, width=event.width, height=event.height
-                )
-                tk.Misc.lower(_gridOverlayCanvas)
-            drawGridLines()
-
-        mainCanvas.bind("<Configure>", _resize_geom_frame)
+        mainCanvas.bind("<Configure>", _sync_geom_frame_to_canvas)
         cw.createWidget.baseRoot = geomWidgetFrame
     else:
         geomWidgetFrame = None
@@ -3296,7 +3534,11 @@ def buildGrid(rows, cols):
         # For Place mode, redraw dot grid on resize
         mainCanvas.bind("<Configure>", lambda e: drawGridLines())
 
-    drawGridLines()
+    # A canvas can receive its first Configure event before the inner frame
+    # and overlay exist. Map catches the first visible geometry; after_idle
+    # handles window managers that do not send another Configure event.
+    mainCanvas.bind("<Map>", lambda _event: _schedule_grid_sync(), add="+")
+    _schedule_grid_sync()
     # mainCanvas.bind('<Motion>',frameMove)
 
 
@@ -3355,22 +3597,14 @@ def _rebuild_canvas_for_geom():
         # Overlay canvas for grid guide-lines
         _make_grid_overlay(geomWidgetFrame)
 
-        def _resize_geom_frame(event):
-            mainCanvas.itemconfig("geomframe", width=event.width, height=event.height)
-            if _gridOverlayCanvas is not None:
-                _gridOverlayCanvas.place(
-                    x=0, y=0, width=event.width, height=event.height
-                )
-                tk.Misc.lower(_gridOverlayCanvas)
-            drawGridLines()
-
-        mainCanvas.bind("<Configure>", _resize_geom_frame)
+        mainCanvas.bind("<Configure>", _sync_geom_frame_to_canvas)
         cw.createWidget.baseRoot = geomWidgetFrame
     else:
         geomWidgetFrame = None
         cw.createWidget.baseRoot = mainCanvas
         mainCanvas.bind("<Configure>", lambda e: drawGridLines())
-    drawGridLines()
+    mainCanvas.bind("<Map>", lambda _event: _schedule_grid_sync(), add="+")
+    _schedule_grid_sync()
 
 
 def buildMainGui():
@@ -3424,6 +3658,8 @@ def buildMainGui():
     gridColorMenu = ttk.Menu(gridColorButton, tearoff=0)
     gridColorMenu.add_command(label="Choose…", command=chooseGridColor)
     gridColorMenu.add_command(label="Use theme colour", command=useThemeGridColor)
+    gridColorMenu.add_separator()
+    gridColorMenu.add_command(label="Grid settings…", command=editGridSettings)
     gridColorButton.configure(menu=gridColorMenu)
     gridColorButton.pack(side=tk.LEFT)
     _gridToolbarWidgets = [gridRowsSpin, gridColsSpin, gridColorButton]
@@ -3495,6 +3731,7 @@ if __name__ == "__main__":
     else:
         coloredlogs.set_level(logging.WARN)
     myVars.initVars()
+    loadToolDefaults()
     myVars.theme = useTheme
     log.info("mainFrame %s %s", mainFrame, str(mainFrame))
 

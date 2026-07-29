@@ -207,7 +207,11 @@ myWidget.place(x=80, y=40, width=120, height=28, anchor='nw', bordermode='inside
 ```
 
 ### Grid (default)
-Widgets snap to a row/column grid. Dragging across container boundaries recalculates the cell in the target container, and edge drags adjust row/column spans. The toolbar controls how many rows and columns are drawn and lets you choose a guide colour or use the active theme colour. **Tools ▸ Compact Grid** closes unused gaps and reduces the configured grid to its occupied extent. Generated code configures the required rows and columns before using `grid(row=…, column=…, sticky=…, padx=…, pady=…)`. Best for responsive forms and tables.
+Widgets snap to a row/column grid. Dragging across container boundaries recalculates the cell in the target container, and edge drags adjust row/column spans. The toolbar controls how many rows and columns are drawn. Its **Grid colour** menu uses the standard colour chooser, can return guides to the active theme colour, and opens **Grid settings** for row/column `minsize` and `pad` values.
+
+New widgets start with useful type-specific spans—for example, input fields are wider while text areas and containers cover several rows and columns. In a widget's **Layout** popup, **Save type default** stores the current `columnspan`, `rowspan`, padding and `sticky` values for future widgets of that type. **Save as tool default** in Grid settings stores the project-level Grid settings. Both are kept in `~/.config/pytkgui/tool_defaults.json` on Linux (or the platform-equivalent configuration directory).
+
+**Tools ▸ Compact Grid** closes unused gaps and reduces the configured grid to its occupied extent. Generated code configures the required rows and columns before using `grid(row=…, column=…, sticky=…, padx=…, pady=…)`. Best for responsive forms and tables.
 
 ```python
 myWidget.grid(row=1, column=2, sticky='WE', padx=2, pady=2)

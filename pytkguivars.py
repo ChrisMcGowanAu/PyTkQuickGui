@@ -8,6 +8,7 @@ import ttkbootstrap as ttk
 
 import createWidget as cw
 import project_format
+import tool_defaults
 from layout_model import GridGeometry
 
 # import cdefs as C
@@ -100,13 +101,14 @@ GEOM_MANAGERS = ("Place", "Grid", "Pack")
 geomManager = "Grid"
 # Number of rows/columns in the initial grid (Grid mode only).
 # The grid auto-expands if more rows/cols are needed.
-gridRows: int = 25
-gridCols: int = 25
-gridLineColor: str = ""
-gridRowMinsize = "2.5m"  # 2.5 mm
-gridColMinsize = "5m"  # 5 mm
-gridRowPad = "2.5m"
-gridColPad = "5m"
+gridRows: int = tool_defaults.GRID_DEFAULTS["gridRows"]
+gridCols: int = tool_defaults.GRID_DEFAULTS["gridCols"]
+gridLineColor: str = tool_defaults.GRID_DEFAULTS["gridLineColor"]
+gridRowMinsize = tool_defaults.GRID_DEFAULTS["gridRowMinsize"]
+gridColMinsize = tool_defaults.GRID_DEFAULTS["gridColMinsize"]
+gridRowPad = tool_defaults.GRID_DEFAULTS["gridRowPad"]
+gridColPad = tool_defaults.GRID_DEFAULTS["gridColPad"]
+gridWidgetDefaults = tool_defaults.normalise_widget_layouts(None)
 # ---- Widget groups (logical, not tkinter containers) --------------------
 # {group_name: [widgetName, ...]}  — persisted to project JSON
 groups: dict = {}
@@ -158,12 +160,54 @@ def initVars():
     global groups
     global selectedWidgets
     global gridRows, gridCols, gridLineColor
+    global gridRowMinsize, gridColMinsize, gridRowPad, gridColPad
+    global gridWidgetDefaults
     groups = {}
     selectedWidgets = []
-    gridRows = 25
-    gridCols = 25
+    gridRows = tool_defaults.GRID_DEFAULTS["gridRows"]
+    gridCols = tool_defaults.GRID_DEFAULTS["gridCols"]
     # Empty means use a readable foreground from the active tool theme.
-    gridLineColor = ""
+    gridLineColor = tool_defaults.GRID_DEFAULTS["gridLineColor"]
+    gridRowMinsize = tool_defaults.GRID_DEFAULTS["gridRowMinsize"]
+    gridColMinsize = tool_defaults.GRID_DEFAULTS["gridColMinsize"]
+    gridRowPad = tool_defaults.GRID_DEFAULTS["gridRowPad"]
+    gridColPad = tool_defaults.GRID_DEFAULTS["gridColPad"]
+    gridWidgetDefaults = tool_defaults.normalise_widget_layouts(None)
+
+
+def applyToolDefaults(data: dict) -> None:
+    """Apply a validated tool-defaults dictionary to the live settings."""
+    global gridRows, gridCols, gridLineColor
+    global gridRowMinsize, gridColMinsize, gridRowPad, gridColPad
+    global gridWidgetDefaults
+    defaults = tool_defaults.normalise(data)
+    gridRows = defaults["gridRows"]
+    gridCols = defaults["gridCols"]
+    gridLineColor = defaults["gridLineColor"]
+    gridRowMinsize = defaults["gridRowMinsize"]
+    gridColMinsize = defaults["gridColMinsize"]
+    gridRowPad = defaults["gridRowPad"]
+    gridColPad = defaults["gridColPad"]
+    gridWidgetDefaults = defaults["gridWidgetDefaults"]
+
+
+def currentToolDefaults() -> dict:
+    """Return the current Grid settings in tool_defaults.json format."""
+    return {
+        "gridRows": gridRows,
+        "gridCols": gridCols,
+        "gridLineColor": gridLineColor,
+        "gridRowMinsize": gridRowMinsize,
+        "gridColMinsize": gridColMinsize,
+        "gridRowPad": gridRowPad,
+        "gridColPad": gridColPad,
+        "gridWidgetDefaults": gridWidgetDefaults,
+    }
+
+
+def gridDefaultsForWidget(widgetName: str) -> dict:
+    """Return configured Grid defaults for a Tk widget type."""
+    return tool_defaults.widget_layout(widgetName, gridWidgetDefaults)
 
 
 # Common Procs

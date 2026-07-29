@@ -362,13 +362,14 @@ class createWidget:
         # log.debug(random.randint(3,  9))
         self.row = 4
         self.col = 4
-        self.columnspan = 1  # number of grid columns this widget spans
-        self.rowspan = 1  # number of grid rows    this widget spans
-        self.sticky = "nsew"  # tkinter sticky string — user-controlled
-        self.padx = 2  # grid padx  (external padding)
-        self.pady = 2  # grid pady  (external padding)
-        self.ipadx = 0  # grid ipadx (internal padding / extra width)
-        self.ipady = 0  # grid ipady (internal padding / extra height)
+        grid_defaults = myVars.gridDefaultsForWidget(self.widget.widgetName)
+        self.columnspan = grid_defaults["columnspan"]
+        self.rowspan = grid_defaults["rowspan"]
+        self.sticky = grid_defaults["sticky"]
+        self.padx = grid_defaults["padx"]
+        self.pady = grid_defaults["pady"]
+        self.ipadx = grid_defaults["ipadx"]
+        self.ipady = grid_defaults["ipady"]
         # Pack geometry fields — authoritative user-set values
         self.pack_side = "top"  # pack side
         self.pack_fill = "none"  # pack fill
