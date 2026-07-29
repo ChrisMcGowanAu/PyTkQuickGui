@@ -44,6 +44,40 @@ class ToolDefaultsTests(unittest.TestCase):
         self.assertEqual(loaded["gridWidgetDefaults"]["label"]["sticky"], "ew")
         self.assertEqual(raw["formatVersion"], tool_defaults.FORMAT_VERSION)
 
+    def test_widget_update_preserves_manually_edited_grid_defaults(self):
+        supplied = {
+            "gridRows": 12,
+            "gridCols": 14,
+            "gridRowMinsize": "4m",
+            "gridColMinsize": "8m",
+            "gridRowPad": "1m",
+            "gridColPad": "2m",
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            path = os.path.join(directory, tool_defaults.FILE_NAME)
+            tool_defaults.write(path, supplied)
+            tool_defaults.update_widget_layout(
+                path,
+                "ttk::label",
+                {
+                    "columnspan": 4,
+                    "rowspan": 2,
+                    "padx": 3,
+                    "pady": 3,
+                    "ipadx": 0,
+                    "ipady": 0,
+                    "sticky": "ew",
+                },
+            )
+            loaded = tool_defaults.read(path)
+
+        self.assertEqual(loaded["gridRowMinsize"], "4m")
+        self.assertEqual(loaded["gridColMinsize"], "8m")
+        self.assertEqual(loaded["gridRowPad"], "1m")
+        self.assertEqual(loaded["gridColPad"], "2m")
+        self.assertEqual(loaded["gridWidgetDefaults"]["label"]["columnspan"], 4)
+        self.assertEqual(loaded["gridWidgetDefaults"]["label"]["rowspan"], 2)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -9,7 +9,7 @@ import ttkbootstrap as ttk
 import createWidget as cw
 import project_format
 import tool_defaults
-from layout_model import GridGeometry
+from layout_model import GridGeometry, is_grid_container_type
 
 # import cdefs as C
 # import io
@@ -309,6 +309,15 @@ def saveWidgetAsDict(widgetName) -> dict:
             "Place": place,
             "GeomData": geomData,
         }
+        if geomManager == "Grid" and is_grid_container_type(w.widgetName):
+            try:
+                container_columns, container_rows = w.grid_size()
+            except tk.TclError:
+                container_columns, container_rows = 4, 4
+            widgetDict["ContainerGrid"] = {
+                "columns": str(max(1, int(container_columns))),
+                "rows": str(max(1, int(container_rows))),
+            }
         keyCount = 0
         # Guard against stale / already-destroyed widget paths.  This can
         # happen when an undo snapshot is taken for a child widget whose parent

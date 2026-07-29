@@ -69,6 +69,7 @@ class GridGeometryTests(unittest.TestCase):
                 "WidgetName": "ttk::frame",
                 "WidgetParent": "rootWidget",
                 "GeomData": {"row": "1", "column": "2", "columnspan": "2"},
+                "ContainerGrid": {"columns": "7", "rows": "8"},
             },
             "Widget1": {
                 "WidgetName": "ttk::button",
@@ -94,12 +95,21 @@ class GridGeometryTests(unittest.TestCase):
         )
 
         self.assertEqual(requirements["rootWidget"], (4, 2))
-        self.assertEqual(requirements["Widget0"], (6, 6))
+        self.assertEqual(requirements["Widget0"], (7, 8))
         self.assertNotIn("Widget2", requirements)
         self.assertEqual(requirements["Widget3"], (4, 4))
         self.assertTrue(
             layout_model.is_saved_notebook_tab(project, "Widget3", "rootWidget")
         )
+
+    def test_container_grid_dimensions_are_persisted_with_legacy_fallback(self):
+        self.assertEqual(
+            layout_model.container_grid_dimensions(
+                {"ContainerGrid": {"columns": "9", "rows": "6"}}
+            ),
+            (9, 6),
+        )
+        self.assertEqual(layout_model.container_grid_dimensions({}), (4, 4))
 
     def test_compaction_closes_internal_and_trailing_grid_gaps(self):
         states = [

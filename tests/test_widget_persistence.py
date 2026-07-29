@@ -34,6 +34,13 @@ class FakeWidget:
         return self.values[key]
 
 
+class FakeContainer(FakeWidget):
+    widgetName = "ttk::frame"
+
+    def grid_size(self):
+        return 7, 6
+
+
 class FakeCreateWidget:
     def __init__(self, widget):
         self.pythonName = "Widget0"
@@ -111,6 +118,21 @@ class WidgetPersistenceTests(unittest.TestCase):
 
         self.assertEqual(attributes["command"], "run_report")
         self.assertEqual(attributes["textvariable"], "button_text")
+
+    def test_container_internal_grid_dimensions_are_saved(self):
+        self.widget = FakeContainer()
+        self.cwo = FakeCreateWidget(self.widget)
+        cw.createWidget.widgetNameList = [
+            ["Widget0", "rootWidget", self.widget, []],
+        ]
+        cw.createWidget.widgetObjectList = [self.cwo]
+
+        saved = my_vars.saveWidgetAsDict("Widget0")["Widget0"]
+
+        self.assertEqual(
+            saved["ContainerGrid"],
+            {"columns": "7", "rows": "6"},
+        )
 
     def test_plain_live_callback_is_migrated_to_explicit_metadata(self):
         self.widget._user_attrs = {}

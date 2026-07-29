@@ -570,13 +570,26 @@ def buildPython() -> str:
     print("import tkinter as tk\nimport ttkbootstrap as ttk\n")
     themeName = myVars.theme
     title = myVars.projectName
-    print("themeName = '" + themeName + "'\n")
-    print("title = '" + title + "'\n")
-    print("rootWin = ttk.Window(theme=themeName, title=title)")
+    print(f"themeName = {themeName!r}\n")
+    print(f"title = {title!r}\n")
+    print(
+        project_format.format_python_call(
+            "rootWin = ttk.Window",
+            ("theme=themeName", "title=title"),
+        )
+    )
     rootName = myVars.rootWidgetName
     print(
-        rootName
-        + " = ttk.Frame(rootWin, width=40, height=100, relief='ridge', borderwidth=1)"
+        project_format.format_python_call(
+            rootName + " = ttk.Frame",
+            (
+                "rootWin",
+                "width=40",
+                "height=100",
+                "relief='ridge'",
+                "borderwidth=1",
+            ),
+        )
     )
 
     def _emit_grid_configuration(parent_name: str) -> None:
@@ -673,7 +686,7 @@ def buildPython() -> str:
             t = myVars.fixWidgetTypeName(wType)
             wType = t
             keyCount = widgetName + "-KeyCount"
-            widgetDef = widgetName + " = " + wType + "(" + parentName
+            widgetArguments = [parentName]
             nKeys = wDict.get(keyCount)
             specialKeys = [
                 "postcommand",
@@ -718,13 +731,18 @@ def buildPython() -> str:
                 if len(val) > 0:
                     # keys are not consistent ...
                     if useValQuotes:
-                        tmpWidgetDef = widgetDef + ", " + key + "=" + repr(val)
+                        argument = key + "=" + repr(val)
                     else:
                         if key == "image":
                             val = str(widgetName) + key
-                        tmpWidgetDef = widgetDef + ", " + key + "=" + val
-                    widgetDef = tmpWidgetDef
-            print(widgetDef + ")")
+                        argument = key + "=" + val
+                    widgetArguments.append(argument)
+            print(
+                project_format.format_python_call(
+                    widgetName + " = " + wType,
+                    widgetArguments,
+                )
+            )
             if myVars.geomManager == "Grid":
                 _emit_grid_configuration(widgetName)
             geomData = wDict.get("GeomData", {})
@@ -748,9 +766,17 @@ def buildPython() -> str:
                 anchor = place.get("anchor", "nw")
                 bordermode = place.get("bordermode", "inside")
                 print(
-                    f"{widgetName}.place(x={x}, y={y}, width={width},"
-                    f" height={height}, anchor='{anchor}',"
-                    f" bordermode='{bordermode}')"
+                    project_format.format_python_call(
+                        f"{widgetName}.place",
+                        (
+                            f"x={x}",
+                            f"y={y}",
+                            f"width={width}",
+                            f"height={height}",
+                            f"anchor={anchor!r}",
+                            f"bordermode={bordermode!r}",
+                        ),
+                    )
                 )
             elif myVars.geomManager == "Grid":
                 row = geomData.get("row", "0")
@@ -762,18 +788,30 @@ def buildPython() -> str:
                 pady = geomData.get("pady", "2")
                 ipadx = int(geomData.get("ipadx", 0))
                 ipady = int(geomData.get("ipady", 0))
-                extra_args = ""
+                grid_arguments = [
+                    f"row={row}",
+                    f"column={col}",
+                ]
                 if columnspan > 1:
-                    extra_args += f", columnspan={columnspan}"
+                    grid_arguments.append(f"columnspan={columnspan}")
                 if rowspan > 1:
-                    extra_args += f", rowspan={rowspan}"
+                    grid_arguments.append(f"rowspan={rowspan}")
                 if ipadx:
-                    extra_args += f", ipadx={ipadx}"
+                    grid_arguments.append(f"ipadx={ipadx}")
                 if ipady:
-                    extra_args += f", ipady={ipady}"
+                    grid_arguments.append(f"ipady={ipady}")
+                grid_arguments.extend(
+                    (
+                        f"sticky={sticky!r}",
+                        f"padx={padx}",
+                        f"pady={pady}",
+                    )
+                )
                 print(
-                    f"{widgetName}.grid(row={row}, column={col}{extra_args},"
-                    f" sticky='{sticky}', padx={padx}, pady={pady})"
+                    project_format.format_python_call(
+                        f"{widgetName}.grid",
+                        grid_arguments,
+                    )
                 )
             elif myVars.geomManager == "Pack":
                 side = geomData.get("side", "top")
@@ -783,12 +821,21 @@ def buildPython() -> str:
                 pady = geomData.get("pady", "2")
                 anchor = geomData.get("anchor", "center")
                 print(
-                    f"{widgetName}.pack(side='{side}', fill='{fill}',"
-                    f" expand={expand}, padx={padx}, pady={pady},"
-                    f" anchor='{anchor}')"
+                    project_format.format_python_call(
+                        f"{widgetName}.pack",
+                        (
+                            f"side={side!r}",
+                            f"fill={fill!r}",
+                            f"expand={expand}",
+                            f"padx={padx}",
+                            f"pady={pady}",
+                            f"anchor={anchor!r}",
+                        ),
+                    )
                 )
             else:
                 log.error("Unknown geometry manager %s", myVars.geomManager)
+            print("")
     # For Grid mode the Place-coord accumulation above produces zeros/wrong
     # values.  Use the actual geomWidgetFrame size instead.
     if myVars.geomManager == "Grid" and geomWidgetFrame is not None:
@@ -820,11 +867,26 @@ def buildPython() -> str:
     print("sg0 = ttk.Sizegrip(rootWin)")
     print("sg0.grid(row=1, sticky=tk.SE)")
     if myVars.geomManager == "Place":
-        print(rootName + ".place(x=0, y=0, relwidth=1.0, relheight=1.0)")
+        print(
+            project_format.format_python_call(
+                rootName + ".place",
+                ("x=0", "y=0", "relwidth=1.0", "relheight=1.0"),
+            )
+        )
     elif myVars.geomManager == "Grid":
-        print(rootName + ".grid(row=0, column=0, sticky='NSEW')")
+        print(
+            project_format.format_python_call(
+                rootName + ".grid",
+                ("row=0", "column=0", "sticky='NSEW'"),
+            )
+        )
     elif myVars.geomManager == "Pack":
-        print(rootName + ".pack(fill='both', expand=True)")
+        print(
+            project_format.format_python_call(
+                rootName + ".pack",
+                ("fill='both'", "expand=True"),
+            )
+        )
     print("\nrootWin.mainloop()")
     _sys.stdout.close()
     _sys.stdout = _sys.__stdout__
@@ -849,18 +911,16 @@ def generatePython():
     The chosen path is stored in myVars.generatedPyFile so that the next
     call to buildPython() can load and preserve any user edits.
     """
-    # If we already know a target file, pre-fill the dialog with it.
-    home = os.environ["HOME"]
-    initialDir = myVars.saveDirName if myVars.saveDirName else home
-    initialFile = (
-        os.path.basename(myVars.generatedPyFile)
-        if myVars.generatedPyFile
-        else myVars.projectName + ".py"
+    # Reuse the last output directory, but always derive the filename from the
+    # current project instead of carrying over another project's filename.
+    initialDir, initialFile = project_format.generated_python_dialog_defaults(
+        myVars.projectName,
+        myVars.saveDirName,
+        myVars.generatedPyFile,
+        os.environ["HOME"],
     )
     newFile = tk.filedialog.asksaveasfilename(
-        initialdir=initialFile
-        and os.path.dirname(myVars.generatedPyFile)
-        or initialDir,
+        initialdir=initialDir,
         initialfile=initialFile,
         filetypes=[("Python file", "*.py")],
         defaultextension="py",
@@ -1079,6 +1139,9 @@ def newProject():
     if not geom_choice:
         return
 
+    # Keep the last output directory, but never preserve functions from a
+    # different project's previously generated Python file.
+    myVars.generatedPyFile = ""
     path = os.path.join(configPath, name)
     # Create directory only if it doesn't already exist
     os.makedirs(path, exist_ok=True)
@@ -1443,6 +1506,10 @@ def loadProject(project, altFileName):
 
     mainFrame.config(text=myVars.projectName)
     deleteWidgetData()
+    # A different or empty project must not inherit callback bodies from the
+    # previously generated file. Its directory remains available separately
+    # in saveDirName for the next Generate dialog.
+    myVars.generatedPyFile = ""
     projectTheme = myVars.theme
     data = _loadProjectData(fullFileName)
     if data is None:
@@ -1606,8 +1673,19 @@ def loadProject(project, altFileName):
         # configuration so child widgets can be reparented into them.
         if myVars.geomManager == "Grid":
             wn = wDict.get("WidgetName", "")
-            if wn in myVars.containerWidgetsUsed:
-                _configure_container_grid(widget)
+            if layout_model.is_grid_container_type(wn):
+                container_columns, container_rows = (
+                    layout_model.container_grid_dimensions(
+                        wDict,
+                        default_columns=_CONTAINER_GRID_COLS,
+                        default_rows=_CONTAINER_GRID_ROWS,
+                    )
+                )
+                _configure_container_grid(
+                    widget,
+                    columns=container_columns,
+                    rows=container_rows,
+                )
 
         # Apply the saved geometry for every manager.  This block used to be
         # indented inside the Grid-only container setup, which meant Place and
@@ -3154,7 +3232,11 @@ def _refresh_grid_toolbar() -> None:
             pass
 
 
-def _configure_container_grid(widget):
+def _configure_container_grid(
+    widget,
+    columns: int = _CONTAINER_GRID_COLS,
+    rows: int = _CONTAINER_GRID_ROWS,
+):
     """Give a container widget its own internal grid so child widgets can
     be reparented into it using Grid layout.
 
@@ -3165,9 +3247,9 @@ def _configure_container_grid(widget):
     Cells expand with the container so ``sticky='nsew'`` behaves the same in
     the designer and generated code.
     """
-    for c in range(_CONTAINER_GRID_COLS):
+    for c in range(max(1, int(columns))):
         widget.columnconfigure(c, weight=1, minsize=40)
-    for r in range(_CONTAINER_GRID_ROWS):
+    for r in range(max(1, int(rows))):
         widget.rowconfigure(r, weight=1, minsize=24)
 
 
@@ -3654,12 +3736,15 @@ def buildMainGui():
         spinbox.bind("<Return>", _apply_grid_dimensions)
         spinbox.bind("<FocusOut>", _apply_grid_dimensions)
 
-    gridColorButton = ttk.Menubutton(toolbarFrame, text="Grid colour")
+    gridColorButton = ttk.Menubutton(toolbarFrame, text="Grid settings")
     gridColorMenu = ttk.Menu(gridColorButton, tearoff=0)
-    gridColorMenu.add_command(label="Choose…", command=chooseGridColor)
-    gridColorMenu.add_command(label="Use theme colour", command=useThemeGridColor)
+    gridColorMenu.add_command(label="Choose guide colour…", command=chooseGridColor)
+    gridColorMenu.add_command(
+        label="Use theme guide colour",
+        command=useThemeGridColor,
+    )
     gridColorMenu.add_separator()
-    gridColorMenu.add_command(label="Grid settings…", command=editGridSettings)
+    gridColorMenu.add_command(label="Edit Grid settings…", command=editGridSettings)
     gridColorButton.configure(menu=gridColorMenu)
     gridColorButton.pack(side=tk.LEFT)
     _gridToolbarWidgets = [gridRowsSpin, gridColsSpin, gridColorButton]

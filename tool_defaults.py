@@ -174,3 +174,30 @@ def write(path: str, data: Mapping[str, Any]) -> str:
             pass
         raise
     return path
+
+
+def update_widget_layout(
+    path: str,
+    widget_name: str,
+    layout: Mapping[str, Any],
+) -> str:
+    """Update one widget layout without replacing other on-disk defaults.
+
+    This intentionally reads the file again at save time. A project may have
+    its own Grid dimensions active in memory; saving a widget-type layout must
+    not write those project values over manually edited tool defaults.
+    """
+    if os.path.isfile(path):
+        with open(path, "r", encoding="utf-8") as handle:
+            source = json.load(handle)
+    else:
+        source = {}
+    defaults = normalise(source)
+    widget_key = _widget_key(widget_name) or "default"
+    defaults["gridWidgetDefaults"] = normalise_widget_layouts(
+        {
+            **defaults["gridWidgetDefaults"],
+            widget_key: layout,
+        }
+    )
+    return write(path, defaults)

@@ -295,6 +295,31 @@ class widgetEditPopup:
             log.debug("Adding f %s", str(f))
             myVars.widgetImageFilenames.append(f)
 
+    def _captureLayoutControls(self) -> None:
+        """Read current Layout controls before Apply or Save Default."""
+        for name in (
+            "row",
+            "column",
+            "columnspan",
+            "rowspan",
+            "padx",
+            "pady",
+            "ipadx",
+            "ipady",
+            "sticky",
+            "side",
+            "fill",
+            "expand",
+            "anchor",
+            "x",
+            "y",
+            "width",
+            "height",
+        ):
+            control = self.stringDict.get(name + "Widget")
+            if control is not None:
+                self.stringDict[name] = control.get()
+
     def applyLayoutSettings(self) -> None:
         """
         Apply changed layout for the Widget.
@@ -303,6 +328,7 @@ class widgetEditPopup:
         """
         logString = "Layout %s new value %s"
         log.debug("Apply Layout settings (geomManager=%s)", myVars.geomManager)
+        self._captureLayoutControls()
 
         if myVars.geomManager == "Grid":
             cwo = cw.findCreateWidgetObject(self.widgetName)
@@ -404,18 +430,6 @@ class widgetEditPopup:
         """Apply this Grid layout and save it for future widgets of this type."""
         if myVars.geomManager != "Grid":
             return
-        for name in (
-            "columnspan",
-            "rowspan",
-            "padx",
-            "pady",
-            "ipadx",
-            "ipady",
-            "sticky",
-        ):
-            control = self.stringDict.get(name + "Widget")
-            if control is not None:
-                self.stringDict[name] = control.get()
         self.applyLayoutSettings()
         cwo = cw.findCreateWidgetObject(self.widgetName)
         if cwo is None:
@@ -432,11 +446,14 @@ class widgetEditPopup:
             "sticky": state.sticky,
         }
         try:
-            path = tool_defaults.write(
+            path = tool_defaults.update_widget_layout(
                 tool_defaults.default_path(myVars.programName),
-                myVars.currentToolDefaults(),
+                widget_type,
+                myVars.gridWidgetDefaults[widget_type],
             )
-        except (OSError, TypeError) as exc:
+            saved_defaults = tool_defaults.read(path)
+            myVars.gridWidgetDefaults = saved_defaults["gridWidgetDefaults"]
+        except (OSError, TypeError, ValueError) as exc:
             Messagebox.show_error(
                 title="Cannot save layout default",
                 message=str(exc),
@@ -826,6 +843,31 @@ class widgetEditPopup:
         layoutPopupFrame.place(x=300, y=10)
         self.createDragPoint(layoutPopupFrame, "triangle")
 
+        # Match the Edit Attributes popup: actions stay visible above the
+        # fields rather than moving to the bottom as the form grows.
+        buttonBar = ttk.Frame(layoutPopupFrame)
+        buttonBar.grid(row=1, column=0, columnspan=4, sticky="ew", pady=(2, 5))
+        ttk.Button(
+            buttonBar,
+            style="warning",
+            text="Close",
+            command=layoutPopupFrame.destroy,
+        ).pack(side=tk.LEFT, expand=True, fill=tk.X, padx=2)
+        ttk.Button(
+            buttonBar,
+            style="success",
+            text="Apply",
+            command=self.applyLayoutSettings,
+        ).pack(side=tk.LEFT, expand=True, fill=tk.X, padx=2)
+        if myVars.geomManager == "Grid":
+            ttk.Button(
+                buttonBar,
+                style="info",
+                text="Save default",
+                command=self.saveLayoutAsTypeDefault,
+            ).pack(side=tk.LEFT, expand=True, fill=tk.X, padx=2)
+        gridRow = 1
+
         if myVars.geomManager == "Grid":
             # ---- Grid layout fields -----------------------------------
             # Read stored GeomData from our helper dict, or fall back to
@@ -1064,43 +1106,6 @@ class widgetEditPopup:
                 w.set(val)
                 lab1.grid(row=gridRow, column=0, sticky=tk.E)
                 w.grid(row=gridRow, column=3, sticky=tk.NSEW)
-
-        # blank spacer
-        gridRow += 1
-        lab2 = ttk.Label(layoutPopupFrame, text="  ")
-        lab2.grid(row=gridRow, column=2)
-        gridRow += 1
-        b1 = ttk.Button(
-            layoutPopupFrame,
-            style="warning",
-            width=5,
-            text="Close",
-            command=layoutPopupFrame.destroy,
-        )
-        b2 = ttk.Button(
-            layoutPopupFrame,
-            style="success",
-            width=5,
-            text="Apply",
-            command=self.applyLayoutSettings,
-        )
-
-        b1.grid(row=gridRow, column=0)
-        b2.grid(row=gridRow, column=3)
-        if myVars.geomManager == "Grid":
-            gridRow += 1
-            ttk.Button(
-                layoutPopupFrame,
-                style="info",
-                text="Save type default",
-                command=self.saveLayoutAsTypeDefault,
-            ).grid(
-                row=gridRow,
-                column=0,
-                columnspan=4,
-                sticky="ew",
-                pady=(4, 0),
-            )
 
     # Map each widget's lower-case tcl name (after fixWidgetName) to the best
     # available docs URL.  ttkbootstrap widgets go to the ttkbootstrap API docs;
