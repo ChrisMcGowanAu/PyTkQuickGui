@@ -35,6 +35,7 @@ from typing import Any
 
 import layout_model
 import project_format
+import tool_defaults
 
 STUB_SENTINEL = "# AUTO-GENERATED STUB"
 
@@ -107,6 +108,23 @@ STRUCTURAL_ARGUMENTS = frozenset(
 )
 
 SECTION_VARIABLES = "####### Flet variables #######"
+
+#: Emitted when widgets take their caption from a textvariable.
+_TEXT_BINDING_HELPERS = (
+    "TEXT_BINDINGS = {}",
+    "",
+    "",
+    "def set_text(page, name, value):",
+    '    """Set a bound variable and refresh the control showing it.',
+    "",
+    "    ``name`` is the textvariable the designer recorded, for example",
+    "    ``set_text(page, 'buttonvar11', '7')``.",
+    '    """',
+    "    globals()[name] = value",
+    "    for control, attribute in TEXT_BINDINGS.get(name, ()):",
+    "        setattr(control, attribute, value)",
+    "    page.update()",
+)
 SECTION_FUNCTIONS = "####### Functions #######"
 SECTION_WIDGETS = "####### Widgets #######"
 SECTION_MAIN = "####### Main  #######"
@@ -550,6 +568,32 @@ def hex_luminance(colour: Any) -> float:
     return (0.299 * red + 0.587 * green + 0.114 * blue) / 255
 
 
+def _ensure_span(
+    widths: list[int],
+    heights: list[int],
+    column: int,
+    row: int,
+    columnspan: int,
+    rowspan: int,
+) -> tuple[list[int], list[int]]:
+    """Extend the axis lists so a widget's span fits inside them."""
+    widths = widths + [1] * max(0, column + columnspan - len(widths))
+    heights = heights + [1] * max(0, row + rowspan - len(heights))
+    return widths, heights
+
+
+def _grow_axis(axis: list[int], start: int, span: int, needed: int) -> None:
+    """Widen an axis so a widget needs at most ``needed`` pixels.
+
+    Tk gives any shortfall to the last cell of the span, which is what the
+    designer's own grid does, so the same rule is used here.
+    """
+    span = max(1, span)
+    current = sum(axis[index] for index in range(start, start + span))
+    if needed > current:
+        axis[start + span - 1] += needed - current
+
+
 def _widget_key(widget_type: Any) -> str:
     """Normalise a Tk widget type to a tool-defaults key."""
     return (
@@ -829,6 +873,7 @@ class _Project:
         grid_mode: str = "responsive",
         policy: Mapping[str, str] | None = None,
         palette: Mapping[str, Any] | None = None,
+        natural_sizes: Mapping[str, Sequence[int]] | None = None,
     ) -> None:
         self.data = project_data
         self.root_name = root_name
@@ -837,6 +882,14 @@ class _Project:
         self.policy: Mapping[str, str] = dict(policy or {"default": "full"})
         self.theme = _text(project_data.get("theme"))
         self.palette = theme_palette(self.theme, palette)
+        self.natural_sizes: dict[str, tuple[int, int]] = {}
+        for name, size in dict(natural_sizes or {}).items():
+            try:
+                width, height = int(size[0]), int(size[1])
+            except (IndexError, TypeError, ValueError):
+                continue
+            if width > 0 and height > 0:
+                self.natural_sizes[name] = (width, height)
         self.images = dict(images or _image_files(project_data))
         self.order = [name for name in widget_order if name != root_name]
         self.callbacks = project_format.callback_names(self.data, self.order, root_name)
@@ -927,6 +980,11 @@ class _Project:
             if project_format.valid_python_name(candidate):
                 names.add(candidate)
         return frozenset(names)
+
+    def default_size(self, widget_type: Any) -> tuple[int, int]:
+        """Return the designer's own size for a widget type."""
+        size = tool_defaults.place_size(_text(widget_type))
+        return int(size.get("width", 120)), int(size.get("height", 32))
 
     def colour(self, slot: Any) -> str | None:
         """Return one theme palette colour, or ``None`` when it is unknown."""
@@ -1072,6 +1130,7 @@ class _Emitter:
         self.notes: list[str] = []
         self.defined: set[str] = set()
         self.helpers: list[str] = []
+        self.text_bindings: dict[str, list[tuple[str, str]]] = {}
 
     # -- control emission ------------------------------------------------
     def _arguments(self, name: str, control: str) -> tuple[dict[str, str], list[str]]:
@@ -1086,9 +1145,11 @@ class _Emitter:
         )
         arguments: dict[str, str] = dict(self._style_arguments(name, control))
         if control == "ft.Text":
-            arguments["value"] = repr(properties.pop("text", name))
+            arguments["value"] = self._caption(name, "value", properties, arguments)
         elif control == "ft.Button":
-            arguments["content"] = repr(properties.pop("text", name))
+            arguments["content"] = self._caption(
+                name, "content", properties, arguments
+            )
         elif control == "ft.Checkbox":
             arguments["label"] = repr(properties.pop("text", name))
             if "value" in properties:
@@ -1186,6 +1247,31 @@ class _Emitter:
             arguments[self._event_keyword(control)] = command
 
         return arguments, unmapped
+
+    def _caption(
+        self,
+        name: str,
+        attribute: str,
+        properties: dict[str, Any],
+        arguments: dict[str, str],
+    ) -> str:
+        """Return the caption expression for a button or label.
+
+        A designer widget often carries no literal ``text`` at all: the caption
+        lives in a ``textvariable`` that the application sets at runtime, which
+        is why a sudoku cell shows "11".  The variable drives the control here
+        too, and the binding is recorded so generated code can refresh it.
+        """
+        text = _text(properties.pop("text", ""))
+        if text:
+            return repr(text)
+        variable = properties.pop("value", None)
+        if variable:
+            # One variable can caption many widgets, as ttk variables do.
+            self.text_bindings.setdefault(variable, []).append((name, attribute))
+            arguments.pop("size", None)
+            return variable
+        return repr("")
 
     def _button_style(self, side: str | None = None) -> str:
         """Return the ``ft.ButtonStyle`` that matches a ttk button closely.
@@ -1458,8 +1544,18 @@ class _Emitter:
         }
         return arguments
 
-    def _grid_lengths(self, parent_name: str) -> tuple[list[int], list[int]]:
-        """Return pixel column widths and row heights for a Grid parent."""
+    def _grid_lengths(
+        self, parent_name: str, depth: int = 0
+    ) -> tuple[list[int], list[int]]:
+        """Return pixel column widths and row heights for a Grid parent.
+
+        Tk sizes a column to the largest widget in it, with ``minsize`` only a
+        floor - which is why the stored minsizes ('2.5m' is about 9px) must not
+        be used as the cell size on their own.  Each widget's natural size is
+        the designer's own measurement when available (``winfo_reqwidth``), the
+        measured size of a container's children, or the tool default for its
+        type.
+        """
         columns, rows = self.project.grid_requirements.get(parent_name, (0, 0))
         if parent_name == self.project.root_name:
             data = self.project.data
@@ -1468,16 +1564,63 @@ class _Emitter:
         else:
             # Mirrors the minsize the Python backend emits for containers.
             column_size, row_size = 40, 24
+        widths = [max(1, column_size)] * max(1, columns)
+        heights = [max(1, row_size)] * max(1, rows)
         for child in self.project.visible_children(parent_name):
+            widget_data = self.project.widget(child)
             state = layout_model.GridGeometry.from_mapping(
-                self.project.widget(child).get("GeomData") or {}, parent=parent_name
+                widget_data.get("GeomData") or {}, parent=parent_name
             )
-            columns = max(columns, state.column + state.columnspan)
-            rows = max(rows, state.row + state.rowspan)
-        return (
-            [max(1, column_size)] * max(1, columns),
-            [max(1, row_size)] * max(1, rows),
-        )
+            widths, heights = _ensure_span(
+                widths,
+                heights,
+                state.column,
+                state.row,
+                state.columnspan,
+                state.rowspan,
+            )
+            natural = self._natural_size(child, depth + 1)
+            if not natural:
+                continue
+            _grow_axis(
+                widths,
+                state.column,
+                state.columnspan,
+                natural[0] + 2 * max(0, state.padx),
+            )
+            _grow_axis(
+                heights,
+                state.row,
+                state.rowspan,
+                natural[1] + 2 * max(0, state.pady),
+            )
+        return widths, heights
+
+    def _natural_size(self, name: str, depth: int = 0) -> tuple[int, int] | None:
+        """Return a widget's natural size in pixels, or ``None`` if unknown.
+
+        The designer's measurement is used when it has one, but never below the
+        tool default for that widget type: an empty ``textvariable`` makes a
+        button request almost no width, and sizing cells from that would give
+        the near-invisible layout this mode used to produce.  A container is
+        measured from the grid inside it, the way Tk requests it.
+        """
+        known = self.project.natural_sizes.get(name)
+        widget_type = self.project.widget_type(name)
+        children = self.project.visible_children(name)
+        is_box = is_container(widget_type) or widget_type == NOTEBOOK_WIDGET_TYPE
+        if depth < 16 and children and is_box and self.project.geom_manager == "Grid":
+            columns, rows = self._grid_lengths(name, depth)
+            computed = (sum(columns), sum(rows))
+            if known:
+                return (max(computed[0], known[0]), max(computed[1], known[1]))
+            return computed
+        if is_box and not children and widget_type == NOTEBOOK_WIDGET_TYPE:
+            return None
+        default = self.project.default_size(widget_type)
+        if known:
+            return (max(known[0], default[0]), max(known[1], default[1]))
+        return default
 
     def window_size(self) -> tuple[int, int]:
         """Return the window size for the generated program."""
@@ -1985,6 +2128,7 @@ def emit_program(
     policy: Mapping[str, str] | None = None,
     minimum_flet_version: str = DEFAULT_MINIMUM_FLET_VERSION,
     strict_flet_version: bool = DEFAULT_STRICT_FLET_VERSION,
+    natural_sizes: Mapping[str, Sequence[int]] | None = None,
 ) -> str:
     """Return a complete, runnable Flet program for *project_data*.
 
@@ -1999,9 +2143,22 @@ def emit_program(
     ``minimum_flet_version`` and ``strict_flet_version`` control the version
     guard emitted at the top of the program: it warns about an older Flet
     runtime, or refuses to start when ``strict_flet_version`` is true.
+
+    ``natural_sizes`` maps widget names to the sizes the designer measured for
+    them (``winfo_reqwidth``/``winfo_reqheight``).  Exact-position Grid output
+    uses them to size cells the way Tk does; without them the tool defaults are
+    used instead.
     """
     project = _Project(
-        project_data, widget_order, root_name, geom_manager, images, grid_mode, policy
+        project_data,
+        widget_order,
+        root_name,
+        geom_manager,
+        images,
+        grid_mode,
+        policy,
+        None,
+        natural_sizes,
     )
     emitter = _Emitter(project)
     for scrollbar, attachment in project.scroll_attachments.items():
@@ -2019,12 +2176,6 @@ def emit_program(
         '"""Flet UI generated by PyTkQuickGui.',
         "",
         f"Project : {project_name}",
-        f"Theme   : {project.theme or 'default'}"
-        + (
-            " (ttkbootstrap palette applied)"
-            if project.palette
-            else " (no theme palette found - built-in colours only)"
-        ),
         f"Layout  : {project.geom_manager or 'Place'}",
         f"Theme   : {theme or 'default'}  (ttkbootstrap theme - not a Flet theme)",
         "",
@@ -2105,6 +2256,11 @@ def emit_program(
     else:
         lines.append("# Add your event handlers here.")
 
+    if emitter.text_bindings:
+        lines.extend(("", "# ---- Text variables bound to controls ----", ""))
+        lines.extend(_TEXT_BINDING_HELPERS)
+        emitter.helpers = []
+
     if emitter.helpers:
         lines.extend(("", "# ---- Generated helpers ----", ""))
         lines.extend(emitter.helpers)
@@ -2136,6 +2292,19 @@ def emit_program(
             lines.append(f"    {widget_name}image = ft.Image(src={filename!r})")
     lines.extend(("", f"    {SECTION_WIDGETS}"))
     lines.extend(emitter.lines)
+    if emitter.text_bindings:
+        lines.append("")
+        for variable, controls in sorted(emitter.text_bindings.items()):
+            pairs = [
+                f"({control}, {attribute!r})" for control, attribute in controls
+            ]
+            statement = f"TEXT_BINDINGS[{variable!r}] = {_list_expression(pairs)}"
+            lines.extend(_indent_lines(statement, 4).split("\n"))
+        lines.append(
+            f"    # {sum(len(v) for v in emitter.text_bindings.values())} captions "
+            f"follow {len(emitter.text_bindings)} textvariables; call "
+            "set_text(page, name, value) to change them"
+        )
     lines.extend(
         (
             "",

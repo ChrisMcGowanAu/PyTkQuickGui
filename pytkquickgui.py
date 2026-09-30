@@ -944,6 +944,31 @@ def generatePython():
         )
 
 
+def measureWidgetSizes(widgetOrder) -> dict:
+    """Return ``{widget name: (width, height)}`` for the live design widgets.
+
+    Tk sizes a grid column to the largest widget in it, so the exact-position
+    Flet Grid mode needs the size each widget actually asks for.  The designer
+    already knows it: these are the same measurements Tk uses.
+    """
+    sizes: dict = {}
+    for widgetName in widgetOrder:
+        if widgetName == myVars.rootWidgetName:
+            continue
+        entry = cw.findPythonWidgetNameList(widgetName)
+        widget = entry[cw.WIDGET] if entry else None
+        if widget is None:
+            continue
+        try:
+            width = int(widget.winfo_reqwidth())
+            height = int(widget.winfo_reqheight())
+        except tk.TclError:
+            continue
+        if width > 0 and height > 0:
+            sizes[str(widgetName)] = (width, height)
+    return sizes
+
+
 def buildFlet() -> str:
     """Generate a Flet program for the current project.
 
@@ -959,6 +984,7 @@ def buildFlet() -> str:
         str(f[myVars.WIDGET]): str(f[myVars.FILENAME])
         for f in (myVars.widgetImageFilenames or [])
     }
+    naturalSizes = measureWidgetSizes(createdWidgetOrder)
     try:
         program = flet_generator.emit_program(
             myVars.projectDict,
@@ -968,6 +994,9 @@ def buildFlet() -> str:
             images,
             myVars.fletGridMode,
             myVars.fletWidgetPolicy,
+            flet_generator.DEFAULT_MINIMUM_FLET_VERSION,
+            flet_generator.DEFAULT_STRICT_FLET_VERSION,
+            naturalSizes,
         )
     except (KeyError, TypeError, ValueError) as e:
         log.error("buildFlet: cannot generate Flet code: %s", e)

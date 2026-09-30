@@ -628,7 +628,8 @@ class FletGeneratorTests(unittest.TestCase):
         step(field, 1, 2.0, 10.0, 1.0)
         self.assertEqual(field.value, "3")
 
-    def test_grid_absolute_mode_places_widgets_by_pixels(self):
+    def test_grid_absolute_mode_sizes_cells_to_the_widgets(self):
+        """Cells follow the widgets; minsize is only a floor, as in Tk."""
         data = project(
             geom_manager="Grid",
             gridRows=4,
@@ -642,25 +643,13 @@ class FletGeneratorTests(unittest.TestCase):
                     "Widget1",
                     "ttk::label",
                     attributes=(("text", "L"),),
-                    geom={
-                        "row": "0",
-                        "column": "0",
-                        "columnspan": "2",
-                        "padx": "0",
-                        "pady": "0",
-                    },
+                    geom={"row": "0", "column": "0", "padx": "0", "pady": "0"},
                 ),
                 widget(
                     "Widget2",
                     "ttk::label",
                     attributes=(("text", "M"),),
-                    geom={
-                        "row": "1",
-                        "column": "1",
-                        "columnspan": "1",
-                        "padx": "0",
-                        "pady": "0",
-                    },
+                    geom={"row": "1", "column": "1", "padx": "0", "pady": "0"},
                 ),
                 widget(
                     "Widget3",
@@ -669,11 +658,133 @@ class FletGeneratorTests(unittest.TestCase):
                     geom={
                         "row": "2",
                         "column": "0",
-                        "columnspan": "1",
                         "rowspan": "2",
                         "padx": "0",
                         "pady": "0",
                     },
+                ),
+            ),
+        )
+        # Measured sizes are used when they exceed the tool default, which is
+        # the floor for a widget type (a label defaults to 120x32).
+        natural = {"Widget1": (200, 60), "Widget2": (120, 32), "Widget3": (10, 10)}
+
+        source = flet_generator.emit_program(
+            data,
+            widget_names("Widget1", "Widget2", "Widget3"),
+            ROOT,
+            grid_mode="absolute",
+            natural_sizes=natural,
+        )
+
+        ast.parse(source)
+        self.assertIn("rootWidget = ft.Stack(", source)
+        widget1 = source[source.index("Widget1 = "):source.index("Widget2 = ")]
+        self.assertIn("width=200", widget1)         # the label's measured 200px
+        self.assertIn("height=60", widget1)
+        widget2 = source[source.index("Widget2 = "):source.index("Widget3 = ")]
+        self.assertIn("left=200", widget2)          # after column 0
+        self.assertIn("top=60", widget2)            # after row 0
+        self.assertIn("width=120", widget2)         # its own 120px
+        widget3 = source[source.index("Widget3 = "):]
+        self.assertIn("top=92", widget3)            # rows 0 and 1 are 60 + 32
+        self.assertIn("height=32", widget3)         # rowspan of two 16px rows
+
+    def test_grid_absolute_mode_keeps_the_tool_default_as_a_floor(self):
+        """An empty textvariable makes a widget measure small; do not shrink."""
+        data = project(
+            geom_manager="Grid",
+            gridRows=2,
+            gridCols=2,
+            gridColMinsize="10",
+            gridRowMinsize="10",
+            gridColPad="0",
+            gridRowPad="0",
+            widgets=(
+                widget(
+                    "Widget1",
+                    "ttk::button",
+                    attributes=(("textvariable", "cell"),),
+                    geom={"row": "0", "column": "0", "padx": "0", "pady": "0"},
+                ),
+            ),
+        )
+
+        source = flet_generator.emit_program(
+            data,
+            [ROOT, "Widget1"],
+            ROOT,
+            grid_mode="absolute",
+            natural_sizes={"Widget1": (8, 27)},   # an empty caption measures 8px
+        )
+
+        widget1 = source[source.index("Widget1 = "):]
+        self.assertIn("width=100", widget1)   # the tool default for a button
+        self.assertIn("height=32", widget1)
+
+    def test_grid_absolute_mode_keeps_minsize_as_a_floor(self):
+        data = project(
+            geom_manager="Grid",
+            gridRows=2,
+            gridCols=2,
+            gridColMinsize="40",
+            gridRowMinsize="30",
+            gridColPad="0",
+            gridRowPad="0",
+            widgets=(
+                widget(
+                    "Widget1",
+                    "ttk::label",
+                    attributes=(("text", "L"),),
+                    geom={"row": "0", "column": "0", "padx": "0", "pady": "0"},
+                ),
+            ),
+        )
+
+        source = flet_generator.emit_program(
+            data,
+            widget_names("Widget1"),
+            ROOT,
+            grid_mode="absolute",
+            natural_sizes={"Widget1": (12, 10)},
+        )
+
+        widget1 = source[source.index("Widget1 = "):]
+        # The label's own design size (120x32) is larger than the 40x30
+        # minsize, so the minsize is not what decides the cell here.
+        self.assertIn("width=120", widget1)
+        self.assertIn("height=32", widget1)
+
+    def test_grid_absolute_mode_measures_containers_from_their_children(self):
+        """A frame is as large as the grid inside it, like Tk's requested size."""
+        data = project(
+            geom_manager="Grid",
+            gridRows=2,
+            gridCols=2,
+            gridColMinsize="10",
+            gridRowMinsize="10",
+            gridColPad="0",
+            gridRowPad="0",
+            widgets=(
+                widget(
+                    "Widget1",
+                    "ttk::frame",
+                    geom={"row": "0", "column": "0", "padx": "0", "pady": "0"},
+                    container_grid={"columns": "2", "rows": "1"},
+                ),
+                widget(
+                    "Widget2",
+                    "ttk::button",
+                    parent="Widget1",
+                    attributes=(("text", "A"),),
+                    geom={"row": "0", "column": "0", "padx": "0", "pady": "0"},
+                ),
+                widget(
+                    "Widget3",
+                    "ttk::button",
+                    parent="Widget1",
+                    attributes=(("text", "B"),),
+                    geom={"row": "0", "column": "1", "padx": "0", "pady": "0"},
                 ),
             ),
         )
@@ -683,21 +794,17 @@ class FletGeneratorTests(unittest.TestCase):
             widget_names("Widget1", "Widget2", "Widget3"),
             ROOT,
             grid_mode="absolute",
+            natural_sizes={"Widget2": (30, 20), "Widget3": (30, 20)},
         )
 
         ast.parse(source)
-        self.assertIn("rootWidget = ft.Stack(", source)
-        self.assertIn("left=0", source)
-        self.assertIn("top=0", source)
-        self.assertIn("width=20", source)  # two 10px columns
-        start = source.index("Widget2 = ")
-        end = source.index("Widget3 = ", start)
-        widget2 = source[start:end]
-        self.assertIn("left=10", widget2)
-        self.assertIn("top=10", widget2)
-        widget3 = source[source.index("Widget3 = "):]
-        self.assertIn("height=20", widget3)  # rowspan of two rows
-        self.assertNotIn("rowspan", source)
+        # The frame is emitted after its children (child-first ordering).
+        frame = source[source.index("Widget1 = "):]
+        # Container grids use the 40x24 minsize the Python backend emits, and
+        # the buttons themselves default to 100x32, so the frame is two 100px
+        # cells wide and 32px tall.
+        self.assertIn("width=200", frame)
+        self.assertIn("height=32", frame)
 
     def test_grid_responsive_mode_is_the_default(self):
         data = project(

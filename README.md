@@ -360,7 +360,7 @@ project, so it can be tested without a display.
 |---|---|
 | Place | `ft.Stack` with absolute `left`/`top`/`width`/`height` |
 | Grid (default) | nested `ft.Column`/`ft.Row` with `expand` weights |
-| Grid (exact positions) | `ft.Stack` placed from the saved Grid minsizes, so `rowspan` and `columnspan` are reproduced exactly |
+| Grid (exact positions) | `ft.Stack` with `rowspan`/`columnspan` reproduced exactly; cells are sized from the widgets themselves (the designer's measurements, the tool default per type as a floor, minsize only as a floor like Tk) |
 | Pack | `ft.Row`/`ft.Column` groups by `side` |
 | Frame / Canvas | `ft.Container` (background preserved) holding an `ft.Stack` |
 | Labelframe | `ft.Container` with the caption as an `ft.Text` line |
@@ -400,6 +400,11 @@ Things worth knowing:
   (`ft.Column(scroll=ft.Scrollbar())`) rather than exposing a free-standing
   widget, and `ft.RadioGroup`/`ft.Divider` are not positional controls, so
   they are wrapped in a `ft.Container` to keep the designer's coordinates.
+- A widget whose caption lives in a `textvariable` (a common designer
+  pattern - a sudoku cell, for example) keeps that binding: the generated
+  program declares the variable, points the control at it, and provides
+  `set_text(page, name, value)` to change it. One variable can caption many
+  controls, exactly as a Tk variable does.
 - **Trial Run (Flet)** launches the generated program with `python3`.
 - Regeneration overwrites the whole file: unlike the Python backend there is no
   edit-preserving pass for Flet output yet, so keep hand-written changes in a
@@ -522,6 +527,10 @@ those differences; check a Trial Run when exact Place dimensions matter.
   preserved (the Python backend does preserve them).
 - Flet has no draggable splitter, and a Tk scrollbar with no scrollable target
   (or a horizontal one) stays a placeholder Container.
+- **Exact Grid positions** sizes a cell from the widgets in it, not from the
+  stored minsize: `2.5m` is only 9px, and Tk treats minsize as a floor too. A
+  designer widget that measures small because its caption comes from an empty
+  `textvariable` never shrinks below the tool default for its type.
 - Trial Run and visual editing require a desktop session with Tk support.
 - Legacy pickle compatibility is temporary and should be treated as a migration
   path to JSON.
