@@ -84,6 +84,14 @@ FIELD_PADDING_Y = 2
 STEPPER_WIDTH = 28
 STEPPER_ICON_SIZE = 12
 
+#: Bounds for the window size worked out from a design.  A tall Pack project
+#: can add up to several thousand pixels; the layout reflows, so the window
+#: only has to open at a sensible size.
+MIN_WINDOW_WIDTH = 320
+MIN_WINDOW_HEIGHT = 240
+MAX_WINDOW_WIDTH = 1280
+MAX_WINDOW_HEIGHT = 900
+
 #: Luminance above which a filled bootstyle colour gets black text instead of
 #: white.  ttkbootstrap resolves the same way: tokyo-night's light green gets
 #: black text, sandstone's dark blue gets white.
@@ -1623,19 +1631,43 @@ class _Emitter:
         return default
 
     def window_size(self) -> tuple[int, int]:
-        """Return the window size for the generated program."""
-        if self.project.geom_manager == "Grid" and self.project.absolute_grid:
+        """Return a starting window size worked out from the design.
+
+        Every mode derives its size from the project rather than a fixed
+        800x600: Grid and Pack from the widgets and their spans, Place from the
+        furthest edge a widget is placed at.  The value only sets the size the
+        program opens at - the layout reflows when the window is resized, and
+        the generated ``WINDOW_WIDTH``/``WINDOW_HEIGHT`` constants are there to
+        be edited.
+        """
+        if self.project.geom_manager == "Grid":
             columns, rows = self._grid_lengths(self.project.root_name)
             used_columns, used_rows = self.project.grid_requirements.get(
                 self.project.root_name, (len(columns), len(rows))
             )
-            width = sum(columns[:used_columns]) + 20
-            height = sum(rows[:used_rows]) + 20
-            return max(200, int(width)), max(150, int(height))
-        if self.project.geom_manager != "Place":
-            return 800, 600
+            return self._clamp_window(
+                sum(columns[:used_columns]), sum(rows[:used_rows])
+            )
+        if self.project.geom_manager == "Pack":
+            width = 0
+            height = 0
+            for child in self.project.visible_children(self.project.root_name):
+                natural = self._natural_size(child)
+                if not natural:
+                    continue
+                width = max(width, natural[0])
+                height += natural[1]
+            return self._clamp_window(width, height)
         return window_size(
             self.project.data, self.project.order, self.project.root_name
+        )
+
+    @staticmethod
+    def _clamp_window(width: int, height: int) -> tuple[int, int]:
+        """Return the design size, kept inside sensible window bounds."""
+        return (
+            max(MIN_WINDOW_WIDTH, min(MAX_WINDOW_WIDTH, int(width) + 20)),
+            max(MIN_WINDOW_HEIGHT, min(MAX_WINDOW_HEIGHT, int(height) + 20)),
         )
 
     @staticmethod
@@ -1707,24 +1739,40 @@ class _Emitter:
         rows: list[str] = []
         for row in sorted(row_indexes):
             row_cells: list[str] = []
+            fills_vertical = False
             column = 0
             while column < columns:
                 match = cells.get((row, column))
                 if match:
                     child, span, pad = match
                     row_cells.append(self._grid_cell(child, span, pad))
+                    fills_vertical = fills_vertical or self._fills(
+                        self._grid_sticky(child), "n", "s"
+                    )
                     column += max(1, span)
                 else:
                     row_cells.append("ft.Container(expand=1)")
                     column += 1
-            rows.append(
-                _call("ft.Row", [_list_argument("controls", row_cells), "spacing=0"])
-            )
+            arguments = [
+                _list_argument("controls", row_cells),
+                "spacing=0",
+                # Rows share the extra space, so the grid grows with the
+                # window instead of hugging the top of it.
+                "expand=1",
+            ]
+            if fills_vertical:
+                # ttk's sticky=nsew stretches the widget to its cell, which is
+                # what makes a sudoku board grow with the window.
+                arguments.append(
+                    "vertical_alignment=ft.CrossAxisAlignment.STRETCH"
+                )
+            rows.append(_call("ft.Row", arguments))
         return _call(
             "ft.Column",
             [_list_argument("controls", rows), "spacing=0", "expand=True"],
         )
 
+    @staticmethod
     @staticmethod
     def _grid_cell(child: str, columnspan: int, padx: Any) -> str:
         padding = _number(padx, 2) or 0
@@ -1736,6 +1784,16 @@ class _Emitter:
                 f"padding={int(padding)}",
             ],
         )
+
+    def _grid_sticky(self, name: str) -> str:
+        """Return a widget's grid ``sticky`` option in lower case."""
+        geometry = self.project.widget(name).get("GeomData") or {}
+        return _text(geometry.get("sticky")).lower()
+
+    @staticmethod
+    def _fills(sticky: str, first: str, second: str) -> bool:
+        """Whether *sticky* stretches along the axis named by two letters."""
+        return bool(sticky) and first in sticky and second in sticky
 
     def _packed(self, children: Sequence[str]) -> str:
         groups: dict[str, list[str]] = {
@@ -1842,6 +1900,12 @@ class _Emitter:
             self._define_spinbox(name)
             return name
         arguments, unmapped = self._arguments(name, control)
+        if (
+            self.project.geom_manager == "Grid"
+            and not self.project.absolute_grid
+            and self._fills(self._grid_sticky(name), "e", "w")
+        ):
+            arguments["expand"] = "True"
         attachment = self.project.attachment(name)
         if attachment is not None and attachment.mode == "native":
             arguments["scroll"] = attachment.scrollbar_call()
@@ -2219,6 +2283,10 @@ def emit_program(
         f"PROJECT_NAME = {project_name!r}",
         f"THEME = {theme!r}",
         f"THEME_IS_DARK = {project.dark_theme!r}",
+        "",
+        "# Starting window size, worked out from the design. Edit these to",
+        "# taste: Grid and Pack layouts reflow as the window is resized,",
+        "# while Place positions stay where the designer put them.",
         f"WINDOW_WIDTH = {width}",
         f"WINDOW_HEIGHT = {height}",
     ]

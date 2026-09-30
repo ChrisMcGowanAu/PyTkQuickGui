@@ -359,7 +359,7 @@ project, so it can be tested without a display.
 | Designer | Flet output |
 |---|---|
 | Place | `ft.Stack` with absolute `left`/`top`/`width`/`height` |
-| Grid (default) | nested `ft.Column`/`ft.Row` with `expand` weights |
+| Grid (default) | nested `ft.Column`/`ft.Row`; rows share the space and a widget with `sticky=nsew` fills its cell, so the layout stretches with the window the way ttk does |
 | Grid (exact positions) | `ft.Stack` with `rowspan`/`columnspan` reproduced exactly; cells are sized from the widgets themselves (the designer's measurements, the tool default per type as a floor, minsize only as a floor like Tk) |
 | Pack | `ft.Row`/`ft.Column` groups by `side` |
 | Frame / Canvas | `ft.Container` (background preserved) holding an `ft.Stack` |
@@ -405,6 +405,13 @@ Things worth knowing:
   program declares the variable, points the control at it, and provides
   `set_text(page, name, value)` to change it. One variable can caption many
   controls, exactly as a Tk variable does.
+- The window opens at a size worked out from the design rather than a fixed
+  800x600: Grid and Pack from the widgets and their spans, Place from the
+  furthest edge anything is placed at. It is clamped to 1280x900 and written to
+  the generated file as `WINDOW_WIDTH`/`WINDOW_HEIGHT` with a comment, so
+  adjusting it is a one line edit. Grid and Pack layouts reflow as the window
+  is resized; Place positions are absolute, so they stay where the designer put
+  them (a widget using relative width/height still stretches).
 - **Trial Run (Flet)** launches the generated program with `python3`.
 - Regeneration overwrites the whole file: unlike the Python backend there is no
   edit-preserving pass for Flet output yet, so keep hand-written changes in a
@@ -530,7 +537,12 @@ those differences; check a Trial Run when exact Place dimensions matter.
 - **Exact Grid positions** sizes a cell from the widgets in it, not from the
   stored minsize: `2.5m` is only 9px, and Tk treats minsize as a floor too. A
   designer widget that measures small because its caption comes from an empty
-  `textvariable` never shrinks below the tool default for its type.
+  `textvariable` never shrinks below the tool default for its type. Exact mode
+  keeps the layout fixed instead of reflowing, so use it for position parity,
+  not for a window the user is expected to resize.
+- In Grid output the empty columns the designer draws still take a share of the
+  width, because the Python backend gives every column `weight=1` - so a board
+  that spans 9 of 10 columns leaves a strip on the right in both backends.
 - Trial Run and visual editing require a desktop session with Tk support.
 - Legacy pickle compatibility is temporary and should be treated as a migration
   path to JSON.
