@@ -1,4 +1,6 @@
 import ast
+import contextlib
+import io
 import unittest
 
 try:
@@ -85,9 +87,11 @@ def load_generated(source):
     ft.run = lambda main, *args, **kwargs: captured.setdefault("main", main)
     try:
         # The generated program is data produced by this tool, not user input.
-        exec(  # pylint: disable=exec-used
-            compile(source, "<generated flet>", "exec"), namespace
-        )
+        # Its Flet version guard writes to stderr; keep test output readable.
+        with contextlib.redirect_stderr(io.StringIO()):
+            exec(  # pylint: disable=exec-used
+                compile(source, "<generated flet>", "exec"), namespace
+            )
     finally:
         ft.run = original_run
     return namespace, captured.get("main")
@@ -810,6 +814,84 @@ class FletGeneratorTests(unittest.TestCase):
         self.assertIn("placeholder Container", report)
         self.assertIn("0 folded into a scroll target", report)
         self.assertIn("Summary: 2 widgets", report)
+
+    def test_generated_program_guards_the_flet_version(self):
+        data = project(
+            widgets=(
+                widget(
+                    "Widget1",
+                    "ttk::label",
+                    attributes=(("text", "L"),),
+                    place={"x": "0", "y": "0", "width": "80", "height": "24"},
+                ),
+            )
+        )
+
+        source = flet_generator.emit_program(data, widget_names("Widget1"), ROOT)
+
+        ast.parse(source)
+        self.assertIn("MINIMUM_FLET_VERSION = '1.0'", source)
+        self.assertIn("FLET_VERSION_STRICT = False", source)
+        self.assertIn("_check_flet_version()", source)
+        self.assertLess(
+            source.index("_check_flet_version()"), source.index("def main(page")
+        )
+
+    def test_generated_guard_can_be_told_a_different_minimum(self):
+        data = project(
+            widgets=(
+                widget(
+                    "Widget1",
+                    "ttk::label",
+                    attributes=(("text", "L"),),
+                    place={"x": "0", "y": "0", "width": "80", "height": "24"},
+                ),
+            )
+        )
+
+        source = flet_generator.emit_program(
+            data,
+            widget_names("Widget1"),
+            ROOT,
+            minimum_flet_version="2.0",
+            strict_flet_version=True,
+        )
+
+        self.assertIn("MINIMUM_FLET_VERSION = '2.0'", source)
+        self.assertIn("FLET_VERSION_STRICT = True", source)
+
+    @unittest.skipUnless(FLET_AVAILABLE, "flet is not installed")
+    def test_generated_version_helpers_behave(self):
+        data = project(
+            widgets=(
+                widget(
+                    "Widget1",
+                    "ttk::label",
+                    attributes=(("text", "L"),),
+                    place={"x": "0", "y": "0", "width": "80", "height": "24"},
+                ),
+            )
+        )
+        source = flet_generator.emit_program(data, widget_names("Widget1"), ROOT)
+        namespace, _main = load_generated(source)
+
+        major = namespace["_flet_major"]
+        self.assertEqual(major("1.0.3"), 1)
+        self.assertEqual(major("0.86.5"), 0)
+        self.assertEqual(major(""), 0)
+        self.assertEqual(major(None), 0)
+        self.assertEqual(major("not-a-version"), 0)
+
+        check = namespace["_check_flet_version"]
+        # An unreachable minimum stops a strict program and only warns
+        # otherwise; a reachable one is silent either way.
+        with self.assertRaises(SystemExit) as raised:
+            check(minimum="99.0", strict=True)
+        self.assertIn("pip install --upgrade flet", str(raised.exception))
+        with contextlib.redirect_stderr(io.StringIO()) as captured:
+            self.assertIsNone(check(minimum="99.0", strict=False))
+        self.assertIn("warning:", captured.getvalue())
+        self.assertIsNone(check(minimum="0.0", strict=True))
 
     @unittest.skipUnless(FLET_AVAILABLE, "flet is not installed")
     def test_generated_program_builds_real_flet_controls(self):

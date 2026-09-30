@@ -16,8 +16,10 @@ Translation notes
 * Geometry: ``Place`` becomes ``ft.Stack`` with absolute ``left``/``top``,
   ``Grid`` becomes nested ``ft.Column``/``ft.Row`` (``rowspan`` is
   approximate), ``Pack`` becomes ``ft.Row``/``ft.Column`` groups.
-* The generated code targets the Flet 0.8x control API (``ft.Button``,
-  ``ft.Tabs`` with a ``TabBar``/``TabBarView`` content, ``ft.DropdownOption``).
+* The generated code targets the Flet 1.0 control API (``ft.Button``,
+  ``ft.Tabs`` with a ``TabBar``/``TabBarView`` content, ``ft.DropdownOption``)
+  while remaining compatible with the 0.8x releases.  Every program starts with
+  a version guard so an older runtime says so instead of failing obscurely.
 * Nested containers are emitted child-first: every control is assigned to a
   variable before its parent references it.
 """
@@ -33,6 +35,13 @@ import layout_model
 import project_format
 
 STUB_SENTINEL = "# AUTO-GENERATED STUB"
+
+#: Flet API level the generated programs are written against.  They still run
+#: on the older 0.8x releases, so the emitted guard warns by default; flip
+#: :data:`DEFAULT_STRICT_FLET_VERSION` (or the generated file's own constant)
+#: to refuse to start on anything older.
+DEFAULT_MINIMUM_FLET_VERSION = "1.0"
+DEFAULT_STRICT_FLET_VERSION = False
 
 SECTION_VARIABLES = "####### Flet variables #######"
 SECTION_FUNCTIONS = "####### Functions #######"
@@ -1528,6 +1537,8 @@ def emit_program(
     images: Mapping[str, str] | None = None,
     grid_mode: str = "responsive",
     policy: Mapping[str, str] | None = None,
+    minimum_flet_version: str = DEFAULT_MINIMUM_FLET_VERSION,
+    strict_flet_version: bool = DEFAULT_STRICT_FLET_VERSION,
 ) -> str:
     """Return a complete, runnable Flet program for *project_data*.
 
@@ -1538,6 +1549,10 @@ def emit_program(
     ``policy`` maps widget type keys (``"treeview"``, ``"scrollbar"`` …) to
     ``"full"``, ``"placeholder"`` or ``"skip"``; the ``"default"`` key applies
     to types that are not listed.
+
+    ``minimum_flet_version`` and ``strict_flet_version`` control the version
+    guard emitted at the top of the program: it warns about an older Flet
+    runtime, or refuses to start when ``strict_flet_version`` is true.
     """
     project = _Project(
         project_data, widget_order, root_name, geom_manager, images, grid_mode, policy
@@ -1565,6 +1580,37 @@ def emit_program(
         '"""',
         "",
         "import flet as ft",
+        "import sys",
+        "",
+        f"MINIMUM_FLET_VERSION = {minimum_flet_version!r}",
+        f"FLET_VERSION_STRICT = {strict_flet_version!r}",
+        "",
+        "",
+        "def _flet_major(version):",
+        '    """Return the major part of a version string, or 0 when unparsable."""',
+        "    try:",
+        '        return int(str(version).split(".", maxsplit=1)[0])',
+        "    except (TypeError, ValueError):",
+        "        return 0",
+        "",
+        "",
+        "def _check_flet_version("
+        "minimum=MINIMUM_FLET_VERSION, strict=FLET_VERSION_STRICT"
+        "):",
+        '    """Warn (or stop) when the installed Flet is older than this file '
+        'targets."""',
+        '    installed = str(getattr(ft, "__version__", "") or "unknown")',
+        "    if _flet_major(installed) >= _flet_major(minimum):",
+        "        return",
+        '    problem = f"This program targets Flet {minimum} or later."',
+        '    problem += f" Installed: {installed}."',
+        '    hint = "Upgrade with:  pip install --upgrade flet"',
+        "    if strict:",
+        '        raise SystemExit(problem + " " + hint)',
+        '    print("warning: " + problem + " " + hint, file=sys.stderr)',
+        "",
+        "",
+        "_check_flet_version()",
         "",
         f"PROJECT_NAME = {project_name!r}",
         f"THEME = {theme!r}",

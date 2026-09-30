@@ -43,7 +43,9 @@ stabilised.
 - Pillow
 
 Flet is optional and only needed to run programs written by
-**File → Generate Flet**. The designer itself never imports flet.
+**File → Generate Flet**. The designer itself never imports flet. Install
+`flet>=1.0` — the generated programs target the 1.0 API (they still run on the
+0.8x releases, with a version warning).
 
 The complete Python dependency list is in
 [`requirments.txt`](requirments.txt). The filename is retained for compatibility
@@ -375,9 +377,22 @@ project, so it can be tested without a display.
 
 Things worth knowing:
 
-- The output targets the Flet 0.8x control API (`ft.Button`, `ft.DropdownOption`,
-  `TabBar`/`TabBarView`). Flet 0.86 deprecates `ft.ElevatedButton`, so buttons
-  are emitted as `ft.Button`.
+- The output targets the **Flet 1.0** control API (`ft.Button`,
+  `ft.DropdownOption`, `TabBar`/`TabBarView`) while staying compatible with the
+  0.8x releases. Flet 1.0 removes `ft.ElevatedButton`, so buttons are emitted
+  as `ft.Button`, which both generations provide.
+- Every generated program opens with a version guard. It compares the running
+  Flet against `MINIMUM_FLET_VERSION` (`'1.0'`) and, when the runtime is older,
+  names the installed version and the upgrade command:
+
+  ```
+  warning: This program targets Flet 1.0 or later. Installed: 0.86.5.
+  Upgrade with:  pip install --upgrade flet
+  ```
+
+  The program still runs — the 0.8x API is compatible — but set
+  `FLET_VERSION_STRICT = True` in the generated file to make it refuse to
+  start instead of warning.
 - Tk options with no Flet equivalent (`takefocus`, `cursor`, `style`, …) are left
   out and listed in a `Translation notes` comment per widget, so nothing
   disappears silently.
