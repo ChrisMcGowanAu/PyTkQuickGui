@@ -26,6 +26,8 @@ Translation notes
 
 from __future__ import annotations
 
+import json
+import os
 import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -42,6 +44,67 @@ STUB_SENTINEL = "# AUTO-GENERATED STUB"
 #: to refuse to start on anything older.
 DEFAULT_MINIMUM_FLET_VERSION = "1.0"
 DEFAULT_STRICT_FLET_VERSION = False
+
+#: Palette exported from ttkbootstrap by ``tools/export_theme_colors.py``.
+PALETTE_FILE = "flet_theme_colors.json"
+
+#: The ttkbootstrap colour names a ``style`` option can start with.
+BOOTSTYLES = (
+    "primary",
+    "secondary",
+    "success",
+    "info",
+    "warning",
+    "danger",
+    "light",
+    "dark",
+)
+
+#: Style segments that modify how a bootstyle is painted.
+STYLE_VARIANTS = frozenset(
+    {"outline", "inverse", "link", "striped", "vertical", "horizontal"}
+)
+
+#: Text metrics.  Tk's default font is 10pt (~13px); Flet's default is 14px,
+#: which is wide enough to wrap short button captions like "Connect" inside a
+#: designer-sized button, so both are pinned to the Tk sizes.
+DEFAULT_TEXT_SIZE = 13
+BUTTON_TEXT_SIZE = 12
+BUTTON_PADDING_X = 6
+BUTTON_PADDING_Y = 2
+BUTTON_RADIUS = 4
+
+#: Flet's default field padding is tall enough to clip the text inside a ttk
+#: sized row (32px), so fields are given explicit tight padding.
+FIELD_PADDING_X = 6
+FIELD_PADDING_Y = 2
+
+#: Width of the up/down buttons beside a spinbox field, in pixels.
+STEPPER_WIDTH = 28
+STEPPER_ICON_SIZE = 12
+
+#: Luminance above which a filled bootstyle colour gets black text instead of
+#: white.  ttkbootstrap resolves the same way: tokyo-night's light green gets
+#: black text, sandstone's dark blue gets white.
+INK_LUMINANCE_THRESHOLD = 0.5
+
+#: Arguments a widget option may override even when a theme supplied them.
+#: Everything else themed is left alone by explicit Tk options.
+STRUCTURAL_ARGUMENTS = frozenset(
+    {
+        "value",
+        "content",
+        "label",
+        "options",
+        "controls",
+        "columns",
+        "rows",
+        "length",
+        "scroll",
+        "min",
+        "max",
+    }
+)
 
 SECTION_VARIABLES = "####### Flet variables #######"
 SECTION_FUNCTIONS = "####### Functions #######"
@@ -413,6 +476,80 @@ def parse_values(value: Any) -> list[str]:
     return entries
 
 
+def load_theme_palette(path: str | None = None) -> dict[str, Any]:
+    """Return the exported ttkbootstrap palettes.
+
+    Missing or unreadable data is not fatal: without it the generator simply
+    emits no theme colours, which is what it did before the palette existed.
+    """
+    target = path or os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), PALETTE_FILE
+    )
+    try:
+        with open(target, encoding="utf-8") as handle:
+            data = json.load(handle)
+    except (OSError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def theme_palette(theme: Any, palettes: Mapping[str, Any] | None = None) -> dict:
+    """Return the ``{"colors": …, "contrast": …}`` record for one theme."""
+    table = palettes if palettes is not None else load_theme_palette()
+    record = table.get(_text(theme)) if isinstance(table, Mapping) else None
+    if not isinstance(record, Mapping):
+        return {}
+    colors = record.get("colors")
+    contrast = record.get("contrast")
+    return {
+        "colors": dict(colors) if isinstance(colors, Mapping) else {},
+        "contrast": dict(contrast) if isinstance(contrast, Mapping) else {},
+    }
+
+
+def parse_bootstyle(value: Any) -> tuple[str, frozenset[str]]:
+    """Split a ttkbootstrap style into its bootstyle colour and variants.
+
+    ``"secondary.Outline.TButton"`` -> ``("secondary", {"outline"})``,
+    ``"primary.Horizontal.TScale"`` -> ``("primary", {"horizontal"})``.
+    Unknown first segments (custom styles) yield an empty bootstyle.
+    """
+    parts = [part for part in _text(value).split(".") if part]
+    if not parts:
+        return "", frozenset()
+    bootstyle = parts[0].lower()
+    if bootstyle not in BOOTSTYLES:
+        return "", frozenset(
+            part.lower() for part in parts[1:] if part.lower() in STYLE_VARIANTS
+        )
+    variants = {
+        part.lower()
+        for part in parts[1:]
+        if part.lower() in STYLE_VARIANTS and part.lower() != "horizontal"
+        and part.lower() != "vertical"
+    }
+    orientations = {
+        part.lower() for part in parts[1:] if part.lower() in ("horizontal", "vertical")
+    }
+    return bootstyle, frozenset(variants | orientations)
+
+
+def hex_luminance(colour: Any) -> float:
+    """Return the perceived luminance (0-1) of a ``#rrggbb`` colour."""
+    raw = _text(colour).lstrip("#")
+    if len(raw) == 3:
+        raw = "".join(character * 2 for character in raw)
+    if len(raw) < 6:
+        return 0.5
+    try:
+        red, green, blue = (
+            int(raw[start:start + 2], 16) for start in (0, 2, 4)
+        )
+    except ValueError:
+        return 0.5
+    return (0.299 * red + 0.587 * green + 0.114 * blue) / 255
+
+
 def _widget_key(widget_type: Any) -> str:
     """Normalise a Tk widget type to a tool-defaults key."""
     return (
@@ -483,6 +620,9 @@ def translate_attributes(
         raw = _text(value)
         if key == "text":
             properties["text"] = raw
+        elif key in ("style", "bootstyle"):
+            # Consumed by _style_arguments(), which needs the bootstyle.
+            properties["style"] = raw
         elif key in project_format.CALLBACK_KEYS:
             if raw in callbacks:
                 properties["command"] = raw
@@ -680,12 +820,15 @@ class _Project:
         images: Mapping[str, str] | None = None,
         grid_mode: str = "responsive",
         policy: Mapping[str, str] | None = None,
+        palette: Mapping[str, Any] | None = None,
     ) -> None:
         self.data = project_data
         self.root_name = root_name
         self.geom_manager = geom_manager or _text(project_data.get("geomManager"))
         self.grid_mode = grid_mode
         self.policy: Mapping[str, str] = dict(policy or {"default": "full"})
+        self.theme = _text(project_data.get("theme"))
+        self.palette = theme_palette(self.theme, palette)
         self.images = dict(images or _image_files(project_data))
         self.order = [name for name in widget_order if name != root_name]
         self.callbacks = project_format.callback_names(self.data, self.order, root_name)
@@ -766,6 +909,45 @@ class _Project:
         if not thickness:
             return 16
         return max(2, int(thickness))
+
+    def colour(self, slot: Any) -> str | None:
+        """Return one theme palette colour, or ``None`` when it is unknown."""
+        value = self.palette.get("colors", {}).get(_text(slot))
+        return value if isinstance(value, str) and value.startswith("#") else None
+
+    def ink(self, colour: Any) -> str | None:
+        """Return readable text for a filled colour, the way ttkbootstrap does.
+
+        Verified against the resolved ttk styles: light fills get black text
+        (tokyo-night, solar) and dark fills get white (darkly, sandstone).
+        """
+        if not colour:
+            return self.colour("fg")
+        if hex_luminance(colour) > INK_LUMINANCE_THRESHOLD:
+            return "#000000"
+        return "#ffffff"
+
+    @property
+    def dark_theme(self) -> bool:
+        """Whether the theme's surface is dark, so Flet can match it."""
+        surface = self.colour("bg")
+        return bool(surface) and hex_luminance(surface) < 0.5
+
+    def bootstyle_styles(self, bootstyle: Any) -> dict:
+        """Return the resolved ttkbootstrap colours for one bootstyle."""
+        styles = self.palette.get("styles")
+        record = styles.get(_text(bootstyle)) if isinstance(styles, Mapping) else None
+        return dict(record) if isinstance(record, Mapping) else {}
+
+    def widget_surface(self, key: str) -> str | None:
+        """Return a resolved theme widget colour such as ``entry_bg``."""
+        widgets = self.palette.get("widgets")
+        value = widgets.get(key) if isinstance(widgets, Mapping) else None
+        return value if isinstance(value, str) and value.startswith("#") else None
+
+    def style_of(self, name: str) -> tuple[str, frozenset[str]]:
+        """Return the bootstyle colour and variants of a widget's style."""
+        return parse_bootstyle(self.option(name, "style"))
 
     def policy_for(self, name: str) -> str:
         """Return the configured Flet policy for one widget's type."""
@@ -884,7 +1066,7 @@ class _Emitter:
         properties, unmapped = translate_attributes(
             widget_type, self.project.attributes(name), self.project.context(name)
         )
-        arguments: dict[str, str] = {}
+        arguments: dict[str, str] = dict(self._style_arguments(name, control))
         if control == "ft.Text":
             arguments["value"] = repr(properties.pop("text", name))
         elif control == "ft.Button":
@@ -903,7 +1085,8 @@ class _Emitter:
             radio_value = repr(_text(current) if current is not None else "0")
             label = repr(properties.pop("text", name))
             arguments["content"] = (
-                f"ft.Radio(value={radio_value}, label={label})"
+                f"ft.Radio(value={radio_value}, label={label}"
+                f"{self._radio_colours(name)})"
             )
         elif control == "ft.Dropdown":
             values = properties.pop("values", None)
@@ -947,9 +1130,9 @@ class _Emitter:
                 )
 
         for keyword, value in properties.items():
-            if keyword in ("text", "command", "image", "orientation"):
+            if keyword in ("text", "command", "image", "orientation", "style"):
                 continue
-            if keyword in arguments:
+            if keyword in arguments and keyword in STRUCTURAL_ARGUMENTS:
                 continue
             if keyword not in CONTROL_OPTIONS.get(control, UNIVERSAL_OPTIONS):
                 unmapped.append(keyword)
@@ -967,6 +1150,216 @@ class _Emitter:
             arguments[self._event_keyword(control)] = command
 
         return arguments, unmapped
+
+    def _button_style(self, side: str | None = None) -> str:
+        """Return the ``ft.ButtonStyle`` that matches a ttk button closely.
+
+        Flet's default button padding is wide enough to wrap short captions
+        inside the designer's button sizes, and its stadium shape does not look
+        like a ttk button, so both are pinned here.
+        """
+        parts = [
+            f"padding=ft.Padding(left={BUTTON_PADDING_X}, right={BUTTON_PADDING_X}"
+            f", top={BUTTON_PADDING_Y}, bottom={BUTTON_PADDING_Y})",
+            f"shape=ft.RoundedRectangleBorder(radius={BUTTON_RADIUS})",
+            f"text_style=ft.TextStyle(size={BUTTON_TEXT_SIZE})",
+        ]
+        if side:
+            parts.append(f"side=ft.BorderSide(1, {side!r})")
+        return _call("ft.ButtonStyle", parts)
+
+    @staticmethod
+    def _border(colour: str, width: int = 1) -> str:
+        """Return an ``ft.Border`` expression.
+
+        Neither Flet 0.8x nor 1.0 provides ``ft.border.all()``, so the four
+        sides are spelled out.
+        """
+        sides = [
+            f"{side}=ft.BorderSide({width}, {colour!r})"
+            for side in ("left", "top", "right", "bottom")
+        ]
+        return _call("ft.Border", sides)
+
+    def _style_arguments(self, name: str, control: str) -> dict[str, str]:
+        """Return Flet arguments that reproduce a ttkbootstrap widget style.
+
+        Colours come from the palette exported by tools/export_theme_colors.py,
+        which records what ttkbootstrap itself resolves for each theme and
+        bootstyle (probed with ``style.lookup`` on real widgets).  That matters
+        because the Bootswatch-derived themes shade the bootstyle colour rather
+        than using the palette slot, and because ttk picks black or white text
+        per fill.  When a theme is missing from the palette the slot colours
+        and a luminance rule are used instead.
+        """
+        bootstyle, variants = self.project.style_of(name)
+        resolved = self.project.bootstyle_styles(bootstyle) if bootstyle else {}
+        slot = self.project.colour(bootstyle) if bootstyle else None
+        surface = self.project.colour("bg") or "#ffffff"
+        border = self.project.widget_surface("entry_border") or self.project.colour(
+            "border"
+        ) or surface
+        muted = self.project.colour("fg") or "#ffffff"
+        widget_type = self.project.widget_type(name)
+
+        def value(key: str, fallback: str | None) -> str | None:
+            return resolved.get(key) or fallback
+
+        if control == "ft.Button":
+            base = self._button_style()
+            if "link" in variants:
+                return {
+                    "bgcolor": "None",
+                    "color": repr(value("label_fg", slot) or muted),
+                    "style": base,
+                }
+            if "outline" in variants:
+                return {
+                    "bgcolor": repr(value("outline_bg", surface) or surface),
+                    "color": repr(value("outline_fg", slot) or muted),
+                    "style": self._button_style(value("outline_border", slot)),
+                }
+            return {
+                "bgcolor": repr(value("button_bg", slot) or surface),
+                "color": repr(value("button_fg", self.project.ink(slot)) or muted),
+                "style": base,
+            }
+        if control == "ft.Text":
+            if "inverse" in variants:
+                return {
+                    "bgcolor": repr(value("inverse_bg", slot) or surface),
+                    "color": repr(
+                        value("inverse_fg", self.project.ink(slot)) or muted
+                    ),
+                    "size": str(DEFAULT_TEXT_SIZE),
+                }
+            return {
+                "color": repr(value("label_fg", slot) or muted),
+                "size": str(DEFAULT_TEXT_SIZE),
+            }
+        if control == "ft.Container":
+            if widget_type == NOTEBOOK_WIDGET_TYPE:
+                edge = self.project.widget_surface("notebook_border") or border
+                return {
+                    "bgcolor": repr(
+                        self.project.widget_surface("notebook_bg") or surface
+                    ),
+                    "border": self._border(edge),
+                }
+            if widget_type == "ttk::labelframe":
+                edge = value("labelframe_border", slot) or border
+                return {
+                    "bgcolor": repr(surface),
+                    "border": self._border(edge),
+                }
+            return {"bgcolor": repr(value("frame_bg", slot) or surface)}
+        if control in ("ft.TextField", "ft.Dropdown"):
+            arguments = {
+                "bgcolor": repr(
+                    self.project.widget_surface("entry_bg")
+                    or self.project.colour("inputbg")
+                    or surface
+                ),
+                "color": repr(
+                    self.project.widget_surface("entry_fg")
+                    or self.project.colour("inputfg")
+                    or muted
+                ),
+                "border_color": repr(border),
+                "border_width": "1",
+                "text_size": str(DEFAULT_TEXT_SIZE),
+                "content_padding": _call(
+                    "ft.Padding",
+                    [
+                        f"left={FIELD_PADDING_X}",
+                        f"right={FIELD_PADDING_X}",
+                        f"top={FIELD_PADDING_Y}",
+                        f"bottom={FIELD_PADDING_Y}",
+                    ],
+                ),
+            }
+            if control == "ft.TextField":
+                # ft.Dropdown has no text_vertical_align.
+                arguments["text_vertical_align"] = "ft.VerticalAlignment.CENTER"
+            return arguments
+        if control == "ft.ProgressBar":
+            return {
+                "color": repr(slot or surface),
+                "bgcolor": repr(
+                    self.project.widget_surface("progressbar_trough") or border
+                ),
+            }
+        if control == "ft.Slider":
+            return {
+                "active_color": repr(slot or surface),
+                "thumb_color": repr(slot or surface),
+                "inactive_color": repr(
+                    self.project.widget_surface("scale_trough") or border
+                ),
+            }
+        if control == "ft.Divider":
+            return {"color": repr(slot or border)}
+        if control == "ft.Checkbox":
+            caption = value("checkbutton_fg", muted) or muted
+            return {
+                "active_color": repr(slot or surface),
+                "fill_color": repr(slot or surface),
+                "check_color": repr(self.project.ink(slot) or muted),
+                "label_style": (
+                    f"ft.TextStyle(color={caption!r}, "
+                    f"size={DEFAULT_TEXT_SIZE})"
+                ),
+            }
+        return {}
+
+    def _theme_defaults(self, control: str) -> dict[str, str]:
+        """Return surface colours for a widget with no ttkbootstrap style."""
+        if control == "ft.Text":
+            ink = self.project.colour("fg")
+            arguments = {"size": str(DEFAULT_TEXT_SIZE)}
+            if ink:
+                arguments["color"] = repr(ink)
+            return arguments
+        if control == "ft.Container":
+            surface = self.project.colour("bg")
+            return {"bgcolor": repr(surface)} if surface else {}
+        if control == "ft.Checkbox":
+            muted = self.project.colour("fg")
+            if not muted:
+                return {}
+            return {
+                "label_style": (
+                    f"ft.TextStyle(color={muted!r}, size={DEFAULT_TEXT_SIZE})"
+                ),
+            }
+        if control in ("ft.TextField", "ft.Dropdown"):
+            return {
+                "bgcolor": repr(self.project.colour("inputbg") or ""),
+                "color": repr(self.project.colour("inputfg") or ""),
+            }
+        return {}
+
+    def _radio_colours(self, name: str) -> str:
+        """Return colour keywords for the ``ft.Radio`` inside a group.
+
+        ttkbootstrap colours a radiobutton's indicator with the bootstyle and
+        leaves the caption in the theme's text colour.
+        """
+        bootstyle, _variants = self.project.style_of(name)
+        colour = self.project.colour(bootstyle) if bootstyle else None
+        caption = self.project.bootstyle_styles(bootstyle).get(
+            "checkbutton_fg"
+        ) or self.project.colour("fg")
+        parts = []
+        if colour:
+            parts.append(f"active_color={colour!r}")
+            parts.append(f"fill_color={colour!r}")
+        if caption:
+            parts.append(
+                f"label_style=ft.TextStyle(color={caption!r}, "
+                f"size={DEFAULT_TEXT_SIZE})"
+            )
+        return "".join(f", {part}" for part in parts)
 
     def _placement_arguments(self, name: str) -> dict[str, str]:
         """Return absolute Stack positioning for *name*.
@@ -1254,6 +1647,11 @@ class _Emitter:
             self.notes.append(
                 f"# {name}: Treeview has no columns - placeholder Container"
             )
+        if widget_type == NOTEBOOK_WIDGET_TYPE and not any(
+            self.project.is_tab(child) for child in children
+        ):
+            # An empty notebook has no tabs to show; emit its frame instead.
+            control = "ft.Container"
         if self.project.policy_for(name) == "placeholder":
             control = "ft.Container"
             self.notes.append(
@@ -1278,9 +1676,8 @@ class _Emitter:
                 arguments["length"] = str(len(tabs))
                 arguments["content"] = self._notebook(tabs)
             else:
-                control = "ft.Container"
                 self.notes.append(
-                    f"# {name}: Notebook has no tab frames - emitted as a placeholder"
+                    f"# {name}: Notebook has no tab frames - emitted as its frame"
                 )
                 if others:
                     arguments["content"] = self._stack(others)
@@ -1392,7 +1789,10 @@ class _Emitter:
         if maximum is not None and maximum <= minimum:
             maximum = None
 
-        field_arguments: list[str] = []
+        field_style = self._style_arguments(name, "ft.TextField")
+        field_arguments: list[str] = [
+            f"{keyword}={value}" for keyword, value in field_style.items()
+        ]
         if "value" in properties:
             field_arguments.append(f"value={properties['value']}")
         if properties.get("read_only"):
@@ -1402,7 +1802,7 @@ class _Emitter:
         field_arguments.extend(
             (
                 "keyboard_type=ft.KeyboardType.NUMBER",
-                f"width={max(40, int(total_width) - 40)}",
+                f"width={max(32, int(total_width) - STEPPER_WIDTH)}",
             )
         )
         self.lines.extend(
@@ -1420,14 +1820,22 @@ class _Emitter:
             "on_click=lambda e: _step_value("
             f"{field_name}, -1, {minimum!r}, {maximum!r}, {step!r})"
         )
+        row_height = _number(str(placement.get("height", "")).strip()) or 32
+        arrow_height = max(12, int(int(row_height) / 2))
+        arrow = (
+            f"width={STEPPER_WIDTH}, height={arrow_height}, "
+            f"icon_size={STEPPER_ICON_SIZE}, padding=0"
+        )
         stepper = _call(
             "ft.Column",
             [
                 _list_argument(
                     "controls",
                     [
-                        f"ft.IconButton(icon=ft.Icons.KEYBOARD_ARROW_UP, {up})",
-                        f"ft.IconButton(icon=ft.Icons.KEYBOARD_ARROW_DOWN, {down})",
+                        "ft.IconButton(icon=ft.Icons.KEYBOARD_ARROW_UP, "
+                        f"{arrow}, {up})",
+                        "ft.IconButton(icon=ft.Icons.KEYBOARD_ARROW_DOWN, "
+                        f"{arrow}, {down})",
                     ],
                 ),
                 "spacing=0",
@@ -1490,7 +1898,9 @@ class _Emitter:
         caption = self.project.option(name, "text")
         if not caption:
             return content
-        children = [f"ft.Text(value={caption!r})"]
+        ink = self.project.widget_surface("labelframe_fg") or self.project.colour("fg")
+        style = f", color={ink!r}, size={DEFAULT_TEXT_SIZE}" if ink else ""
+        children = [f"ft.Text(value={caption!r}{style})"]
         if content:
             children.append(content)
         return _call(
@@ -1565,13 +1975,20 @@ def emit_program(
     root_expression = emitter.root()
     width, height = emitter.window_size()
     theme = _text(project_data.get("theme"))
-    background = tk_color(project_data.get("backgroundColor"))
+    palette_background = project.colour("bg")
+    background = palette_background or tk_color(project_data.get("backgroundColor"))
     project_name = _text(project_data.get("ProjectName")) or root_name
 
     lines: list[str] = [
         '"""Flet UI generated by PyTkQuickGui.',
         "",
         f"Project : {project_name}",
+        f"Theme   : {project.theme or 'default'}"
+        + (
+            " (ttkbootstrap palette applied)"
+            if project.palette
+            else " (no theme palette found - built-in colours only)"
+        ),
         f"Layout  : {project.geom_manager or 'Place'}",
         f"Theme   : {theme or 'default'}  (ttkbootstrap theme - not a Flet theme)",
         "",
@@ -1614,6 +2031,7 @@ def emit_program(
         "",
         f"PROJECT_NAME = {project_name!r}",
         f"THEME = {theme!r}",
+        f"THEME_IS_DARK = {project.dark_theme!r}",
         f"WINDOW_WIDTH = {width}",
         f"WINDOW_HEIGHT = {height}",
     ]
@@ -1658,6 +2076,9 @@ def emit_program(
             "",
             "def main(page: ft.Page):",
             "    page.title = PROJECT_NAME",
+            "    page.theme_mode = ("
+            "ft.ThemeMode.DARK if THEME_IS_DARK else ft.ThemeMode.LIGHT"
+            ")",
             "    page.window.width = WINDOW_WIDTH",
             "    page.window.height = WINDOW_HEIGHT",
             "    page.padding = 0",
@@ -1745,6 +2166,12 @@ def compatibility_report(
         "Flet compatibility report",
         "",
         f"Project : {_text(project_data.get('ProjectName')) or root_name}",
+        f"Theme   : {project.theme or 'default'}"
+        + (
+            " (ttkbootstrap palette applied)"
+            if project.palette
+            else " (no theme palette found - built-in colours only)"
+        ),
         f"Layout  : {project.geom_manager or 'Place'}"
         + (
             " (absolute positions)"

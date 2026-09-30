@@ -407,6 +407,49 @@ Things worth knowing:
 - ttkbootstrap themes are not Flet themes; the project theme is emitted as a
   `THEME` constant for reference only.
 
+### Theme colours
+
+Project colours come from the ttkbootstrap theme named in the project, so a
+Flet build looks like the Trial Run rather than like Flet's defaults. Your
+widgets carry a `style` such as `primary.TButton`, `secondary.Outline.TButton`
+or `success.Inverse.TLabel`, and the generator resolves each one:
+
+| Style | Flet result |
+|---|---|
+| `primary.TButton` | filled with the theme's primary colour, text in black or white depending on the fill |
+| `secondary.Outline.TButton` | theme background, primary-coloured border and caption |
+| `primary.TLabel` | theme text colour (no background) |
+| `success.Inverse.TLabel` | filled with the bootstyle colour, contrasting text |
+| `primary.TFrame` | filled with the bootstyle colour |
+| `primary.TLabelframe` | theme surface, bootstyle border, theme text caption |
+| `primary.TEntry` / `TCombobox` / `TSpinbox` | the theme's input surface and text, with the theme's border colour |
+| `primary.Horizontal.TProgressbar` | bootstyle-coloured bar on the theme's trough colour |
+| `primary.Horizontal.TScale` | bootstyle-coloured track and thumb |
+| `primary.TCheckbutton` / `TRadiobutton` | bootstyle-coloured indicator, theme-coloured caption |
+| `primary.TNotebook` | theme surface with the theme's border |
+| (window) | the theme's background, with Flet's own theme set to dark or light to match |
+
+The colours are **exported from ttkbootstrap itself** into
+`flet_theme_colors.json` by `tools/export_theme_colors.py`: each theme's
+bootstyle colours and the resolved colours of real widgets, probed with
+`style.lookup`. That matters because the Bootswatch-derived themes shade their
+bootstyle colour (minty's buttons are `#609b8a`, not its `#78c2ad` slot) and
+because ttk chooses black or white text per fill. The generator reads the JSON
+only, so it still needs neither Tk nor ttkbootstrap.
+
+Regenerate the palette after upgrading ttkbootstrap:
+
+```bash
+python3 tools/export_theme_colors.py     # needs ttkbootstrap 2.x and a display
+```
+
+Approximations worth knowing: a ttk progressbar draws its fill from a shaded
+image, so the Flet bar uses the bootstyle colour directly; the same applies to
+scale tracks and separator lines. If a project's theme is missing from the
+palette (a custom theme, or a very old project), generation still works and
+falls back to the palette slot colours — **Tools → Flet compatibility report**
+says which happened.
+
 ### Flet compatibility report and per-type policy
 
 **Tools → Flet compatibility report** lists every widget in the project with the
@@ -499,7 +542,8 @@ When contributing:
 4. Test both Grid and Place, including a child widget inside a container.
 5. Test a save, reload, Trial Run, and generated Python file.
 6. Run the Flet generator over the same project (`Generate Flet`) when widget
-   mapping or geometry changes.
+   mapping or geometry changes, and re-run `tools/export_theme_colors.py` when
+   ttkbootstrap itself is upgraded.
 7. Check at least one light and one dark ttkbootstrap theme.
 
 Bug reports are most useful when they include the project JSON, the selected

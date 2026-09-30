@@ -893,6 +893,158 @@ class FletGeneratorTests(unittest.TestCase):
         self.assertIn("warning:", captured.getvalue())
         self.assertIsNone(check(minimum="0.0", strict=True))
 
+    def test_theme_colours_follow_the_resolved_ttkbootstrap_palette(self):
+        """tokyo-night-dark: primary #95b5f9 with black ink, entry #1f202d."""
+        data = project(
+            theme="tokyo-night-dark",
+            widgets=(
+                widget(
+                    "Widget1",
+                    "ttk::button",
+                    attributes=(("text", "Start"), ("style", "primary.TButton")),
+                    place={"x": "0", "y": "0", "width": "80", "height": "32"},
+                ),
+                widget(
+                    "Widget2",
+                    "ttk::button",
+                    attributes=(
+                        ("text", "Stop"),
+                        ("style", "secondary.Outline.TButton"),
+                    ),
+                    place={"x": "0", "y": "40", "width": "80", "height": "32"},
+                ),
+                widget(
+                    "Widget3",
+                    "ttk::label",
+                    attributes=(("text", "Voltage"), ("style", "primary.TLabel")),
+                    place={"x": "0", "y": "80", "width": "64", "height": "32"},
+                ),
+                widget(
+                    "Widget4",
+                    "ttk::frame",
+                    attributes=(("style", "primary.TFrame"),),
+                    place={"x": "0", "y": "120", "width": "80", "height": "32"},
+                ),
+                widget(
+                    "Widget5",
+                    "ttk::entry",
+                    attributes=(("style", "primary.TEntry"),),
+                    place={"x": "0", "y": "160", "width": "80", "height": "32"},
+                ),
+            ),
+        )
+        order = widget_names(*[f"Widget{index}" for index in range(1, 6)])
+
+        source = flet_generator.emit_program(data, order, ROOT)
+
+        ast.parse(source)
+        self.assertIn("bgcolor='#95b5f9'", source)
+        self.assertIn("color='#000000'", source)          # ink on a light fill
+        self.assertIn("bgcolor='#1a1b26'", source)        # outline keeps the surface
+        self.assertIn("ft.BorderSide(1, '#c9aef9')", source)
+        self.assertIn("bgcolor='#1f202d'", source)        # entry surface
+        self.assertIn("border_color='#3f3f49'", source)   # theme border, not bootstyle
+        self.assertIn("color='#c0caf5'", source)          # entry text
+
+    def test_styles_are_translated_not_dropped(self):
+        data = project(
+            theme="darkly",
+            widgets=(
+                widget(
+                    "Widget1",
+                    "ttk::button",
+                    attributes=(("text", "Go"), ("style", "success.TButton")),
+                    place={"x": "0", "y": "0", "width": "80", "height": "32"},
+                ),
+            ),
+        )
+
+        source = flet_generator.emit_program(data, [ROOT, "Widget1"], ROOT)
+
+        self.assertIn("bgcolor='#00bc8c'", source)
+        self.assertNotIn("no Flet equivalent -> style", source)
+
+    def test_unknown_theme_still_generates(self):
+        data = project(
+            theme="not-a-real-theme",
+            widgets=(
+                widget(
+                    "Widget1",
+                    "ttk::button",
+                    attributes=(("text", "Go"), ("style", "primary.TButton")),
+                    place={"x": "0", "y": "0", "width": "80", "height": "32"},
+                ),
+            ),
+        )
+
+        source = flet_generator.emit_program(data, [ROOT, "Widget1"], ROOT)
+
+        ast.parse(source)
+        self.assertIn("Widget1 = ft.Button(", source)
+
+    def test_parse_bootstyle_splits_colour_and_variants(self):
+        self.assertEqual(
+            flet_generator.parse_bootstyle("secondary.Outline.TButton"),
+            ("secondary", frozenset({"outline"})),
+        )
+        self.assertEqual(
+            flet_generator.parse_bootstyle("success.Inverse.TLabel"),
+            ("success", frozenset({"inverse"})),
+        )
+        self.assertEqual(
+            flet_generator.parse_bootstyle("primary.Horizontal.TScale")[0], "primary"
+        )
+        self.assertEqual(flet_generator.parse_bootstyle("TNotebook")[0], "")
+        self.assertEqual(flet_generator.parse_bootstyle("")[0], "")
+
+    def test_ink_matches_ttkbootstrap_contrast(self):
+        data = project(theme="tokyo-night-dark")
+        project_view = flet_generator._Project(data, [ROOT], ROOT)
+        ink = project_view.ink
+        self.assertEqual(ink("#b1d888"), "#000000")   # light fill -> black
+        self.assertEqual(ink("#375a7f"), "#ffffff")   # dark fill -> white
+        self.assertEqual(ink(""), "#c0caf5")          # falls back to theme fg
+
+    def test_palette_covers_the_themes_the_projects_use(self):
+        palette = flet_generator.load_theme_palette()
+        self.assertGreater(len(palette), 40)
+        for theme in ("tokyo-night-dark", "solar", "darkly", "catppuccin-light"):
+            with self.subTest(theme=theme):
+                self.assertIn(theme, palette)
+                record = palette[theme]
+                self.assertIn("colors", record)
+                self.assertIn("styles", record)
+                self.assertIn("widgets", record)
+                self.assertTrue(record["styles"]["primary"]["button_bg"])
+
+    def test_labelframe_caption_uses_the_theme_text_colour(self):
+        data = project(
+            theme="darkly",
+            widgets=(
+                widget(
+                    "Widget1",
+                    "ttk::labelframe",
+                    attributes=(("text", "Group"), ("style", "primary.TLabelframe")),
+                    place={"x": "0", "y": "0", "width": "160", "height": "96"},
+                ),
+            ),
+        )
+
+        source = flet_generator.emit_program(data, [ROOT, "Widget1"], ROOT)
+
+        ast.parse(source)
+        self.assertIn("ft.Text(value='Group', color='#ffffff'", source)
+        self.assertIn("ft.BorderSide(1, '#375a7f')", source)
+
+    def test_report_names_the_theme(self):
+        data = project(theme="darkly")
+        report = flet_generator.compatibility_report(data, [ROOT], ROOT)
+        self.assertIn("Theme   : darkly", report)
+        report = flet_generator.compatibility_report(
+            project(theme="nope"), [ROOT], ROOT
+        )
+        self.assertIn("no theme palette", report)
+
     @unittest.skipUnless(FLET_AVAILABLE, "flet is not installed")
     def test_generated_program_builds_real_flet_controls(self):
         data = project(
