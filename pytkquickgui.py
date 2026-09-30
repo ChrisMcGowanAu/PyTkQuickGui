@@ -1013,6 +1013,8 @@ def buildFlet() -> str:
 
 
 def runFlet():
+    if not askFletOptions():
+        return
     fileName = buildFlet()
     if not fileName:
         return
@@ -1023,6 +1025,8 @@ def runFlet():
 
 def generateFlet():
     """Ask for a save path, generate Flet code and write it there."""
+    if not askFletOptions():
+        return
     initialDir, initialFile = project_format.generated_python_dialog_defaults(
         myVars.projectName,
         myVars.saveDirName,
@@ -1080,6 +1084,94 @@ def showFletCompatibilityReport():
     )
     log.info("Flet compatibility report requested")
     _textWindow("PyTkQuickGui - Flet compatibility", report)
+
+
+def askFletOptions() -> str:
+    """Ask how Flet should lay out a Grid project before generating.
+
+    Returns the chosen Grid mode, or an empty string when the user cancels.
+    Place and Pack projects have a single mapping, so nothing is asked.
+    """
+    if myVars.geomManager != "Grid":
+        return myVars.fletGridMode
+    if not saveProject():
+        Messagebox.show_error(
+            title="Flet Options",
+            message="The project could not be saved, so generation was cancelled.",
+        )
+        return ""
+    order = workOutWidgetCreationOrder()
+    sizes = measureWidgetSizes(order)
+    width, height = flet_generator.window_size_for(
+        myVars.projectDict,
+        order,
+        myVars.rootWidgetName,
+        myVars.geomManager,
+        myVars.fletGridMode,
+        myVars.fletWidgetPolicy,
+        sizes,
+    )
+
+    choice = tk.StringVar(value=myVars.fletGridMode)
+    dialog = tk.Toplevel(rootWin)
+    dialog.title("Generate Flet")
+    dialog.transient(rootWin)
+    dialog.resizable(False, False)
+
+    body = ttk.Frame(dialog)
+    body.pack(fill="both", expand=True, padx=12, pady=12)
+    ttk.Label(
+        body,
+        justify="left",
+        text=(
+            "This project uses the Grid layout manager.\n"
+            "Choose how the Flet program should lay it out:"
+        ),
+    ).pack(anchor="w")
+    ttk.Radiobutton(
+        body,
+        text="Responsive - rows and columns grow with the window (recommended)",
+        variable=choice,
+        value="responsive",
+    ).pack(anchor="w", pady=(10, 0))
+    ttk.Radiobutton(
+        body,
+        text="Exact positions - keeps the designer's pixel layout, fixed size",
+        variable=choice,
+        value="absolute",
+    ).pack(anchor="w", pady=(4, 0))
+    ttk.Label(
+        body,
+        justify="left",
+        text=(
+            f"\nThe window opens at {width} x {height}, worked out from this design.\n"
+            "WINDOW_WIDTH and WINDOW_HEIGHT in the generated file are there to edit."
+        ),
+    ).pack(anchor="w", pady=(10, 0))
+
+    answer = {"mode": ""}
+
+    def _accept() -> None:
+        answer["mode"] = choice.get()
+        dialog.destroy()
+
+    buttons = ttk.Frame(body)
+    buttons.pack(fill="x", pady=(14, 0))
+    ttk.Button(buttons, text="Cancel", command=dialog.destroy).pack(side="right")
+    ttk.Button(buttons, text="Generate", style="success", command=_accept).pack(
+        side="right", padx=(0, 6)
+    )
+
+    dialog.grab_set()
+    rootWin.wait_window(dialog)
+    if answer["mode"]:
+        myVars.fletGridMode = answer["mode"]
+        variable = getattr(myVars, "fletGridVar", None)
+        if variable is not None:
+            variable.set(myVars.fletGridMode == "absolute")
+        saveToolDefaults()
+        log.info("Flet Grid mode chosen: %s", myVars.fletGridMode)
+    return answer["mode"]
 
 
 def setFletGridMode(variable) -> None:
@@ -2896,7 +2988,9 @@ def buildMenu():
     themeMenu.add_cascade(label="Legacy Themes", menu=legacyMenu)
 
     toolsMenu = ttk.Menu(menuBar, tearoff=0)
-    fletGridVar = tk.BooleanVar(value=myVars.fletGridMode == "absolute")
+    # Kept on myVars so askFletOptions() can update the tick after a choice.
+    myVars.fletGridVar = tk.BooleanVar(value=myVars.fletGridMode == "absolute")
+    fletGridVar = myVars.fletGridVar
     toolsMenu.add_command(label="Hide Label Borders", command=hideLabelBorders)
     toolsMenu.add_command(label="Show Label Borders", command=showLabelBorders)
     toolsMenu.add_command(label="Set tools default Theme", command=setDefaultToolTheme)

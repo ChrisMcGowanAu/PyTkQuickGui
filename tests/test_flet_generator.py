@@ -1,5 +1,6 @@
 import ast
 import contextlib
+import re
 import io
 import unittest
 
@@ -1208,6 +1209,187 @@ class FletGeneratorTests(unittest.TestCase):
 
         ast.parse(source)
         self.assertNotIn("132659090261440yview", source)
+
+    def test_grid_sizes_reach_the_wrapper_for_non_positionable_controls(self):
+        """ft.RadioGroup and ft.Divider accept no width/height of their own."""
+        data = project(
+            geom_manager="Grid",
+            gridRows=4,
+            gridCols=4,
+            widgets=(
+                widget(
+                    "Widget1",
+                    "ttk::radiobutton",
+                    attributes=(("text", "Pick"), ("sticky", "")),
+                    geom={"row": "0", "column": "0", "sticky": "ew"},
+                ),
+                widget(
+                    "Widget2",
+                    "ttk::separator",
+                    geom={"row": "1", "column": "0", "sticky": ""},
+                ),
+            ),
+        )
+
+        source = flet_generator.emit_program(
+            data,
+            widget_names("Widget1", "Widget2"),
+            ROOT,
+            natural_sizes={"Widget1": (140, 32), "Widget2": (200, 8)},
+        )
+
+        ast.parse(source)
+        widgets = source[source.index("Widget1 = "):source.index("rootWidget = ")]
+        rows = source[source.index("rootWidget = "):]
+        # The controls are wrapped, never given sizes they cannot take ...
+        self.assertNotIn("= ft.RadioGroup(", widgets)
+        self.assertNotIn("= ft.Divider(", widgets)
+        # ... and the sizes sit on the grid cells that hold them.
+        self.assertIn("height=32", rows)
+        self.assertIn("height=8", rows)
+
+    def test_grid_sticky_decides_which_axes_a_widget_fills(self):
+        data = project(
+            geom_manager="Grid",
+            gridRows=3,
+            gridCols=3,
+            widgets=(
+                widget(
+                    "Widget1",
+                    "ttk::entry",
+                    attributes=(("sticky", ""),),
+                    geom={"row": "0", "column": "0", "sticky": "ew"},
+                ),
+                widget(
+                    "Widget2",
+                    "ttk::progressbar",
+                    geom={"row": "1", "column": "0", "sticky": "nsew"},
+                ),
+            ),
+        )
+
+        source = flet_generator.emit_program(
+            data,
+            widget_names("Widget1", "Widget2"),
+            ROOT,
+            natural_sizes={"Widget1": (180, 32), "Widget2": (200, 24)},
+        )
+
+        ast.parse(source)
+        entry = source[source.index("Widget1 = "):source.index("Widget2 = ")]
+        # sticky=ew: fills across, keeps its designed height (set on the cell).
+        self.assertIn("expand=True", entry)
+        self.assertNotIn("height=", entry)
+        rows = source[source.index("rootWidget = "):]
+        self.assertIn("height=32", rows)
+        # sticky=nsew: fills the cell in both directions, no pinned height.
+        self.assertIn("vertical_alignment=ft.CrossAxisAlignment.STRETCH", rows)
+        self.assertNotIn("height=24", rows)
+
+    def test_grid_row_weights_follow_the_content(self):
+        """A short row must not get the same weight as a tall one."""
+        data = project(
+            geom_manager="Grid",
+            gridRows=2,
+            gridCols=2,
+            widgets=(
+                widget(
+                    "Widget1",
+                    "ttk::text",
+                    geom={"row": "0", "column": "0", "sticky": "nsew"},
+                ),
+                widget(
+                    "Widget2",
+                    "ttk::label",
+                    attributes=(("text", "L"),),
+                    geom={"row": "1", "column": "0", "sticky": "ew"},
+                ),
+            ),
+        )
+
+        source = flet_generator.emit_program(
+            data,
+            [ROOT, "Widget1", "Widget2"],
+            ROOT,
+            natural_sizes={"Widget1": (200, 200), "Widget2": (120, 32)},
+        )
+
+        ast.parse(source)
+        # Each row's own weight follows "spacing=0,"; cell containers also
+        # carry expand, so match the row argument specifically.
+        weights = [
+            int(value) for value in re.findall(r"spacing=0,\s*expand=(\d+)", source)
+        ]
+
+        self.assertEqual(len(weights), 2)
+        self.assertGreater(weights[0], weights[1])   # tall row vs one line row
+        # The weights follow the content (plus each cell's padding), so they
+        # are proportional rather than equal.
+        self.assertEqual(weights[1], 36)
+        self.assertGreaterEqual(weights[0], 200)
+
+    @unittest.skipUnless(FLET_AVAILABLE, "flet is not installed")
+    def test_grid_program_with_radio_and_separator_builds(self):
+        """Regression: sizes were handed to controls that cannot take them."""
+        data = project(
+            geom_manager="Grid",
+            gridRows=6,
+            gridCols=6,
+            widgets=(
+                widget(
+                    "Widget1",
+                    "ttk::radiobutton",
+                    attributes=(("text", "Pick"),),
+                    geom={"row": "0", "column": "0", "sticky": "ew"},
+                ),
+                widget(
+                    "Widget2",
+                    "ttk::separator",
+                    geom={"row": "1", "column": "0", "sticky": ""},
+                ),
+                widget(
+                    "Widget3",
+                    "ttk::checkbutton",
+                    attributes=(("text", "On"),),
+                    geom={"row": "2", "column": "0", "sticky": "ew"},
+                ),
+                widget(
+                    "Widget4",
+                    "ttk::progressbar",
+                    geom={"row": "3", "column": "0", "sticky": "nsew"},
+                ),
+                widget(
+                    "Widget5",
+                    "ttk::frame",
+                    geom={"row": "4", "column": "0", "sticky": "nsew"},
+                ),
+                widget(
+                    "Widget6",
+                    "ttk::button",
+                    parent="Widget5",
+                    attributes=(("text", "in a frame"),),
+                    geom={"row": "0", "column": "0", "sticky": "ew"},
+                ),
+            ),
+        )
+        order = widget_names(*[f"Widget{index}" for index in range(1, 7)])
+
+        page = run_generated(
+            flet_generator.emit_program(
+                data,
+                order,
+                ROOT,
+                natural_sizes={
+                    "Widget1": (140, 32),
+                    "Widget2": (200, 8),
+                    "Widget3": (140, 32),
+                    "Widget4": (200, 24),
+                    "Widget6": (100, 32),
+                },
+            )
+        )
+
+        self.assertEqual(len(page.controls), 1)
 
     @unittest.skipUnless(FLET_AVAILABLE, "flet is not installed")
     def test_generated_program_builds_real_flet_controls(self):

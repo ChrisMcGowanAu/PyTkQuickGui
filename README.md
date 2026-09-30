@@ -474,8 +474,22 @@ Widget6   ttk::scrollbar    wraps Widget0 in a scrolling ft.Column (...)  [folde
 Summary: 7 widgets - 6 mapped, 1 folded into a scroll target, 0 placeholder, 0 skipped
 ```
 
-**Tools → Flet: exact Grid positions** switches Grid output between the
-responsive row/column layout (default) and the exact-position Stack.
+**Generate Flet** and **Trial Run (Flet)** ask how to lay out a Grid project
+before writing anything, because the two mappings suit different purposes:
+
+- **Responsive** - rows and columns grow with the window, so the layout
+  stretches the way a Flet app is expected to. A widget with `sticky=nsew`
+  fills its cell; one with `sticky=ew` keeps the height the designer gave it.
+  Row heights follow their content, so a one line widget is not stretched to
+  the height of the tallest row.
+- **Exact positions** - a `ft.Stack` that reproduces the designer's pixel
+  layout, including `rowspan` and `columnspan`, but stays fixed when the window
+  is resized.
+
+The dialog shows the window size it worked out from the design and remembers
+your answer in `tool_defaults.json` as `fletGridMode`. Place and Pack projects
+have a single mapping, so they are not asked. **Tools → Flet: exact Grid
+positions** still sets the remembered default without generating.
 
 Both settings live in `tool_defaults.json`, next to the existing geometry
 defaults, so they can be edited by hand or layered per project:

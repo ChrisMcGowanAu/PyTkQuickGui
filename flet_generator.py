@@ -1363,10 +1363,15 @@ class _Emitter:
                     ),
                     "size": str(DEFAULT_TEXT_SIZE),
                 }
-            return {
+            # ttk paints a label with the theme's surface, which is what keeps
+            # it readable on a bootstyle coloured frame.
+            arguments = {
                 "color": repr(value("label_fg", slot) or muted),
                 "size": str(DEFAULT_TEXT_SIZE),
             }
+            if surface:
+                arguments["bgcolor"] = repr(surface)
+            return arguments
         if control == "ft.Container":
             if widget_type == NOTEBOOK_WIDGET_TYPE:
                 edge = self.project.widget_surface("notebook_border") or border
@@ -1446,9 +1451,12 @@ class _Emitter:
         """Return surface colours for a widget with no ttkbootstrap style."""
         if control == "ft.Text":
             ink = self.project.colour("fg")
+            surface = self.project.colour("bg")
             arguments = {"size": str(DEFAULT_TEXT_SIZE)}
             if ink:
                 arguments["color"] = repr(ink)
+            if surface:
+                arguments["bgcolor"] = repr(surface)
             return arguments
         if control == "ft.Container":
             surface = self.project.colour("bg")
@@ -1641,12 +1649,21 @@ class _Emitter:
         be edited.
         """
         if self.project.geom_manager == "Grid":
-            columns, rows = self._grid_lengths(self.project.root_name)
-            used_columns, used_rows = self.project.grid_requirements.get(
-                self.project.root_name, (len(columns), len(rows))
-            )
+            if self.project.absolute_grid:
+                # Exact positions follow Tk: the deficit of a spanning widget
+                # goes to the last cell it covers.
+                columns, rows = self._grid_lengths(self.project.root_name)
+                used_columns, used_rows = self.project.grid_requirements.get(
+                    self.project.root_name, (len(columns), len(rows))
+                )
+                return self._clamp_window(
+                    sum(columns[:used_columns]), sum(rows[:used_rows])
+                )
+            # Responsive: the layout shares space evenly across a span, so the
+            # window is sized the same way or the content overflows it.
             return self._clamp_window(
-                sum(columns[:used_columns]), sum(rows[:used_rows])
+                sum(self._axis_weights(self.project.root_name, "column").values()),
+                sum(self._axis_weights(self.project.root_name, "row").values()),
             )
         if self.project.geom_manager == "Pack":
             width = 0
@@ -1715,7 +1732,7 @@ class _Emitter:
 
     def _rows(self, parent_name: str, children: Sequence[str]) -> str:
         columns, _rows = self.project.grid_requirements.get(parent_name, (0, 0))
-        cells: dict[tuple[int, int], tuple[str, int, int]] = {}
+        cells: dict[tuple[int, int], tuple[str, int, int, int | None, bool]] = {}
         row_indexes: set[int] = set()
         for child in children:
             geometry = self.project.widget(child).get("GeomData") or {}
@@ -1723,10 +1740,20 @@ class _Emitter:
             defined = self._define(child)
             if not defined:
                 continue
+            natural = self._natural_size(child)
+            sticky = self._grid_sticky(child)
+            # A widget that does not fill vertically keeps its designed height,
+            # which the cell enforces so a stretched row cannot inflate it.
+            fills_vertical = self._fills(sticky, "n", "s")
+            cell_height = None
+            if natural and not fills_vertical:
+                cell_height = int(natural[1])
             cells[(state.row, state.column)] = (
                 defined,
                 state.columnspan,
                 state.padx,
+                cell_height,
+                fills_vertical,
             )
             row_indexes.add(state.row)
             columns = max(columns, state.column + state.columnspan)
@@ -1736,6 +1763,7 @@ class _Emitter:
                 )
         if not columns or not row_indexes:
             return "ft.Column()"
+        weights = self._row_weights(parent_name)
         rows: list[str] = []
         for row in sorted(row_indexes):
             row_cells: list[str] = []
@@ -1744,8 +1772,10 @@ class _Emitter:
             while column < columns:
                 match = cells.get((row, column))
                 if match:
-                    child, span, pad = match
-                    row_cells.append(self._grid_cell(child, span, pad))
+                    child, span, pad, cell_height, fills = match
+                    row_cells.append(
+                        self._grid_cell(child, span, pad, cell_height, fills)
+                    )
                     fills_vertical = fills_vertical or self._fills(
                         self._grid_sticky(child), "n", "s"
                     )
@@ -1756,9 +1786,10 @@ class _Emitter:
             arguments = [
                 _list_argument("controls", row_cells),
                 "spacing=0",
-                # Rows share the extra space, so the grid grows with the
-                # window instead of hugging the top of it.
-                "expand=1",
+                # Rows share the extra space in proportion to their content, so
+                # the grid grows with the window without stretching a one line
+                # widget to the height of the tallest row.
+                f"expand={max(1, weights.get(row, 1))}",
             ]
             if fills_vertical:
                 # ttk's sticky=nsew stretches the widget to its cell, which is
@@ -1774,16 +1805,98 @@ class _Emitter:
 
     @staticmethod
     @staticmethod
-    def _grid_cell(child: str, columnspan: int, padx: Any) -> str:
+    def _grid_cell(
+        child: str,
+        columnspan: int,
+        padx: Any,
+        height: int | None = None,
+        fills_vertical: bool = False,
+    ) -> str:
+        """Return the cell that holds one grid widget.
+
+        A widget with ``sticky=nsew`` has to be given a definite height, or the
+        weighted rows inside it collapse: Flutter gives ``expand`` children no
+        intrinsic size, so a frame sized to its content would shrink to a
+        single row.  The cell therefore wraps those widgets in a stretched
+        ``ft.Row``, and only pins a height for the ones that keep their own.
+        """
         padding = _number(padx, 2) or 0
-        return _call(
-            "ft.Container",
-            [
-                f"content={child}",
-                f"expand={max(1, int(columnspan))}",
-                f"padding={int(padding)}",
-            ],
-        )
+        expand = max(1, int(columnspan))
+        if fills_vertical:
+            inner = _call(
+                "ft.Row",
+                [
+                    _list_argument("controls", [child]),
+                    "spacing=0",
+                    "expand=True",
+                    "vertical_alignment=ft.CrossAxisAlignment.STRETCH",
+                ],
+            )
+            return _call(
+                "ft.Container",
+                [f"content={inner}", f"expand={expand}", f"padding={int(padding)}"],
+            )
+        arguments = [
+            f"content={child}",
+            f"expand={expand}",
+            f"padding={int(padding)}",
+        ]
+        if height:
+            # The cell keeps the designer's height, so a stretched row cannot
+            # inflate a control that is not meant to fill it (ttk semantics).
+            arguments.append(f"height={int(height)}")
+        return _call("ft.Container", arguments)
+
+    def _axis_weights(self, parent_name: str, axis: str) -> dict[int, int]:
+        """Return even-distributed content sizes for a grid parent's rows/cols.
+
+        The responsive layout gives a widget's cell a share proportional to its
+        span, so the rows and columns it covers share its natural size.  That
+        is a different model from :meth:`_grid_lengths`, which follows Tk's
+        "deficit to the last cell" rule for exact positions.
+        """
+        _columns, rows = self.project.grid_requirements.get(parent_name, (0, 0))
+        count = rows if axis == "row" else _columns
+        weights: dict[int, int] = {index: 0 for index in range(max(0, count))}
+        for child in self.project.visible_children(parent_name):
+            state = layout_model.GridGeometry.from_mapping(
+                self.project.widget(child).get("GeomData") or {}, parent=parent_name
+            )
+            natural = self._natural_size(child)
+            if not natural:
+                continue
+            if axis == "row":
+                start, span = state.row, max(1, state.rowspan)
+                size = natural[1] + 2 * max(0, state.pady)
+                if span > 1:
+                    # A row spanning widget occupies a single band here (the
+                    # responsive layout cannot span rows), so it is given its
+                    # own height rather than a share of the rows it covers.
+                    # Without this it collapses to one row's weight and looks
+                    # nothing like the designer.
+                    self.notes.append(
+                        f"# {child}: grid rowspan={span} is approximated in Flet"
+                    )
+            else:
+                start, span = state.column, max(1, state.columnspan)
+                size = natural[0] + 2 * max(0, state.padx)
+            share = max(1, int(round(size / span))) if axis == "column" else max(
+                1, int(size)
+            )
+            for index in range(start, start + span):
+                weights[index] = max(weights.get(index, 0), share)
+        return weights
+
+    def _row_weights(self, parent_name: str) -> dict[int, int]:
+        """Return a relative height weight for each row of a grid parent.
+
+        Flet shares space by weight, so giving every row the same weight
+        stretches a one line widget to the height of the tallest row.  Tk sizes
+        a row to its content first and only then shares the extra space, so the
+        weights follow the content: a widget's natural height spread over the
+        rows it spans.
+        """
+        return self._axis_weights(parent_name, "row")
 
     def _grid_sticky(self, name: str) -> str:
         """Return a widget's grid ``sticky`` option in lower case."""
@@ -1903,9 +2016,17 @@ class _Emitter:
         if (
             self.project.geom_manager == "Grid"
             and not self.project.absolute_grid
-            and self._fills(self._grid_sticky(name), "e", "w")
         ):
-            arguments["expand"] = "True"
+            # ttk semantics: sticky decides which axes the widget fills. The
+            # other axis keeps the widget's own size, which is also what stops
+            # Flet's taller default controls (48px fields, 40px buttons) from
+            # changing the designer's proportions.
+            sticky = self._grid_sticky(name)
+            natural = self._natural_size(name)
+            if self._fills(sticky, "e", "w"):
+                arguments["expand"] = "True"
+            elif natural:
+                arguments["width"] = str(int(natural[0]))
         attachment = self.project.attachment(name)
         if attachment is not None and attachment.mode == "native":
             arguments["scroll"] = attachment.scrollbar_call()
@@ -1976,6 +2097,14 @@ class _Emitter:
         ``ft.Column`` when its Flet control has no ``scroll`` slot of its own.
         """
         placement = self._placement_arguments(name)
+        if control not in POSITIONABLE_CONTROLS:
+            # Size arguments belong to the wrapper, not to a control that has
+            # no width/height of its own (ft.RadioGroup, ft.Divider).  In Grid
+            # mode the sizes come from the widget's sticky, so they arrive here
+            # rather than through _placement_arguments.
+            for key in ("width", "height"):
+                if key in arguments:
+                    placement[key] = arguments.pop(key)
         attachment = self.project.attachment(name)
         if attachment is not None and attachment.mode == "wrap":
             inner = dict(arguments)
@@ -2415,6 +2544,30 @@ def _mapping_description(project: _Project, name: str) -> tuple[str, str]:
     if widget_type == "ttk::panedwindow":
         return "mapped", "ft.Row/ft.Column (no draggable splitter)"
     return "mapped", widget_control(widget_type)
+
+
+def window_size_for(
+    project_data: Mapping[str, Any],
+    widget_order: Sequence[str],
+    root_name: str,
+    geom_manager: str = "",
+    grid_mode: str = "responsive",
+    policy: Mapping[str, str] | None = None,
+    natural_sizes: Mapping[str, Sequence[int]] | None = None,
+) -> tuple[int, int]:
+    """Return the window size a program would open at, without emitting it."""
+    project = _Project(
+        project_data,
+        widget_order,
+        root_name,
+        geom_manager,
+        None,
+        grid_mode,
+        policy,
+        None,
+        natural_sizes,
+    )
+    return _Emitter(project).window_size()
 
 
 def compatibility_report(

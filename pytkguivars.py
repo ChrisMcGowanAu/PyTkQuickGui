@@ -117,6 +117,8 @@ placeWidgetDefaults = tool_defaults.normalise_place_widget_layouts(None)
 fletWidgetPolicy = tool_defaults.normalise_flet_policy(None)
 # Flet Grid rendering: responsive (expand weights) or absolute (exact pixels).
 fletGridMode = tool_defaults.FLET_GRID_MODE
+# Tk variable behind the Tools menu tick; set when the menu is built.
+fletGridVar = None
 # ---- Widget groups (logical, not tkinter containers) --------------------
 # {group_name: [widgetName, ...]}  — persisted to project JSON
 groups: dict = {}
@@ -174,6 +176,7 @@ def initVars():
     global gridWidgetDefaults, placeWidgetDefaults
     global fletWidgetPolicy
     global fletGridMode
+    global fletGridVar
     groups = {}
     selectedWidgets = []
     gridRows = tool_defaults.GRID_DEFAULTS["gridRows"]
@@ -188,6 +191,8 @@ def initVars():
     placeWidgetDefaults = tool_defaults.normalise_place_widget_layouts(None)
     fletWidgetPolicy = tool_defaults.normalise_flet_policy(None)
     fletGridMode = tool_defaults.FLET_GRID_MODE
+    global fletGridVar
+    fletGridVar = None
 
 
 def applyToolDefaults(data: dict) -> None:
