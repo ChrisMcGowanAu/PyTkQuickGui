@@ -645,6 +645,14 @@ def translate_attributes(
                 properties["values"] = values
             else:
                 unmapped.append(key)
+        elif key == "listvariable":
+            # A listbox keeps its items in a Python list the application owns.
+            # This is not one of project_format.VARIABLE_KEYS, so it is
+            # validated here rather than looked up in the variable set.
+            if project_format.valid_python_name(raw):
+                properties["list_variable"] = raw
+            else:
+                unmapped.append(key)
         elif key == "columns":
             # Treeview heading names; the tool never stores row data.
             values = parse_values(raw)
@@ -910,6 +918,16 @@ class _Project:
             return 16
         return max(2, int(thickness))
 
+    @property
+    def list_variables(self) -> frozenset[str]:
+        """Names used as a listbox ``listvariable``, i.e. list valued."""
+        names = set()
+        for name in self.order:
+            candidate = self.option(name, "listvariable")
+            if project_format.valid_python_name(candidate):
+                names.add(candidate)
+        return frozenset(names)
+
     def colour(self, slot: Any) -> str | None:
         """Return one theme palette colour, or ``None`` when it is unknown."""
         value = self.palette.get("colors", {}).get(_text(slot))
@@ -1110,6 +1128,17 @@ class _Emitter:
                 )
             arguments.update(self._progress_arguments(properties))
             properties = {}
+        elif control == "ft.ListView":
+            values = properties.pop("values", None)
+            if values:
+                arguments["controls"] = _list_expression(
+                    [f"ft.Text({value!r})" for value in values]
+                )
+            if properties.pop("list_variable", None):
+                self.notes.append(
+                    f"# {name}: listbox items live in the module level list "
+                    "of the same name - append to it and call page.update()"
+                )
         elif control == "ft.DataTable":
             columns = properties.pop("tree_columns", [])
             arguments["columns"] = (
@@ -1130,7 +1159,14 @@ class _Emitter:
                 )
 
         for keyword, value in properties.items():
-            if keyword in ("text", "command", "image", "orientation", "style"):
+            if keyword in (
+                "text",
+                "command",
+                "image",
+                "orientation",
+                "style",
+                "list_variable",
+            ):
                 continue
             if keyword in arguments and keyword in STRUCTURAL_ARGUMENTS:
                 continue
@@ -2039,11 +2075,19 @@ def emit_program(
         lines.append(f"BACKGROUND_COLOR = {background!r}")
 
     lines.extend(("", SECTION_VARIABLES))
-    if project.variables:
+    if project.variables or project.list_variables:
         lines.append(
             "# Flet controls hold plain Python values - adjust types as needed."
         )
-        lines.extend(f"{variable} = '0.0'" for variable in project.variables)
+        declared = list(project.variables)
+        for variable in sorted(project.list_variables):
+            if variable not in declared:
+                declared.append(variable)
+        for variable in declared:
+            if variable in project.list_variables:
+                lines.append(f"{variable} = []   # listbox items")
+            else:
+                lines.append(f"{variable} = '0.0'")
     else:
         lines.append("# No widget variables are referenced by this project.")
 

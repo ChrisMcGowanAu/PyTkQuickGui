@@ -1045,6 +1045,63 @@ class FletGeneratorTests(unittest.TestCase):
         )
         self.assertIn("no theme palette", report)
 
+    def test_listbox_listvariable_becomes_a_module_level_list(self):
+        data = project(
+            widgets=(
+                widget(
+                    "Widget1",
+                    "listbox",
+                    attributes=(
+                        ("listvariable", "listvar"),
+                        ("selectmode", "browse"),
+                    ),
+                    place={"x": "0", "y": "0", "width": "160", "height": "120"},
+                ),
+            ),
+        )
+
+        source = flet_generator.emit_program(data, [ROOT, "Widget1"], ROOT)
+
+        ast.parse(source)
+        self.assertIn("listvar = []   # listbox items", source)
+        self.assertIn("listbox items live in the module level list", source)
+        self.assertNotIn("listvariable", source)
+
+    def test_listbox_inline_values_become_items(self):
+        data = project(
+            widgets=(
+                widget(
+                    "Widget1",
+                    "listbox",
+                    attributes=(("values", "(alpha beta)"),),
+                    place={"x": "0", "y": "0", "width": "160", "height": "120"},
+                ),
+            ),
+        )
+
+        source = flet_generator.emit_program(data, [ROOT, "Widget1"], ROOT)
+
+        ast.parse(source)
+        self.assertIn("ft.Text('alpha')", source)
+        self.assertIn("ft.Text('beta')", source)
+
+    def test_invalid_listvariable_is_not_emitted_as_code(self):
+        data = project(
+            widgets=(
+                widget(
+                    "Widget1",
+                    "listbox",
+                    attributes=(("listvariable", "132659090261440yview"),),
+                    place={"x": "0", "y": "0", "width": "160", "height": "120"},
+                ),
+            ),
+        )
+
+        source = flet_generator.emit_program(data, [ROOT, "Widget1"], ROOT)
+
+        ast.parse(source)
+        self.assertNotIn("132659090261440yview", source)
+
     @unittest.skipUnless(FLET_AVAILABLE, "flet is not installed")
     def test_generated_program_builds_real_flet_controls(self):
         data = project(
