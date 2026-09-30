@@ -1,13 +1,18 @@
 ##############################
-# On Linux Debian bookworm based distros -- Ubuntu 24.04, Mint 22 etc
+# Linux
+# The below example is for 'apt' based distros.
+# Other package managers on other distros will be similar.
 ##############################
 sudo apt update
-sudo apt install python3 python3-venv python3-pip git
+
+sudo apt install python3-full python3-venv python3-pip git
 
 ## 2. Clone the repository
 cd /opt # or where you want to install it.
-git clone git@github.com:ChrisMcGowanAu/PyTkQuickGui.git
-cd /opt/PyTkQuickGui
+
+git clone https://github.com/ChrisMcGowanAu/PyTkQuickGui.git
+
+cd /opt/PyTkQuickGui ( or the directory it was installed in)
 
 ## 3. Install required packages
 python3 -m venv venv
@@ -15,6 +20,25 @@ venv/bin/pip install --upgrade pip
 venv/bin/pip install -r requirments.txt
 
 Note: ttkbootstrap has to be version 2.0 or later
+
+In some environments, running the test python file or the generated python man not work, If you hit this issue, do the following:
+
+Summary: build a .venv environment in your home directory 
+and add it to your $PATH
+
+# In your home directory run the following:
+python3 -m venv .venv
+.venv/bin/pip install --upgrade pip
+
+# Assuming you installed the tool in  /opt
+.venv/bin/pip install -r /opt/PyTkQuickGui/requirments.txt  
+
+# Modify your .bashrc, or equivelant file for the shell you use
+# And add this line. 
+export PATH=$HOME/.venv/bin/:$PATH
+
+logout and login again, have a look at $PATH to see if it is correct
+echo $PATH
 
 #################################
 # Windows 10 (and 11 ?)
@@ -24,7 +48,7 @@ https://python.org/downloads/windows
 # then from a terminal ( preferably a git-bash one ) 
 pip install tkfontchooser
 pip install coloredlogs
-pip install ttkbootstrap (version 2.0 or later )
+pip install ttkbootstrap>=2.0
 
 It seems to work OK for Windows, will need to do more testing later
 
@@ -39,5 +63,5 @@ Sorry I have not tried it. I was able to install and run it, but a 3 button mous
 #################################
 venv/bin/python pytkquickgui.py
 
-or just ./run,sh
+or just ./run.sh
 
