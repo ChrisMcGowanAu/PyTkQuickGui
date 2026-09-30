@@ -133,3 +133,44 @@ class GridGeometryTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RebuildWidgetListTests(unittest.TestCase):
+    def test_rebuilds_a_missing_widget_list_in_creation_order(self):
+        project = {
+            "ProjectName": "hand written",
+            "Widget0": {
+                "WidgetName": "ttk::frame",
+                "WidgetParent": "rootWidget",
+            },
+            "Widget1": {
+                "WidgetName": "ttk::label",
+                "WidgetParent": "Widget0",
+            },
+            "Widget2": {
+                "WidgetName": "ttk::button",
+                "WidgetParent": "rootWidget",
+            },
+        }
+
+        rebuilt = layout_model.rebuild_widget_list(project)
+
+        self.assertEqual(
+            [(entry[0], entry[1]) for entry in rebuilt],
+            [
+                ("Widget0", "rootWidget"),
+                ("Widget1", "Widget0"),
+                ("Widget2", "rootWidget"),
+            ],
+        )
+        self.assertEqual(rebuilt[0][3], ["Widget1"])   # children of Widget0
+        self.assertEqual(rebuilt[0][2], "")            # no widget object in a file
+
+    def test_orphans_are_attached_to_the_root(self):
+        project = {
+            "Widget1": {"WidgetName": "ttk::label", "WidgetParent": "Widget99"},
+        }
+
+        rebuilt = layout_model.rebuild_widget_list(project)
+
+        self.assertEqual(rebuilt, [["Widget1", "rootWidget", "", []]])

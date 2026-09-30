@@ -243,3 +243,44 @@ def compact_grid_geometries(
         max(0, old_column_count - column_count),
         max(0, old_row_count - row_count),
     )
+
+
+def rebuild_widget_list(
+    project_data: Mapping[str, Any], root_name: str = "rootWidget"
+) -> list[list]:
+    """Rebuild the saved ``widgetNameList`` from the widgets themselves.
+
+    Hand written and older project files do not always carry the list, and the
+    loader needs it (its order is creation order: parents before children).
+    Each entry is ``[name, parent, widget, [child names]]``; the widget object
+    cannot be recovered from the file, so it is left empty and the designer
+    fills it in as it builds each widget.
+    """
+    names: list[str] = []
+    for name, widget_data in project_data.items():
+        if not isinstance(widget_data, Mapping) or "WidgetName" not in widget_data:
+            continue
+        if name == root_name:
+            continue
+        names.append(str(name))
+    names.sort(key=lambda name: int(name[6:]) if name[6:].isdigit() else 0)
+
+    children: dict[str, list[str]] = {}
+    parents: dict[str, str] = {}
+    for name in names:
+        widget_data = project_data.get(name)
+        parent = str(widget_data.get("WidgetParent") or root_name)
+        if parent != root_name and parent not in names:
+            parent = root_name
+        parents[name] = parent
+        children.setdefault(parent, []).append(name)
+
+    ordered: list[list] = []
+
+    def visit(parent: str) -> None:
+        for child in children.get(parent, []):
+            ordered.append([child, parents[child], "", children.get(child, [])])
+            visit(child)
+
+    visit(root_name)
+    return ordered

@@ -1799,6 +1799,17 @@ def loadProject(project, altFileName):
         projectTheme = runDict.get("theme")
         myVars.backgroundColor = runDict.get("backgroundColor")
         widgetNameList = runDict.get("widgetNameList")
+        if not isinstance(widgetNameList, list) or not widgetNameList:
+            # Hand written and older projects may not carry the list; it is
+            # derivable from each widget's WidgetParent, so rebuild it rather
+            # than failing later on the first iteration.
+            widgetNameList = layout_model.rebuild_widget_list(
+                runDict, myVars.rootWidgetName
+            )
+            log.info(
+                "Project has no widgetNameList; rebuilt %d entries from parents",
+                len(widgetNameList),
+            )
         # Not used?
         # nWidgets = runDict.get("widgetCount")
         myVars.widgetImageFilenames = runDict.get("imageFileNames")

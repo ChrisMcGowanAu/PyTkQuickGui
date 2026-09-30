@@ -419,6 +419,70 @@ Things worth knowing:
 - ttkbootstrap themes are not Flet themes; the project theme is emitted as a
   `THEME` constant for reference only.
 
+### Which geometry manager to use for Flet
+
+**Place is the recommended target for Flet output.** It translates one to one:
+every widget keeps the coordinates the designer gave it, the result looks like
+the Trial Run, and there is nothing to interpret. If a Flet app is the goal,
+design in Place.
+
+**Grid works, but it is an interpretation, and it may need size tweaks.** Flet
+has no grid layout at all - no spans, no minsize, no weights - so a Grid
+project is rebuilt from rows and columns of `expand` weights. Known differences:
+
+- `rowspan` is approximated: a widget that covers several rows occupies one
+  band, at its designed size, instead of stretching down across the rows.
+  **Exact positions** (the dialog option, or Tools → Flet: exact Grid
+  positions) reproduces spans properly, at the cost of not reflowing.
+- `minsize` is only a floor in Tk, and the designer's minsizes are Tk units
+  (`2.5m` is about 9 pixels), so cell sizes are worked out from the widgets
+  themselves. A design that relies on minsizes for its proportions will look
+  different.
+- `sticky` decides which axes a widget fills; partial stickies (`ew`, `w`) keep
+  the designed size on the axes they do not fill.
+
+**Pack** is the weakest of the three and is best avoided for Flet output.
+
+### Writing or generating a project file by hand
+
+A project is just JSON, so a program can be produced without opening the
+designer - useful for scripted or generated UIs. The designer opens such a file
+with **File → Open Project** as usual, and `flet_generator.emit_program()` /
+`buildPython()` accept the same dictionary directly.
+
+The smallest useful file needs the project keys plus one record per widget:
+
+```json
+{
+  "formatVersion": 2,
+  "ProjectName": "handwritten",
+  "geomManager": "Place",
+  "theme": "darkly",
+  "backgroundColor": "skyBlue3",
+  "imageFileNames": [],
+  "widgetCount": 2,
+  "Widget0": {
+    "WidgetName": "ttk::button",
+    "WidgetParent": "rootWidget",
+    "Place": {"x": "16", "y": "16", "width": "120", "height": "32", "anchor": "nw"},
+    "GeomData": {},
+    "Attribute0": {"Key": "text", "Value": "Say hello"},
+    "Attribute1": {"Key": "style", "Value": "success.TButton"},
+    "Widget0-KeyCount": 2
+  }
+}
+```
+
+- `WidgetName` is the Tk widget type (`ttk::button`, `ttk::frame`, `canvas`,
+  `text`, `listbox`, …); `WidgetParent` is another widget name or `rootWidget`.
+- Attributes are Tk options: `text`, `textvariable`, `command`, `style`,
+  `values`, `from`/`to`/`increment`, and so on. Keys Flet cannot express are
+  reported in the generated file rather than silently dropped.
+- Coordinates are relative to the parent, exactly as the designer stores them.
+- `widgetNameList` is optional here: the loader rebuilds it from the widgets'
+  parents if it is missing, and the designer writes it back on the next save.
+- `theme` is what drives Flet colours, so it is worth setting even by hand.
+
 ### Theme colours
 
 Project colours come from the ttkbootstrap theme named in the project, so a
