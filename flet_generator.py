@@ -1,0 +1,1734 @@
+"""Translate a saved PyTkQuickGui project into a standalone Flet program.
+
+The designer stores every widget as a dictionary of raw Tk options
+(``Attribute0`` … ``AttributeN``) plus geometry records shared with
+:mod:`layout_model`.  This module is a pure translation of that data into
+Flet 0.8x controls: it never touches Tk, so it can be unit tested and re-run
+without a display.
+
+Translation notes
+-----------------
+* Tk options with no Flet equivalent (``takefocus``, ``cursor`` …) are left
+  out of the emitted code but listed in a comment per widget, so nothing
+  disappears silently.
+* ttkbootstrap theme names are not Flet themes: the project theme is emitted
+  as a ``THEME`` constant for reference only.
+* Geometry: ``Place`` becomes ``ft.Stack`` with absolute ``left``/``top``,
+  ``Grid`` becomes nested ``ft.Column``/``ft.Row`` (``rowspan`` is
+  approximate), ``Pack`` becomes ``ft.Row``/``ft.Column`` groups.
+* The generated code targets the Flet 0.8x control API (``ft.Button``,
+  ``ft.Tabs`` with a ``TabBar``/``TabBarView`` content, ``ft.DropdownOption``).
+* Nested containers are emitted child-first: every control is assigned to a
+  variable before its parent references it.
+"""
+
+from __future__ import annotations
+
+import re
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
+from typing import Any
+
+import layout_model
+import project_format
+
+STUB_SENTINEL = "# AUTO-GENERATED STUB"
+
+SECTION_VARIABLES = "####### Flet variables #######"
+SECTION_FUNCTIONS = "####### Functions #######"
+SECTION_WIDGETS = "####### Widgets #######"
+SECTION_MAIN = "####### Main  #######"
+
+NOTEBOOK_WIDGET_TYPE = "ttk::notebook"
+CONTAINER_WIDGET_TYPES = (
+    "ttk::frame",
+    "ttk::labelframe",
+    "ttk::panedwindow",
+    "ttk::canvas",
+    "frame",
+    "labelframe",
+    "panedwindow",
+    "canvas",
+)
+TEXT_MEASURED_TYPES = ("listbox", "ttk::listbox", "text", "ttk::text")
+
+#: Tk widget type (as stored in ``WidgetName``) -> Flet control constructor.
+CONTROL_TYPES: dict[str, str] = {
+    "ttk::label": "ft.Text",
+    "ttk::button": "ft.Button",
+    "button": "ft.Button",
+    "ttk::entry": "ft.TextField",
+    "ttk::combobox": "ft.Dropdown",
+    "ttk::spinbox": "ft.TextField",
+    "ttk::checkbutton": "ft.Checkbox",
+    "ttk::radiobutton": "ft.RadioGroup",
+    "ttk::scale": "ft.Slider",
+    "ttk::progressbar": "ft.ProgressBar",
+    "ttk::separator": "ft.Divider",
+    "ttk::notebook": "ft.Tabs",
+    "ttk::frame": "ft.Container",
+    "ttk::labelframe": "ft.Container",
+    "ttk::panedwindow": "ft.Row",
+    "ttk::canvas": "ft.Container",
+    "canvas": "ft.Container",
+    "ttk::scrollbar": "ft.Container",
+    "ttk::treeview": "ft.DataTable",
+    "listbox": "ft.ListView",
+    "ttk::listbox": "ft.ListView",
+    "text": "ft.TextField",
+    "ttk::text": "ft.TextField",
+}
+
+#: Widget types whose Tk widget scrolls, so a sibling/parent scrollbar can be
+#: folded into the generated control instead of becoming a placeholder.
+SCROLLABLE_WIDGET_TYPES = (
+    "ttk::canvas",
+    "canvas",
+    "text",
+    "ttk::text",
+    "listbox",
+    "ttk::listbox",
+    "ttk::treeview",
+    "treeview",
+)
+
+#: Scrollable widget types whose Flet control has no ``scroll`` slot, so the
+#: control is wrapped in a scrolling ``ft.Column`` instead.
+WRAPPED_SCROLL_TYPES = ("ttk::canvas", "canvas", "ttk::treeview", "treeview")
+
+#: Scrollable widget types where the Flet control scrolls on its own.
+SELF_SCROLLING_TYPES = ("text", "ttk::text")
+
+#: Types Flet has no direct control for; the emitted placeholder explains why.
+PLACEHOLDERS: dict[str, str] = {
+    "listbox": "ft.ListView stands in for the Tk listbox",
+    "ttk::listbox": "ft.ListView stands in for the Tk listbox",
+    "ttk::treeview": (
+        "Treeview rows are not stored in the project - ft.DataTable is emitted "
+        "with the saved column headings and no rows"
+    ),
+    "ttk::spinbox": "Flet has no Spinbox control - ft.TextField stands in",
+    "ttk::scrollbar": (
+        "Flet scrollbars attach to a scrollable control "
+        "(ft.Column(scroll=ft.Scrollbar())) - placeholder Container"
+    ),
+}
+
+#: Options accepted by each generated control.
+CONTROL_OPTIONS: dict[str, frozenset[str]] = {
+    "ft.Text": frozenset(
+        {
+            "value",
+            "color",
+            "bgcolor",
+            "size",
+            "weight",
+            "italic",
+            "font_family",
+            "text_align",
+            "max_lines",
+        }
+    ),
+    "ft.Button": frozenset({"content", "bgcolor", "color", "disabled"}),
+    "ft.TextField": frozenset(
+        {
+            "value",
+            "password",
+            "read_only",
+            "disabled",
+            "text_align",
+            "multiline",
+            "label",
+            "bgcolor",
+            "color",
+            "size",
+        }
+    ),
+    "ft.Dropdown": frozenset({"value", "label", "options", "disabled", "bgcolor"}),
+    "ft.Checkbox": frozenset({"label", "value", "disabled"}),
+    "ft.RadioGroup": frozenset({"value", "content", "disabled"}),
+    "ft.Slider": frozenset({"value", "min", "max", "disabled"}),
+    "ft.ProgressBar": frozenset({"value", "color", "bgcolor", "disabled"}),
+    "ft.Divider": frozenset({"color", "height", "thickness"}),
+    "ft.Container": frozenset(
+        {"content", "bgcolor", "padding", "alignment", "border_radius"}
+    ),
+    "ft.Row": frozenset({"controls", "spacing", "expand"}),
+    "ft.Column": frozenset({"controls", "spacing", "expand"}),
+    "ft.Stack": frozenset({"controls", "width", "height"}),
+    "ft.Tabs": frozenset({"content", "length"}),
+    "ft.ListView": frozenset({"controls", "spacing", "scroll"}),
+    "ft.DataTable": frozenset({"columns", "rows"}),
+    "ft.Scrollbar": frozenset({"thickness"}),
+    "ft.Image": frozenset({"src"}),
+}
+
+#: Options accepted by every Flet control (positioning inside a Stack).
+UNIVERSAL_OPTIONS = frozenset({"left", "top", "right", "bottom", "width", "height"})
+
+#: Controls that are :class:`flet.LayoutControl` subclasses, i.e. the only ones
+#: that can carry ``left``/``top``/``width``/``height`` inside a Stack.
+POSITIONABLE_CONTROLS = frozenset(
+    {
+        "ft.Container",
+        "ft.Stack",
+        "ft.Row",
+        "ft.Column",
+        "ft.Text",
+        "ft.Button",
+        "ft.TextField",
+        "ft.Dropdown",
+        "ft.Checkbox",
+        "ft.Slider",
+        "ft.ProgressBar",
+        "ft.Tabs",
+        "ft.ListView",
+        "ft.DataTable",
+        "ft.Image",
+    }
+)
+
+#: Tk/X11 colour names seen in saved projects, mapped to CSS hex.
+TK_COLORS: dict[str, str] = {
+    "black": "#000000",
+    "white": "#ffffff",
+    "red": "#ff0000",
+    "green": "#008000",
+    "blue": "#0000ff",
+    "cyan": "#00ffff",
+    "magenta": "#ff00ff",
+    "yellow": "#ffff00",
+    "orange": "#ffa500",
+    "purple": "#800080",
+    "brown": "#a52a2a",
+    "pink": "#ffc0cb",
+    "gray": "#808080",
+    "grey": "#808080",
+    "lightgray": "#d3d3d3",
+    "lightgrey": "#d3d3d3",
+    "darkgray": "#a9a9a9",
+    "darkgrey": "#a9a9a9",
+    "gray96": "#f5f5f5",
+    "grey96": "#f5f5f5",
+    "skyblue": "#87ceeb",
+    "skyblue1": "#87ceff",
+    "skyblue2": "#7ec0ee",
+    "skyblue3": "#6ca6cd",
+    "skyblue4": "#4a708b",
+    "steelblue": "#4682b4",
+    "lightblue": "#add8e6",
+    "lightsteelblue": "#b0c4de",
+    "navy": "#000080",
+    "teal": "#008080",
+    "lime": "#00ff00",
+    "maroon": "#800000",
+    "olive": "#808000",
+    "silver": "#c0c0c0",
+    "systembuttonface": "#d9d9d9",
+    "systemwindow": "#ffffff",
+    "systembuttontext": "#000000",
+    "systemhighlight": "#0078d7",
+}
+
+_HEX_COLOR = re.compile(r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$")
+_FONT = re.compile(r"^\s*(?P<family>\S.*?)\s+(?P<size>-?\d+)\s*(?P<rest>.*)$")
+
+#: Tk measures Entry/Combobox/Spinbox widths in characters; Flet uses pixels.
+_AVERAGE_CHAR_WIDTH = 8
+_CHAR_WIDTH_PADDING = 12
+_LINE_HEIGHT = 18
+
+_ALIGNMENTS = {
+    "left": "ft.TextAlign.LEFT",
+    "right": "ft.TextAlign.RIGHT",
+    "center": "ft.TextAlign.CENTER",
+    "justify": "ft.TextAlign.JUSTIFY",
+    "w": "ft.TextAlign.LEFT",
+    "e": "ft.TextAlign.RIGHT",
+    "n": "ft.TextAlign.CENTER",
+    "s": "ft.TextAlign.CENTER",
+}
+_CONTAINER_ALIGNMENTS = {
+    "left": "ft.Alignment.TOP_LEFT",
+    "w": "ft.Alignment.TOP_LEFT",
+    "right": "ft.Alignment.TOP_RIGHT",
+    "e": "ft.Alignment.TOP_RIGHT",
+    "center": "ft.Alignment.CENTER",
+    "n": "ft.Alignment.CENTER",
+    "s": "ft.Alignment.CENTER",
+}
+
+
+def _text(value: Any) -> str:
+    return "" if value is None else str(value)
+
+
+def _number(value: Any, default: int | float | None = None) -> int | float | None:
+    """Return *value* as a number, or *default* when blank or not numeric."""
+    raw = _text(value).strip()
+    if not raw:
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        try:
+            return float(raw)
+        except ValueError:
+            return default
+
+
+#: Flet positions are pixels; Tk accepts unit suffixes in geometry values.
+#: Conversion assumes the usual 96 dpi desktop, where 1i = 72p = 96px.
+_TK_UNITS = {"p": 96 / 72, "i": 96.0, "m": 96 / 25.4, "c": 96 / 2.54}
+
+
+def tk_length(value: Any, default: int = 0) -> int:
+    """Convert a Tk geometry value (``"5m"``, ``"120"``, ``""``) to pixels."""
+    raw = _text(value).strip()
+    if not raw or raw.lower() in ("none", "0"):
+        return default
+    suffix = raw[-1].lower()
+    if suffix in _TK_UNITS:
+        number = _number(raw[:-1])
+        if number is None:
+            return default
+        return max(0, int(round(float(number) * _TK_UNITS[suffix])))
+    number = _number(raw)
+    return default if number is None else max(0, int(number))
+
+
+def _indent_lines(block: str, indent: int) -> str:
+    """Indent every line of *block* by *indent* spaces."""
+    pad = " " * indent
+    return "\n".join(pad + line for line in block.split("\n"))
+
+
+def _call(prefix: str, arguments: Sequence[str]) -> str:
+    """Format ``prefix(arg, arg)`` with one argument per line."""
+    values = [argument for argument in arguments if argument]
+    if not values:
+        return f"{prefix}()"
+    body = ",\n".join(_indent_lines(value, 4) for value in values)
+    return f"{prefix}(\n{body},\n)"
+
+
+def _list_expression(elements: Sequence[str], width: int = 78) -> str:
+    """Return a ``[…]`` list, one element per line when that reads better."""
+    if not elements:
+        return "[]"
+    inline = f"[{', '.join(elements)}]"
+    if len(elements) <= 3 and len(inline) <= width and "\n" not in inline:
+        return inline
+    body = _indent_lines(",\n".join(elements), 4)
+    return f"[\n{body},\n]"
+
+
+def _list_argument(keyword: str, elements: Sequence[str]) -> str:
+    """Return ``keyword=[…]`` using :func:`_list_expression` formatting."""
+    return f"{keyword}={_list_expression(elements)}"
+
+
+def tk_color(value: Any) -> str | None:
+    """Return a Flet-safe colour for a Tk colour name, or ``None`` to drop it."""
+    raw = _text(value).strip()
+    if not raw:
+        return None
+    if _HEX_COLOR.match(raw):
+        return raw.lower()
+    return TK_COLORS.get(raw.replace(" ", "").lower())
+
+
+def parse_font(value: Any) -> dict[str, str]:
+    """Translate a Tk font description into Flet text properties.
+
+    Only the X11 ``"family size style…"`` form carries usable detail; symbolic
+    fonts such as ``TkDefaultFont`` return an empty mapping.
+    """
+    raw = _text(value).strip().replace("\\", "")
+    if not raw or raw.startswith("Tk"):
+        return {}
+    match = _FONT.match(raw)
+    if not match:
+        return {}
+    size = _number(match.group("size"))
+    rest = match.group("rest").lower()
+    properties: dict[str, str] = {"font_family": repr(match.group("family"))}
+    if isinstance(size, (int, float)) and size:
+        pixels = int(abs(size) * 1.33) if size > 0 else int(abs(size))
+        properties["size"] = repr(pixels)
+    if "bold" in rest:
+        properties["weight"] = "ft.FontWeight.BOLD"
+    if "italic" in rest or "oblique" in rest:
+        properties["italic"] = "True"
+    return properties
+
+
+def parse_values(value: Any) -> list[str]:
+    """Split a saved Tk ``values`` option into individual entries.
+
+    Values arrive either as the designer's ``"(a b c)"`` form or as a plain
+    space separated string, with ``{braced groups}`` for entries containing
+    spaces.
+    """
+    raw = _text(value).strip().strip("[]()")
+    if not raw:
+        return []
+    entries: list[str] = []
+    current = ""
+    depth = 0
+    quote = ""
+    for character in raw:
+        if quote:
+            if character == quote:
+                quote = ""
+            else:
+                current += character
+            continue
+        if character in "\"'":
+            quote = character
+            continue
+        if character == "{":
+            depth += 1
+            continue
+        if character == "}":
+            depth = max(0, depth - 1)
+            continue
+        if character.isspace() and depth == 0:
+            if current:
+                entries.append(current)
+                current = ""
+            continue
+        current += character
+    if current:
+        entries.append(current)
+    return entries
+
+
+def _widget_key(widget_type: Any) -> str:
+    """Normalise a Tk widget type to a tool-defaults key."""
+    return (
+        _text(widget_type)
+        .replace("ttk::", "")
+        .replace("tk::", "")
+        .replace("ttk.", "")
+        .replace("tk.", "")
+        .lower()
+    )
+
+
+def widget_control(widget_type: Any) -> str:
+    """Return the Flet control constructor for a Tk widget type."""
+    return CONTROL_TYPES.get(_text(widget_type), "ft.Container")
+
+
+def is_container(widget_type: Any) -> bool:
+    return _text(widget_type) in CONTAINER_WIDGET_TYPES
+
+
+def window_size(
+    project_data: Mapping[str, Any],
+    widget_order: Sequence[str] = (),
+    root_name: str = "rootWidget",
+) -> tuple[int, int]:
+    """Return a sensible window size for the generated Flet app."""
+    width = 0
+    height = 0
+    for name in widget_order:
+        widget_data = project_data.get(name)
+        if not isinstance(widget_data, Mapping):
+            continue
+        parent = _text(widget_data.get("WidgetParent", root_name)) or root_name
+        if parent != root_name:
+            continue
+        place = widget_data.get("Place") or {}
+        x = _number(place.get("x"), 0) or 0
+        y = _number(place.get("y"), 0) or 0
+        widget_width = _number(place.get("width"), 0) or 0
+        widget_height = _number(place.get("height"), 0) or 0
+        width = max(width, int(x) + int(widget_width))
+        height = max(height, int(y) + int(widget_height))
+    if width <= 0 or height <= 0:
+        return 800, 600
+    return width + 20, height + 20
+
+
+def translate_attributes(
+    widget_type: str,
+    attributes: Sequence[tuple[str, str]],
+    context: Mapping[str, Any],
+) -> tuple[dict[str, Any], list[str]]:
+    """Translate saved Tk options into Flet properties.
+
+    Returns ``(properties, unmapped_keys)``.  ``properties`` holds Python
+    literals ready to emit, plus the internal markers ``text``, ``command``,
+    ``values`` and ``image`` that the per-control emitters place on the
+    correct keyword.
+    """
+    properties: dict[str, Any] = {}
+    unmapped: list[str] = []
+    callbacks = context["callbacks"]
+    variables = context["variables"]
+    images = context["images"]
+
+    for key, value in attributes:
+        raw = _text(value)
+        if key == "text":
+            properties["text"] = raw
+        elif key in project_format.CALLBACK_KEYS:
+            if raw in callbacks:
+                properties["command"] = raw
+            else:
+                unmapped.append(key)
+        elif key in project_format.VARIABLE_KEYS:
+            if raw in variables:
+                properties["value"] = raw
+            else:
+                unmapped.append(key)
+        elif key == "image":
+            filename = images.get(context["name"])
+            if filename:
+                properties["image"] = filename
+            else:
+                unmapped.append(key)
+        elif key == "values":
+            values = parse_values(raw)
+            if values:
+                properties["values"] = values
+            else:
+                unmapped.append(key)
+        elif key == "columns":
+            # Treeview heading names; the tool never stores row data.
+            values = parse_values(raw)
+            if values:
+                properties["tree_columns"] = values
+            else:
+                unmapped.append(key)
+        elif key == "font":
+            font = parse_font(raw)
+            if font:
+                properties.update(font)
+            else:
+                unmapped.append(key)
+        elif key in ("foreground", "fg", "insertbackground"):
+            colour = tk_color(raw)
+            if colour:
+                properties["color"] = repr(colour)
+            else:
+                unmapped.append(key)
+        elif key in ("background", "bg"):
+            colour = tk_color(raw)
+            if colour:
+                properties["bgcolor"] = repr(colour)
+            else:
+                unmapped.append(key)
+        elif key == "justify":
+            align = _ALIGNMENTS.get(raw.strip().lower())
+            if align:
+                properties["text_align"] = align
+            else:
+                unmapped.append(key)
+        elif key == "anchor":
+            align = _CONTAINER_ALIGNMENTS.get(raw.strip().lower())
+            if align:
+                properties["alignment"] = align
+            else:
+                unmapped.append(key)
+        elif key == "state":
+            if raw == "disabled":
+                properties["disabled"] = "True"
+            elif raw in ("readonly", "read-only"):
+                properties["read_only"] = "True"
+        elif key == "show":
+            if raw:
+                properties["password"] = "True"
+        elif key in ("from", "from_"):
+            number = _number(raw)
+            if number is None:
+                unmapped.append(key)
+            else:
+                properties["minimum"] = float(number)
+        elif key == "to":
+            number = _number(raw)
+            if number is None:
+                unmapped.append(key)
+            else:
+                properties["maximum"] = float(number)
+        elif key == "value":
+            if widget_type == "ttk::radiobutton":
+                # A radio's own value is an arbitrary label, not a number.
+                properties["current"] = raw
+            else:
+                number = _number(raw)
+                if number is None:
+                    unmapped.append(key)
+                else:
+                    properties["current"] = float(number)
+        elif key == "increment":
+            number = _number(raw)
+            if number is None:
+                unmapped.append(key)
+            else:
+                properties["increment"] = float(number)
+        elif key == "maximum":
+            number = _number(raw)
+            if number is None:
+                unmapped.append(key)
+            else:
+                properties["range_maximum"] = float(number)
+        elif key in ("length", "wraplength"):
+            number = _number(raw)
+            if number is None:
+                unmapped.append(key)
+            else:
+                properties["width"] = int(number)
+        elif key == "width":
+            if widget_type in ("ttk::label", "ttk::progressbar", "ttk::scale"):
+                number = _number(raw)
+                if number is None:
+                    unmapped.append(key)
+                else:
+                    properties["width"] = int(number)
+            else:
+                characters = _number(raw)
+                if characters is None:
+                    unmapped.append(key)
+                else:
+                    properties["width"] = (
+                        int(characters) * _AVERAGE_CHAR_WIDTH + _CHAR_WIDTH_PADDING
+                    )
+        elif key == "height":
+            if widget_type in TEXT_MEASURED_TYPES:
+                lines = _number(raw)
+                if lines is None:
+                    unmapped.append(key)
+                else:
+                    properties["height"] = int(lines) * _LINE_HEIGHT
+            else:
+                number = _number(raw)
+                if number is None:
+                    unmapped.append(key)
+                else:
+                    properties["height"] = int(number)
+        elif key == "orient":
+            properties["orientation"] = raw.strip().lower()
+        elif key == "padding":
+            number = _number(raw)
+            if number is None:
+                unmapped.append(key)
+            else:
+                properties["padding"] = int(number)
+        else:
+            unmapped.append(key)
+
+    return properties, unmapped
+
+
+@dataclass(frozen=True)
+class ScrollAttachment:
+    """A Tk scrollbar folded into the control it scrolls.
+
+    ``mode`` is one of:
+
+    ``native``      the target control has a ``scroll`` slot (ListView)
+    ``wrap``        the target must be wrapped in a scrolling ``ft.Column``
+    ``self``        the target scrolls on its own, so the bar is dropped
+    ``placeholder`` no target (or a horizontal bar) - keep a stand-in control
+    """
+
+    scrollbar: str
+    orientation: str
+    thickness: int
+    target: str = ""
+    mode: str = "placeholder"
+
+    def scrollbar_call(self) -> str:
+        """Return the ``ft.Scrollbar(...)`` expression for the target."""
+        return f"ft.Scrollbar(thickness={self.thickness})"
+
+    def summary(self) -> str:
+        """Return a one line description for the translation notes."""
+        if self.mode == "placeholder":
+            return "no scrollable target found - placeholder Container"
+        if self.mode == "self":
+            return f"{self.target} scrolls on its own - scrollbar dropped"
+        if self.mode == "native":
+            return f"attached to {self.target} via scroll={self.scrollbar_call()}"
+        return (
+            f"wraps {self.target} in a scrolling ft.Column "
+            f"({self.scrollbar_call()})"
+        )
+
+
+class _Project:
+    """Read-only view of a saved project, shared by the emitters."""
+
+    def __init__(
+        self,
+        project_data: Mapping[str, Any],
+        widget_order: Sequence[str],
+        root_name: str,
+        geom_manager: str = "",
+        images: Mapping[str, str] | None = None,
+        grid_mode: str = "responsive",
+        policy: Mapping[str, str] | None = None,
+    ) -> None:
+        self.data = project_data
+        self.root_name = root_name
+        self.geom_manager = geom_manager or _text(project_data.get("geomManager"))
+        self.grid_mode = grid_mode
+        self.policy: Mapping[str, str] = dict(policy or {"default": "full"})
+        self.images = dict(images or _image_files(project_data))
+        self.order = [name for name in widget_order if name != root_name]
+        self.callbacks = project_format.callback_names(self.data, self.order, root_name)
+        self.variables = project_format.variable_names(self.data, self.order, root_name)
+        self.children: dict[str, list[str]] = {}
+        for name in self.order:
+            widget_data = self.data.get(name)
+            if not isinstance(widget_data, Mapping):
+                continue
+            parent = _text(widget_data.get("WidgetParent", root_name)) or root_name
+            if parent != root_name and parent not in self.data:
+                parent = root_name
+            self.children.setdefault(parent, []).append(name)
+        self.grid_requirements = (
+            layout_model.grid_layout_requirements(self.data, self.order, root_name)
+            if self.geom_manager == "Grid"
+            else {}
+        )
+        self.scroll_attachments = self._find_scroll_attachments()
+        self.scroll_targets = {
+            attachment.target: attachment
+            for attachment in self.scroll_attachments.values()
+            if attachment.target and attachment.mode in ("native", "wrap")
+        }
+
+    def _find_scroll_attachments(self) -> dict[str, ScrollAttachment]:
+        """Pair each Tk scrollbar with the widget it scrolls.
+
+        The designer stores scrollbars either inside the widget they scroll
+        (the usual canvas pattern) or as a sibling in the same parent, so both
+        are considered.  Anything ambiguous keeps the placeholder behaviour.
+        """
+        attachments: dict[str, ScrollAttachment] = {}
+        for name in self.order:
+            if self.widget_type(name) != "ttk::scrollbar":
+                continue
+            orientation = self.option(name, "orient").lower() or "vertical"
+            thickness = self._scrollbar_thickness(name, orientation)
+            target = self._scroll_target(name)
+            if not target or self.skipped(target):
+                mode = "placeholder"
+            elif orientation != "vertical":
+                mode = "placeholder"
+            elif self.widget_type(target) in SELF_SCROLLING_TYPES:
+                mode = "self"
+            elif self.widget_type(target) in WRAPPED_SCROLL_TYPES:
+                mode = "wrap"
+            else:
+                mode = "native"
+            attachments[name] = ScrollAttachment(
+                scrollbar=name,
+                orientation=orientation,
+                thickness=thickness,
+                target=target if mode in ("native", "wrap", "self") else "",
+                mode=mode,
+            )
+        return attachments
+
+    def _scroll_target(self, scrollbar: str) -> str:
+        """Return the widget *scrollbar* scrolls, or ``""`` when ambiguous."""
+        parent = _text(self.widget(scrollbar).get("WidgetParent", self.root_name))
+        parent = parent or self.root_name
+        if self.widget_type(parent) in SCROLLABLE_WIDGET_TYPES:
+            return parent
+        candidates = [
+            child
+            for child in self.children.get(parent, [])
+            if child != scrollbar
+            and self.widget_type(child) in SCROLLABLE_WIDGET_TYPES
+        ]
+        return candidates[0] if len(candidates) == 1 else ""
+
+    def _scrollbar_thickness(self, name: str, orientation: str) -> int:
+        """Return the pixel thickness of a scrollbar from its saved geometry."""
+        place = self.widget(name).get("Place") or {}
+        key = "height" if orientation == "horizontal" else "width"
+        thickness = _number(place.get(key)) or _number(self.option(name, key))
+        if not thickness:
+            return 16
+        return max(2, int(thickness))
+
+    def policy_for(self, name: str) -> str:
+        """Return the configured Flet policy for one widget's type."""
+        key = _widget_key(self.widget_type(name))
+        return str(self.policy.get(key, self.policy.get("default", "full")))
+
+    def skipped(self, name: str) -> bool:
+        """Return whether the tool defaults exclude *name* from Flet output."""
+        return self.policy_for(name) == "skip"
+
+    def hidden(self, name: str) -> bool:
+        """Return whether *name* is folded into another control or skipped."""
+        if self.skipped(name):
+            return True
+        attachment = self.scroll_attachments.get(name)
+        return attachment is not None and attachment.mode in ("native", "wrap", "self")
+
+    def visible_parent(self, name: str) -> str:
+        """Return the nearest ancestor that is actually emitted."""
+        parent = _text(self.widget(name).get("WidgetParent", self.root_name))
+        parent = parent or self.root_name
+        guard = 0
+        while parent != self.root_name and self.hidden(parent) and guard < 32:
+            parent = (
+                _text(self.widget(parent).get("WidgetParent", self.root_name))
+                or self.root_name
+            )
+            guard += 1
+        return parent
+
+    def visible_children(self, name: str) -> list[str]:
+        """Return *name*'s children, promoting children of skipped widgets.
+
+        A skipped container must not take its children down with it, so the
+        grandchildren are spliced into the parent's list in place.
+        """
+        visible: list[str] = []
+        for child in self.children.get(name, []):
+            if self.hidden(child):
+                visible.extend(self.visible_children(child))
+            else:
+                visible.append(child)
+        return visible
+
+    def attachment(self, name: str) -> ScrollAttachment | None:
+        """Return the scrollbar attachment that targets *name*, if any."""
+        return self.scroll_targets.get(name)
+
+    @property
+    def absolute_grid(self) -> bool:
+        """Whether Grid is rendered with exact pixel positions."""
+        return self.geom_manager == "Grid" and self.grid_mode == "absolute"
+
+    def widget(self, name: str) -> Mapping[str, Any]:
+        widget_data = self.data.get(name)
+        return widget_data if isinstance(widget_data, Mapping) else {}
+
+    def widget_type(self, name: str) -> str:
+        return _text(self.widget(name).get("WidgetName"))
+
+    def attributes(self, name: str) -> list[tuple[str, str]]:
+        return list(project_format.iter_attributes(name, self.widget(name)))
+
+    def option(self, name: str, key: str) -> str:
+        """Return the last saved value of one Tk option, or ``""``."""
+        for candidate, value in self.attributes(name):
+            if candidate == key:
+                return _text(value)
+        return ""
+
+    def is_tab(self, name: str) -> bool:
+        return layout_model.is_saved_notebook_tab(self.data, name, self.root_name)
+
+    def context(self, name: str) -> dict[str, Any]:
+        return {
+            "name": name,
+            "root": self.root_name,
+            "callbacks": set(self.callbacks),
+            "variables": set(self.variables),
+            "images": self.images,
+        }
+
+
+def _image_files(project_data: Mapping[str, Any]) -> dict[str, str]:
+    """Return ``{widget name: filename}`` from the saved image list."""
+    files: dict[str, str] = {}
+    for entry in project_data.get("imageFileNames") or []:
+        if isinstance(entry, str) or not isinstance(entry, Sequence):
+            continue
+        if len(entry) < 3:
+            continue
+        widget_name, filename = _text(entry[0]), _text(entry[2])
+        if widget_name and filename:
+            files[widget_name] = filename
+    return files
+
+
+class _Emitter:
+    """Builds the generated program one control at a time."""
+
+    def __init__(self, project: _Project) -> None:
+        self.project = project
+        self.lines: list[str] = []
+        self.notes: list[str] = []
+        self.defined: set[str] = set()
+        self.helpers: list[str] = []
+
+    # -- control emission ------------------------------------------------
+    def _arguments(self, name: str, control: str) -> tuple[dict[str, str], list[str]]:
+        """Return ``{keyword: bare expression}`` for one widget's control.
+
+        Values carry no ``keyword=`` prefix; the caller adds it so the same
+        arguments can be reused either directly or inside a wrapper control.
+        """
+        widget_type = self.project.widget_type(name)
+        properties, unmapped = translate_attributes(
+            widget_type, self.project.attributes(name), self.project.context(name)
+        )
+        arguments: dict[str, str] = {}
+        if control == "ft.Text":
+            arguments["value"] = repr(properties.pop("text", name))
+        elif control == "ft.Button":
+            arguments["content"] = repr(properties.pop("text", name))
+        elif control == "ft.Checkbox":
+            arguments["label"] = repr(properties.pop("text", name))
+            if "value" in properties:
+                arguments["value"] = f"bool({properties.pop('value')})"
+        elif control == "ft.RadioGroup":
+            current = properties.pop("current", None)
+            variable = properties.pop("value", None)
+            if current is not None:
+                arguments["value"] = repr(current)
+            elif variable is not None:
+                arguments["value"] = variable
+            radio_value = repr(_text(current) if current is not None else "0")
+            label = repr(properties.pop("text", name))
+            arguments["content"] = (
+                f"ft.Radio(value={radio_value}, label={label})"
+            )
+        elif control == "ft.Dropdown":
+            values = properties.pop("values", None)
+            if values:
+                options = ", ".join(
+                    f"ft.DropdownOption(key={value!r}, text={value!r})"
+                    for value in values
+                )
+                arguments["options"] = f"[{options}]"
+        elif control == "ft.Slider":
+            if properties.pop("value", None):
+                self.notes.append(
+                    f"# {name}: Tk variable is not bound to ft.Slider.value"
+                )
+            arguments.update(self._slider_arguments(properties))
+            properties = {}
+        elif control == "ft.ProgressBar":
+            if properties.pop("value", None):
+                self.notes.append(
+                    f"# {name}: Tk variable is not bound to ft.ProgressBar.value"
+                )
+            arguments.update(self._progress_arguments(properties))
+            properties = {}
+        elif control == "ft.DataTable":
+            columns = properties.pop("tree_columns", [])
+            arguments["columns"] = (
+                "["
+                + ", ".join(
+                    f"ft.DataColumn(label=ft.Text({name!r}))" for name in columns
+                )
+                + "]"
+            )
+            arguments["rows"] = "[]"
+        elif control == "ft.TextField":
+            if widget_type in TEXT_MEASURED_TYPES:
+                arguments["multiline"] = "True"
+        elif control == "ft.Divider":
+            if properties.pop("orientation", "") == "vertical":
+                self.notes.append(
+                    f"# {name}: Tk vertical separator emitted as horizontal ft.Divider"
+                )
+
+        for keyword, value in properties.items():
+            if keyword in ("text", "command", "image", "orientation"):
+                continue
+            if keyword in arguments:
+                continue
+            if keyword not in CONTROL_OPTIONS.get(control, UNIVERSAL_OPTIONS):
+                unmapped.append(keyword)
+                continue
+            if keyword == "disabled" and value == "False":
+                continue
+            arguments[keyword] = value
+
+        if properties.get("image"):
+            arguments["content"] = f"{name}image"
+            self.notes.append(f"# {name}: Tk image emitted as the {name}image control")
+
+        command = properties.get("command")
+        if command:
+            arguments[self._event_keyword(control)] = command
+
+        return arguments, unmapped
+
+    def _placement_arguments(self, name: str) -> dict[str, str]:
+        """Return absolute Stack positioning for *name*.
+
+        Used for ``Place`` and for ``Grid`` when the caller asked for the
+        exact-position ("absolute") layout mode.
+        """
+        if self.project.is_tab(name):
+            return {}
+        if self.project.geom_manager == "Grid" and self.project.absolute_grid:
+            return self._grid_placement(name)
+        if self.project.geom_manager != "Place":
+            return {}
+        widget_data = self.project.widget(name)
+        source = widget_data.get("Place") or widget_data.get("GeomData") or {}
+        arguments: dict[str, str] = {}
+        x = _number(source.get("x"))
+        y = _number(source.get("y"))
+        width = _number(source.get("width"))
+        height = _number(source.get("height"))
+        if x is not None:
+            arguments["left"] = str(int(x))
+        if y is not None:
+            arguments["top"] = str(int(y))
+        if _text(source.get("relwidth")).strip():
+            arguments["right"] = "0"
+        elif width is not None:
+            arguments["width"] = str(int(width))
+        if _text(source.get("relheight")).strip():
+            arguments["bottom"] = "0"
+        elif height is not None:
+            arguments["height"] = str(int(height))
+        return arguments
+
+    def _grid_placement(self, name: str) -> dict[str, str]:
+        """Return pixel positioning derived from a widget's Grid geometry."""
+        widget_data = self.project.widget(name)
+        parent = self.project.visible_parent(name)
+        state = layout_model.GridGeometry.from_mapping(
+            widget_data.get("GeomData") or {}, parent=parent
+        )
+        columns, rows = self._grid_lengths(parent)
+        left = sum(columns[index] for index in range(state.column))
+        left += state.padx * state.column
+        top = sum(rows[index] for index in range(state.row)) + state.pady * state.row
+        width = sum(
+            columns[index]
+            for index in range(state.column, state.column + state.columnspan)
+        )
+        width += state.padx * max(0, state.columnspan - 1)
+        height = sum(
+            rows[index] for index in range(state.row, state.row + state.rowspan)
+        )
+        height += state.pady * max(0, state.rowspan - 1)
+        arguments = {
+            "left": str(int(left + state.padx)),
+            "top": str(int(top + state.pady)),
+            "width": str(max(1, int(width - 2 * state.padx))),
+            "height": str(max(1, int(height - 2 * state.pady))),
+        }
+        return arguments
+
+    def _grid_lengths(self, parent_name: str) -> tuple[list[int], list[int]]:
+        """Return pixel column widths and row heights for a Grid parent."""
+        columns, rows = self.project.grid_requirements.get(parent_name, (0, 0))
+        if parent_name == self.project.root_name:
+            data = self.project.data
+            column_size = tk_length(data.get("gridColMinsize"), 20) or 20
+            row_size = tk_length(data.get("gridRowMinsize"), 20) or 20
+        else:
+            # Mirrors the minsize the Python backend emits for containers.
+            column_size, row_size = 40, 24
+        for child in self.project.visible_children(parent_name):
+            state = layout_model.GridGeometry.from_mapping(
+                self.project.widget(child).get("GeomData") or {}, parent=parent_name
+            )
+            columns = max(columns, state.column + state.columnspan)
+            rows = max(rows, state.row + state.rowspan)
+        return (
+            [max(1, column_size)] * max(1, columns),
+            [max(1, row_size)] * max(1, rows),
+        )
+
+    def window_size(self) -> tuple[int, int]:
+        """Return the window size for the generated program."""
+        if self.project.geom_manager == "Grid" and self.project.absolute_grid:
+            columns, rows = self._grid_lengths(self.project.root_name)
+            used_columns, used_rows = self.project.grid_requirements.get(
+                self.project.root_name, (len(columns), len(rows))
+            )
+            width = sum(columns[:used_columns]) + 20
+            height = sum(rows[:used_rows]) + 20
+            return max(200, int(width)), max(150, int(height))
+        if self.project.geom_manager != "Place":
+            return 800, 600
+        return window_size(
+            self.project.data, self.project.order, self.project.root_name
+        )
+
+    @staticmethod
+    def _event_keyword(control: str) -> str:
+        if control == "ft.Dropdown":
+            return "on_select"
+        if control in ("ft.Slider", "ft.TextField", "ft.Checkbox", "ft.RadioGroup"):
+            return "on_change"
+        return "on_click"
+
+    @staticmethod
+    def _slider_arguments(properties: Mapping[str, Any]) -> dict[str, str]:
+        minimum = float(properties.get("minimum", 0.0) or 0.0)
+        maximum = properties.get("maximum")
+        current = properties.get("current")
+        if maximum is None:
+            maximum = max(minimum + 1.0, float(current or minimum))
+        maximum = float(maximum)
+        if maximum <= minimum:
+            maximum = minimum + 1.0
+        arguments = {"min": repr(minimum), "max": repr(maximum)}
+        if current is not None:
+            value = min(maximum, max(minimum, float(current)))
+            arguments["value"] = repr(value)
+        return arguments
+
+    @staticmethod
+    def _progress_arguments(properties: Mapping[str, Any]) -> dict[str, str]:
+        maximum = float(properties.get("range_maximum", 100.0) or 100.0)
+        current = properties.get("current")
+        arguments: dict[str, str] = {}
+        if current is not None:
+            fraction = 0.0 if maximum <= 0 else float(current) / maximum
+            arguments["value"] = repr(round(max(0.0, min(1.0, fraction)), 4))
+        if "color" in properties:
+            arguments["color"] = str(properties["color"])
+        if "bgcolor" in properties:
+            arguments["bgcolor"] = str(properties["bgcolor"])
+        return arguments
+
+    # -- structural expressions ------------------------------------------
+    def _stack(self, children: Sequence[str]) -> str:
+        names = [name for name in map(self._define, children) if name]
+        return _call("ft.Stack", [_list_argument("controls", names)])
+
+    def _rows(self, parent_name: str, children: Sequence[str]) -> str:
+        columns, _rows = self.project.grid_requirements.get(parent_name, (0, 0))
+        cells: dict[tuple[int, int], tuple[str, int, int]] = {}
+        row_indexes: set[int] = set()
+        for child in children:
+            geometry = self.project.widget(child).get("GeomData") or {}
+            state = layout_model.GridGeometry.from_mapping(geometry)
+            defined = self._define(child)
+            if not defined:
+                continue
+            cells[(state.row, state.column)] = (
+                defined,
+                state.columnspan,
+                state.padx,
+            )
+            row_indexes.add(state.row)
+            columns = max(columns, state.column + state.columnspan)
+            if state.rowspan > 1:
+                self.notes.append(
+                    f"# {child}: grid rowspan={state.rowspan} is approximated in Flet"
+                )
+        if not columns or not row_indexes:
+            return "ft.Column()"
+        rows: list[str] = []
+        for row in sorted(row_indexes):
+            row_cells: list[str] = []
+            column = 0
+            while column < columns:
+                match = cells.get((row, column))
+                if match:
+                    child, span, pad = match
+                    row_cells.append(self._grid_cell(child, span, pad))
+                    column += max(1, span)
+                else:
+                    row_cells.append("ft.Container(expand=1)")
+                    column += 1
+            rows.append(
+                _call("ft.Row", [_list_argument("controls", row_cells), "spacing=0"])
+            )
+        return _call(
+            "ft.Column",
+            [_list_argument("controls", rows), "spacing=0", "expand=True"],
+        )
+
+    @staticmethod
+    def _grid_cell(child: str, columnspan: int, padx: Any) -> str:
+        padding = _number(padx, 2) or 0
+        return _call(
+            "ft.Container",
+            [
+                f"content={child}",
+                f"expand={max(1, int(columnspan))}",
+                f"padding={int(padding)}",
+            ],
+        )
+
+    def _packed(self, children: Sequence[str]) -> str:
+        groups: dict[str, list[str]] = {
+            "top": [],
+            "bottom": [],
+            "left": [],
+            "right": [],
+        }
+        for child in children:
+            geometry = self.project.widget(child).get("GeomData") or {}
+            side = _text(geometry.get("side", "top")) or "top"
+            expand = _text(geometry.get("expand", "0")) not in ("", "0", "False")
+            fill = _text(geometry.get("fill", "none"))
+            name = self._define(child)
+            if not name:
+                continue
+            if expand:
+                name = _call("ft.Container", [f"content={name}", "expand=True"])
+            if fill not in ("none", "both", "x", "y", ""):
+                self.notes.append(
+                    f"# {child}: pack fill={fill!r} has no Flet equivalent"
+                )
+            groups.setdefault(side, []).append(name)
+
+        sections: list[str] = list(groups.get("top", []))
+        left, right = groups.get("left", []), groups.get("right", [])
+        if left or right:
+            middle: list[str] = []
+            for column in (left, right):
+                if column:
+                    middle.append(
+                        _call(
+                            "ft.Column",
+                            [
+                                _list_argument("controls", column),
+                                "spacing=0",
+                                "expand=True",
+                            ],
+                        )
+                    )
+            sections.append(
+                _call(
+                    "ft.Row",
+                    [_list_argument("controls", middle), "spacing=0", "expand=True"],
+                )
+            )
+        sections.extend(groups.get("bottom", []))
+        return _call(
+            "ft.Column",
+            [_list_argument("controls", sections), "spacing=0", "expand=True"],
+        )
+
+    def _notebook(self, children: Sequence[str]) -> str:
+        """Return the ``ft.Column`` holding the tab bar and its pages."""
+        tabs: list[str] = []
+        panes: list[str] = []
+        for index, child in enumerate(children, start=1):
+            tabs.append(f"ft.Tab(label={'Tab ' + str(index)!r})")
+            panes.append(self._define(child) or child)
+        tab_bar = _call("ft.TabBar", [_list_argument("tabs", tabs)])
+        view = _call(
+            "ft.TabBarView", [_list_argument("controls", panes), "expand=True"]
+        )
+        return _call(
+            "ft.Column",
+            [_list_argument("controls", [tab_bar, view]), "expand=True", "spacing=0"],
+        )
+
+    # -- tree walking ----------------------------------------------------
+    def _define(self, name: str) -> str:
+        """Return the variable name for *name*, emitting it on first use."""
+        if name in self.defined:
+            return None if self.project.hidden(name) else name
+        if self.project.hidden(name):
+            # Folded into the control it scrolls; never emitted on its own.
+            self.defined.add(name)
+            return None
+        self.defined.add(name)
+        widget_type = self.project.widget_type(name)
+        control = widget_control(widget_type)
+        children = self.project.visible_children(name)
+        if widget_type == "ttk::label" and self.project.option(name, "image"):
+            control = "ft.Container"
+        if widget_type == "ttk::treeview" and not parse_values(
+            self.project.option(name, "columns")
+        ):
+            control = "ft.Container"
+            self.notes.append(
+                f"# {name}: Treeview has no columns - placeholder Container"
+            )
+        if self.project.policy_for(name) == "placeholder":
+            control = "ft.Container"
+            self.notes.append(
+                f"# {name}: placeholder requested by the Flet tool default for "
+                f"{_widget_key(widget_type)}"
+            )
+        elif widget_type == "ttk::spinbox":
+            self.defined.discard(name)
+            self._define_spinbox(name)
+            return name
+        arguments, unmapped = self._arguments(name, control)
+        attachment = self.project.attachment(name)
+        if attachment is not None and attachment.mode == "native":
+            arguments["scroll"] = attachment.scrollbar_call()
+
+        if widget_type == NOTEBOOK_WIDGET_TYPE:
+            tabs = [child for child in children if self.project.is_tab(child)]
+            others = [child for child in children if child not in tabs]
+            for child in others:
+                self._define(child)
+            if tabs:
+                arguments["length"] = str(len(tabs))
+                arguments["content"] = self._notebook(tabs)
+            else:
+                control = "ft.Container"
+                self.notes.append(
+                    f"# {name}: Notebook has no tab frames - emitted as a placeholder"
+                )
+                if others:
+                    arguments["content"] = self._stack(others)
+        elif is_container(widget_type) and widget_type != "ttk::panedwindow":
+            content: str | None = None
+            if children:
+                grid_columns = (
+                    self.project.geom_manager == "Grid"
+                    and not self.project.absolute_grid
+                )
+                if grid_columns:
+                    content = self._rows(name, children)
+                elif self.project.geom_manager == "Pack":
+                    content = self._packed(children)
+                else:
+                    content = self._stack(children)
+            captioned = self._captioned(name, widget_type, content)
+            if captioned:
+                arguments["content"] = captioned
+        elif widget_type == "ttk::panedwindow":
+            if children:
+                arguments["controls"] = self._paned(name, children)
+        else:
+            for child in children:
+                self._define(child)
+
+        if unmapped:
+            self.notes.append(
+                f"# {name}: options with no Flet equivalent -> "
+                f"{', '.join(sorted(set(unmapped)))}"
+            )
+        note = PLACEHOLDERS.get(widget_type)
+        if note:
+            self.notes.append(f"# {name}: {note}")
+
+        arguments = self._render(name, control, arguments)
+        call = _call(
+            f"{name} = {arguments.pop('__control__')}", list(arguments.values())
+        )
+        self.lines.extend(_indent_lines(call, 4).split("\n"))
+        return name
+
+    def _render(
+        self, name: str, control: str, arguments: dict[str, str]
+    ) -> dict[str, str]:
+        """Add ``keyword=`` prefixes, wrapping controls Flet cannot position.
+
+        ``ft.RadioGroup`` and ``ft.Divider`` are not layout controls, so the
+        designer's ``Place`` coordinates have to live on a ``ft.Container``
+        that holds them.
+
+        A widget scrolled by a Tk scrollbar is wrapped in a scrolling
+        ``ft.Column`` when its Flet control has no ``scroll`` slot of its own.
+        """
+        placement = self._placement_arguments(name)
+        attachment = self.project.attachment(name)
+        if attachment is not None and attachment.mode == "wrap":
+            inner = dict(arguments)
+            inner.update(
+                {
+                    key: value
+                    for key, value in placement.items()
+                    if key in ("width", "height")
+                }
+            )
+            inner_call = _call(
+                control, [f"{key}={value}" for key, value in inner.items()]
+            )
+            rendered = {
+                "__control__": "ft.Column",
+                "scroll": f"scroll={attachment.scrollbar_call()}",
+                "controls": _list_argument(
+                    "controls", [f"ft.Container(content={inner_call})"]
+                ),
+            }
+            rendered.update(
+                {key: f"{key}={value}" for key, value in placement.items()}
+            )
+            return rendered
+        if control in POSITIONABLE_CONTROLS:
+            rendered = {"__control__": control}
+            rendered.update({key: f"{key}={value}" for key, value in arguments.items()})
+            rendered.update({key: f"{key}={value}" for key, value in placement.items()})
+            return rendered
+        inner = _call(
+            control, [f"{key}={value}" for key, value in arguments.items()]
+        )
+        rendered = {"__control__": "ft.Container", "content": f"content={inner}"}
+        rendered.update({key: f"{key}={value}" for key, value in placement.items()})
+        return rendered
+
+    def _define_spinbox(self, name: str) -> None:
+        """Emit a Tk spinbox as a TextField with up/down stepper buttons.
+
+        Flet has no Spinbox control.  A TextField plus two ``ft.IconButton``
+        arrows reproduces the stepping behaviour, using the saved ``from``,
+        ``to`` and ``increment`` values.
+        """
+        properties, unmapped = translate_attributes(
+            "ttk::spinbox", self.project.attributes(name), self.project.context(name)
+        )
+        placement = self._placement_arguments(name)
+        field_name = f"{name}_field"
+        total_width = _number(str(placement.get("width", "")).strip()) or 140
+        step = float(properties.get("increment", 1.0) or 1.0)
+        minimum = float(properties.get("minimum", 0.0) or 0.0)
+        maximum = properties.get("maximum")
+        maximum = float(maximum) if maximum is not None else None
+        if maximum is not None and maximum <= minimum:
+            maximum = None
+
+        field_arguments: list[str] = []
+        if "value" in properties:
+            field_arguments.append(f"value={properties['value']}")
+        if properties.get("read_only"):
+            field_arguments.append("read_only=True")
+        if properties.get("disabled"):
+            field_arguments.append("disabled=True")
+        field_arguments.extend(
+            (
+                "keyboard_type=ft.KeyboardType.NUMBER",
+                f"width={max(40, int(total_width) - 40)}",
+            )
+        )
+        self.lines.extend(
+            _indent_lines(
+                _call(f"{field_name} = ft.TextField", field_arguments), 4
+            ).split("\n")
+        )
+
+        self._register_spin_helper()
+        up = (
+            "on_click=lambda e: _step_value("
+            f"{field_name}, 1, {minimum!r}, {maximum!r}, {step!r})"
+        )
+        down = (
+            "on_click=lambda e: _step_value("
+            f"{field_name}, -1, {minimum!r}, {maximum!r}, {step!r})"
+        )
+        stepper = _call(
+            "ft.Column",
+            [
+                _list_argument(
+                    "controls",
+                    [
+                        f"ft.IconButton(icon=ft.Icons.KEYBOARD_ARROW_UP, {up})",
+                        f"ft.IconButton(icon=ft.Icons.KEYBOARD_ARROW_DOWN, {down})",
+                    ],
+                ),
+                "spacing=0",
+            ],
+        )
+        arguments: dict[str, str] = {
+            "controls": _list_expression([field_name, stepper]),
+            "spacing": "0",
+        }
+        arguments.update(placement)
+        rendered = self._render(
+            name, "ft.Row", {key: value for key, value in arguments.items()}
+        )
+        if unmapped:
+            self.notes.append(
+                f"# {name}: options with no Flet equivalent -> "
+                f"{', '.join(sorted(set(unmapped)))}"
+            )
+        if properties.get("value"):
+            self.notes.append(
+                f"# {name}: Tk variable is not kept in sync by the stepper"
+            )
+        if properties.get("values"):
+            self.notes.append(
+                f"# {name}: spinbox value list is not reproduced - "
+                "numeric stepping only"
+            )
+        call = _call(
+            f"{name} = {rendered.pop('__control__')}", list(rendered.values())
+        )
+        self.lines.extend(_indent_lines(call, 4).split("\n"))
+
+    def _register_spin_helper(self) -> None:
+        """Register the stepping helper used by generated spinboxes."""
+        if self.helpers:
+            return
+        self.helpers.extend(
+            (
+                "def _step_value(field, delta, minimum, maximum, step):",
+                '    """Step a TextField value by *step*, clamped to the range."""',
+                "    try:",
+                "        value = float(field.value or minimum)",
+                "    except (TypeError, ValueError):",
+                "        value = minimum",
+                "    value += delta * step",
+                "    if maximum is not None:",
+                "        value = min(maximum, value)",
+                "    value = max(minimum, value)",
+                '    field.value = f"{value:g}"',
+                "    field.update()",
+            )
+        )
+
+    def _captioned(
+        self, name: str, widget_type: str, content: str | None
+    ) -> str | None:
+        """Prepend a labelframe caption, which ft.Container has no slot for."""
+        if widget_type != "ttk::labelframe":
+            return content
+        caption = self.project.option(name, "text")
+        if not caption:
+            return content
+        children = [f"ft.Text(value={caption!r})"]
+        if content:
+            children.append(content)
+        return _call(
+            "ft.Column", [_list_argument("controls", children), "spacing=2"]
+        )
+
+    def _paned(self, parent_name: str, children: Sequence[str]) -> str:
+        names = [name for name in map(self._define, children) if name]
+        widget_type = self.project.widget_type(parent_name)
+        vertical = (
+            _text(self.project.option(parent_name, "orient")).lower() == "vertical"
+        )
+        builder = "ft.Column" if vertical else "ft.Row"
+        self.notes.append(
+            f"# {parent_name}: {widget_type} emitted as {builder} "
+            "(Flet has no draggable splitter)"
+        )
+        return _call(builder, [f"controls=[{', '.join(names)}]", "spacing=0"])
+
+    def root(self) -> str:
+        """Emit every control and return the root expression.
+
+        Place keeps the designer's absolute coordinates, so the root is a
+        Stack; Grid and Pack build the same row/column structure the Tk
+        geometry manager would have produced.
+        """
+        children = self.project.visible_children(self.project.root_name)
+        if self.project.geom_manager == "Grid" and not self.project.absolute_grid:
+            return self._rows(self.project.root_name, children)
+        if self.project.geom_manager == "Pack":
+            return self._packed(children)
+        names = ", ".join(name for name in map(self._define, children) if name)
+        width, height = self.window_size()
+        return _call(
+            "ft.Stack", [f"controls=[{names}]", f"width={width}", f"height={height}"]
+        )
+
+
+def emit_program(
+    project_data: Mapping[str, Any],
+    widget_order: Sequence[str],
+    root_name: str,
+    geom_manager: str = "",
+    images: Mapping[str, str] | None = None,
+    grid_mode: str = "responsive",
+    policy: Mapping[str, str] | None = None,
+) -> str:
+    """Return a complete, runnable Flet program for *project_data*.
+
+    ``grid_mode`` selects how a Grid project is rendered: ``"responsive"``
+    (nested ``ft.Row``/``ft.Column`` with expand weights, the default) or
+    ``"absolute"`` (a ``ft.Stack`` positioned from the saved grid minsizes).
+
+    ``policy`` maps widget type keys (``"treeview"``, ``"scrollbar"`` …) to
+    ``"full"``, ``"placeholder"`` or ``"skip"``; the ``"default"`` key applies
+    to types that are not listed.
+    """
+    project = _Project(
+        project_data, widget_order, root_name, geom_manager, images, grid_mode, policy
+    )
+    emitter = _Emitter(project)
+    for scrollbar, attachment in project.scroll_attachments.items():
+        if project.skipped(scrollbar):
+            continue
+        emitter.notes.append(f"# {scrollbar} (scrollbar): {attachment.summary()}")
+    root_expression = emitter.root()
+    width, height = emitter.window_size()
+    theme = _text(project_data.get("theme"))
+    background = tk_color(project_data.get("backgroundColor"))
+    project_name = _text(project_data.get("ProjectName")) or root_name
+
+    lines: list[str] = [
+        '"""Flet UI generated by PyTkQuickGui.',
+        "",
+        f"Project : {project_name}",
+        f"Layout  : {project.geom_manager or 'Place'}",
+        f"Theme   : {theme or 'default'}  (ttkbootstrap theme - not a Flet theme)",
+        "",
+        "Regenerating this file overwrites it, so keep hand written changes in a",
+        "separate module that imports this one.",
+        '"""',
+        "",
+        "import flet as ft",
+        "",
+        f"PROJECT_NAME = {project_name!r}",
+        f"THEME = {theme!r}",
+        f"WINDOW_WIDTH = {width}",
+        f"WINDOW_HEIGHT = {height}",
+    ]
+    if background:
+        lines.append(f"BACKGROUND_COLOR = {background!r}")
+
+    lines.extend(("", SECTION_VARIABLES))
+    if project.variables:
+        lines.append(
+            "# Flet controls hold plain Python values - adjust types as needed."
+        )
+        lines.extend(f"{variable} = '0.0'" for variable in project.variables)
+    else:
+        lines.append("# No widget variables are referenced by this project.")
+
+    lines.extend(("", SECTION_FUNCTIONS))
+    if project.callbacks:
+        for callback in project.callbacks:
+            lines.extend(
+                (
+                    "",
+                    f"def {callback}(e=None):",
+                    f"    {STUB_SENTINEL}",
+                    f"    print({callback!r})",
+                )
+            )
+    else:
+        lines.append("# Add your event handlers here.")
+
+    if emitter.helpers:
+        lines.extend(("", "# ---- Generated helpers ----", ""))
+        lines.extend(emitter.helpers)
+
+    if emitter.notes:
+        lines.extend(("", "# ---- Translation notes ----"))
+        lines.extend(sorted(set(emitter.notes)))
+
+    lines.extend(
+        (
+            "",
+            SECTION_MAIN,
+            "",
+            "def main(page: ft.Page):",
+            "    page.title = PROJECT_NAME",
+            "    page.window.width = WINDOW_WIDTH",
+            "    page.window.height = WINDOW_HEIGHT",
+            "    page.padding = 0",
+        )
+    )
+    if background:
+        lines.append("    page.bgcolor = BACKGROUND_COLOR")
+    if project.images:
+        lines.extend(("", "    # ---- Images ----"))
+        for widget_name, filename in project.images.items():
+            lines.append(f"    {widget_name}image = ft.Image(src={filename!r})")
+    lines.extend(("", f"    {SECTION_WIDGETS}"))
+    lines.extend(emitter.lines)
+    lines.extend(
+        (
+            "",
+            f"    {root_name} = {_indent_lines(root_expression, 4).lstrip()}",
+            f"    page.add({root_name})",
+            "",
+            "",
+            "ft.run(main)",
+            "",
+        )
+    )
+    return "\n".join(lines)
+
+
+def _mapping_description(project: _Project, name: str) -> tuple[str, str]:
+    """Return ``(category, description)`` for one widget's Flet mapping."""
+    widget_type = project.widget_type(name)
+    if project.skipped(name):
+        return "skipped", "skipped by the Flet tool default"
+    attachment = project.scroll_attachments.get(name)
+    if attachment is not None and attachment.mode in ("native", "wrap", "self"):
+        return "folded", attachment.summary()
+    if project.policy_for(name) == "placeholder":
+        return "placeholder", "placeholder Container (Flet tool default)"
+    if widget_type not in CONTROL_TYPES:
+        return "placeholder", f"placeholder Container (no control for {widget_type})"
+    if widget_type == "ttk::treeview" and not parse_values(
+        project.option(name, "columns")
+    ):
+        return "placeholder", "placeholder Container (treeview has no columns)"
+    if widget_type == "ttk::spinbox":
+        return "mapped", "ft.Row (TextField + stepper buttons)"
+    if widget_type == NOTEBOOK_WIDGET_TYPE:
+        return "mapped", "ft.Tabs (TabBar + TabBarView)"
+    if widget_type in ("ttk::canvas", "canvas"):
+        children = len(project.children.get(name, []))
+        return "mapped", f"ft.Container + ft.Stack ({children} children)"
+    if widget_type == "ttk::labelframe":
+        return "mapped", "ft.Container + ft.Text caption"
+    if widget_type == "ttk::panedwindow":
+        return "mapped", "ft.Row/ft.Column (no draggable splitter)"
+    return "mapped", widget_control(widget_type)
+
+
+def compatibility_report(
+    project_data: Mapping[str, Any],
+    widget_order: Sequence[str],
+    root_name: str,
+    geom_manager: str = "",
+    images: Mapping[str, str] | None = None,
+    grid_mode: str = "responsive",
+    policy: Mapping[str, str] | None = None,
+) -> str:
+    """Return a human readable summary of how a project maps to Flet.
+
+    Used by Tools -> Flet compatibility report so the lossy parts of a
+    translation are visible before the file is written.
+    """
+    project = _Project(
+        project_data, widget_order, root_name, geom_manager, images, grid_mode, policy
+    )
+    rows: list[tuple[str, str, str, str]] = []
+    counts: dict[str, int] = {"mapped": 0, "folded": 0, "placeholder": 0, "skipped": 0}
+    for name in project.order:
+        category, description = _mapping_description(project, name)
+        counts[category] = counts.get(category, 0) + 1
+        rows.append((name, project.widget_type(name), description, category))
+
+    width = max((len(row[0]) for row in rows), default=8)
+    type_width = max((len(row[1]) for row in rows), default=8)
+    lines = [
+        "Flet compatibility report",
+        "",
+        f"Project : {_text(project_data.get('ProjectName')) or root_name}",
+        f"Layout  : {project.geom_manager or 'Place'}"
+        + (
+            " (absolute positions)"
+            if project.absolute_grid
+            else " (responsive rows and columns)"
+            if project.geom_manager == "Grid"
+            else ""
+        ),
+        "",
+    ]
+    if not rows:
+        lines.append("This project has no widgets yet.")
+        return "\n".join(lines)
+    lines.append(f"{'Widget'.ljust(width)}  {'Type'.ljust(type_width)}  Flet output")
+    lines.append(f"{'-' * width}  {'-' * type_width}  {'-' * 40}")
+    for name, widget_type, description, category in rows:
+        lines.append(
+            f"{name.ljust(width)}  {widget_type.ljust(type_width)}  {description}"
+            + (f"  [{category}]" if category != "mapped" else "")
+        )
+    lines.extend(
+        (
+            "",
+            "Summary: {total} widgets - {mapped} mapped, {folded} folded into a "
+            "scroll target, {placeholder} placeholder, {skipped} skipped".format(
+                total=len(rows), **counts
+            ),
+            "",
+            "Set a per-type policy with the fletWidgetPolicy entry in "
+            "tool_defaults.json (full | placeholder | skip).",
+        )
+    )
+    return "\n".join(lines)

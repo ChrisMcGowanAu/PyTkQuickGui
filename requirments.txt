@@ -4,3 +4,6 @@ tkfontchooser
 coloredlogs
 pip
 Pillow
+# Optional: only needed to run the programs written by File -> Generate Flet.
+# PyTkQuickGui itself never imports flet.
+flet>=0.80

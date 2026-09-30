@@ -22,6 +22,7 @@ from ttkbootstrap.dialogs.colorchooser import ColorChooserDialog
 
 import cdefs as C
 import createWidget as cw
+import flet_generator
 import layout_model
 import project_format
 import pytkguivars as myVars
@@ -977,6 +978,151 @@ def generatePython():
         Messagebox.show_error(
             title="Generate Error", message=f"Could not write to {newFile}:\n{e}"
         )
+
+
+def buildFlet() -> str:
+    """Generate a Flet program for the current project.
+
+    Flet is an optional dependency: this only writes a file, so the designer
+    itself never needs flet installed.  Returns the written file name, or an
+    empty string when generation was cancelled.
+    """
+    if not saveProject():
+        log.error("buildFlet: project save failed; generation cancelled")
+        return ""
+    createdWidgetOrder = workOutWidgetCreationOrder()
+    images = {
+        str(f[myVars.WIDGET]): str(f[myVars.FILENAME])
+        for f in (myVars.widgetImageFilenames or [])
+    }
+    try:
+        program = flet_generator.emit_program(
+            myVars.projectDict,
+            createdWidgetOrder,
+            myVars.rootWidgetName,
+            myVars.geomManager,
+            images,
+            myVars.fletGridMode,
+            myVars.fletWidgetPolicy,
+        )
+    except (KeyError, TypeError, ValueError) as e:
+        log.error("buildFlet: cannot generate Flet code: %s", e)
+        return ""
+    fileName = getConfigPath() + "/" + "flet_test.py"
+    try:
+        with open(fileName, "w", encoding="utf8") as handle:
+            handle.write(program)
+    except OSError as e:
+        log.error("buildFlet: cannot write %s: %s", fileName, e)
+        return ""
+    log.info("Flet program written to %s", fileName)
+    return fileName
+
+
+def runFlet():
+    fileName = buildFlet()
+    if not fileName:
+        return
+    log.info("flet fileName ->%s<-", fileName)
+    cmd = "python3 " + fileName + " &"
+    os.system(cmd)
+
+
+def generateFlet():
+    """Ask for a save path, generate Flet code and write it there."""
+    initialDir, initialFile = project_format.generated_python_dialog_defaults(
+        myVars.projectName,
+        myVars.saveDirName,
+        myVars.generatedFletFile,
+        os.environ["HOME"],
+    )
+    newFile = tk.filedialog.asksaveasfilename(
+        initialdir=initialDir,
+        initialfile=initialFile,
+        filetypes=[("Python file", "*.py")],
+        defaultextension="py",
+    )
+    if not newFile:
+        return  # user cancelled
+    myVars.saveDirName = os.path.dirname(newFile)
+    myVars.generatedFletFile = newFile
+    fileName = buildFlet()
+    if not fileName:
+        Messagebox.show_error(
+            title="Generate Error",
+            message="The project could not be saved, so Flet generation was cancelled.",
+        )
+        return
+    try:
+        shutil.copy2(fileName, newFile)
+        log.info("Generated Flet program written to %s", newFile)
+    except OSError as e:
+        log.error("Failed to copy generated file: %s", e)
+        Messagebox.show_error(
+            title="Generate Error", message=f"Could not write to {newFile}:\n{e}"
+        )
+
+
+def showFletCompatibilityReport():
+    """Show how the current project maps onto Flet controls."""
+    if not saveProject():
+        Messagebox.show_error(
+            title="Flet Compatibility",
+            message="The project could not be saved, so the report is unavailable.",
+        )
+        return
+    createdWidgetOrder = workOutWidgetCreationOrder()
+    images = {
+        str(f[myVars.WIDGET]): str(f[myVars.FILENAME])
+        for f in (myVars.widgetImageFilenames or [])
+    }
+    report = flet_generator.compatibility_report(
+        myVars.projectDict,
+        createdWidgetOrder,
+        myVars.rootWidgetName,
+        myVars.geomManager,
+        images,
+        myVars.fletGridMode,
+        myVars.fletWidgetPolicy,
+    )
+    log.info("Flet compatibility report requested")
+    _textWindow("PyTkQuickGui - Flet compatibility", report)
+
+
+def setFletGridMode(variable) -> None:
+    """Switch Flet Grid output between responsive and exact-position layout."""
+    myVars.fletGridMode = "absolute" if variable.get() else "responsive"
+    saveToolDefaults()
+    log.info("Flet Grid mode set to %s", myVars.fletGridMode)
+
+
+def _textWindow(title: str, body: str) -> None:
+    """Open a read-only window showing *body* in a scrollable text area."""
+    window = ttk.Toplevel(rootWin)
+    window.title(title)
+    window.geometry("820x560")
+    window.resizable(True, True)
+    frame = ttk.Frame(window)
+    frame.pack(fill="both", expand=True, padx=8, pady=8)
+    scroll = ttk.Scrollbar(frame, orient="vertical", style="info round")
+    text = tk.Text(
+        frame,
+        wrap="none",
+        state="normal",
+        font=("Courier", 10),
+        padx=8,
+        pady=4,
+        borderwidth=0,
+        yscrollcommand=scroll.set,
+    )
+    scroll.config(command=text.yview)
+    scroll.pack(side="right", fill="y")
+    text.pack(side="left", fill="both", expand=True)
+    text.insert("1.0", body)
+    text.config(state="disabled")
+    ttk.Button(window, text="Close", style="warning", command=window.destroy).pack(
+        pady=(0, 8)
+    )
 
 
 def deleteWidgetData():
@@ -2723,6 +2869,8 @@ def buildMenu():
     fileMenu.add_command(label="Save Project As...", command=saveProjectAs)
     fileMenu.add_command(label="Trial Run", command=runMe)
     fileMenu.add_command(label="Generate Python", command=generatePython)
+    fileMenu.add_command(label="Trial Run (Flet)", command=runFlet)
+    fileMenu.add_command(label="Generate Flet", command=generateFlet)
     fileMenu.add_separator()
 
     fileMenu.add_command(label="Exit", command=exitApp)
@@ -2755,6 +2903,7 @@ def buildMenu():
     themeMenu.add_cascade(label="Legacy Themes", menu=legacyMenu)
 
     toolsMenu = ttk.Menu(menuBar, tearoff=0)
+    fletGridVar = tk.BooleanVar(value=myVars.fletGridMode == "absolute")
     toolsMenu.add_command(label="Hide Label Borders", command=hideLabelBorders)
     toolsMenu.add_command(label="Show Label Borders", command=showLabelBorders)
     toolsMenu.add_command(label="Set tools default Theme", command=setDefaultToolTheme)
@@ -2763,6 +2912,15 @@ def buildMenu():
     toolsMenu.add_command(label="Set default style font", command=setDefaultStyleFont)
     toolsMenu.add_command(label="Open backup file", command=openBackupFile)
     toolsMenu.add_command(label="Widget Tree", command=widgetTree)
+    toolsMenu.add_separator()
+    toolsMenu.add_command(
+        label="Flet compatibility report", command=showFletCompatibilityReport
+    )
+    toolsMenu.add_checkbutton(
+        label="Flet: exact Grid positions",
+        variable=fletGridVar,
+        command=partial(setFletGridMode, fletGridVar),
+    )
     toolsMenu.add_separator()
     toolsMenu.add_command(
         label="Change Layout Manager",

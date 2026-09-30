@@ -54,6 +54,9 @@ projectSaved: bool = False
 # Path to the most-recently user-saved generated Python file.
 # If set, buildPython() will attempt to preserve user edits from this file.
 generatedPyFile: str = ""
+# Path to the most-recently user-saved generated Flet file.  Flet output is
+# regenerated whole (there is no edit-preserving pass yet).
+generatedFletFile: str = ""
 
 # ---- Widgets available in the right-click palette ----------------------
 widgetsUsed = (
@@ -110,6 +113,10 @@ gridRowPad = tool_defaults.GRID_DEFAULTS["gridRowPad"]
 gridColPad = tool_defaults.GRID_DEFAULTS["gridColPad"]
 gridWidgetDefaults = tool_defaults.normalise_widget_layouts(None)
 placeWidgetDefaults = tool_defaults.normalise_place_widget_layouts(None)
+# Per widget type Flet generation policy: full | placeholder | skip.
+fletWidgetPolicy = tool_defaults.normalise_flet_policy(None)
+# Flet Grid rendering: responsive (expand weights) or absolute (exact pixels).
+fletGridMode = tool_defaults.FLET_GRID_MODE
 # ---- Widget groups (logical, not tkinter containers) --------------------
 # {group_name: [widgetName, ...]}  — persisted to project JSON
 groups: dict = {}
@@ -145,6 +152,7 @@ def initVars():
     global createdWidgetOrder
     global widgetImageFilenames
     global generatedPyFile
+    global generatedFletFile
     projectDict = {}
     childNameVars = [tk.StringVar()] * 64
     imageFileNames = [tk.StringVar()] * 64
@@ -158,11 +166,14 @@ def initVars():
     createdWidgetOrder = []
     widgetImageFilenames = []
     generatedPyFile = ""
+    generatedFletFile = ""
     global groups
     global selectedWidgets
     global gridRows, gridCols, gridLineColor
     global gridRowMinsize, gridColMinsize, gridRowPad, gridColPad
     global gridWidgetDefaults, placeWidgetDefaults
+    global fletWidgetPolicy
+    global fletGridMode
     groups = {}
     selectedWidgets = []
     gridRows = tool_defaults.GRID_DEFAULTS["gridRows"]
@@ -175,13 +186,15 @@ def initVars():
     gridColPad = tool_defaults.GRID_DEFAULTS["gridColPad"]
     gridWidgetDefaults = tool_defaults.normalise_widget_layouts(None)
     placeWidgetDefaults = tool_defaults.normalise_place_widget_layouts(None)
+    fletWidgetPolicy = tool_defaults.normalise_flet_policy(None)
+    fletGridMode = tool_defaults.FLET_GRID_MODE
 
 
 def applyToolDefaults(data: dict) -> None:
     """Apply a validated tool-defaults dictionary to the live settings."""
     global gridRows, gridCols, gridLineColor
     global gridRowMinsize, gridColMinsize, gridRowPad, gridColPad
-    global gridWidgetDefaults, placeWidgetDefaults
+    global gridWidgetDefaults, placeWidgetDefaults, fletWidgetPolicy, fletGridMode
     defaults = tool_defaults.normalise(data)
     gridRows = defaults["gridRows"]
     gridCols = defaults["gridCols"]
@@ -192,6 +205,8 @@ def applyToolDefaults(data: dict) -> None:
     gridColPad = defaults["gridColPad"]
     gridWidgetDefaults = defaults["gridWidgetDefaults"]
     placeWidgetDefaults = defaults["placeWidgetDefaults"]
+    fletWidgetPolicy = defaults["fletWidgetPolicy"]
+    fletGridMode = defaults["fletGridMode"]
 
 
 def currentToolDefaults() -> dict:
@@ -206,6 +221,8 @@ def currentToolDefaults() -> dict:
         "gridColPad": gridColPad,
         "gridWidgetDefaults": gridWidgetDefaults,
         "placeWidgetDefaults": placeWidgetDefaults,
+        "fletWidgetPolicy": fletWidgetPolicy,
+        "fletGridMode": fletGridMode,
     }
 
 
