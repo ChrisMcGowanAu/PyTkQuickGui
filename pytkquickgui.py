@@ -1,5 +1,4 @@
 import ast
-import importlib.metadata as _meta
 import json
 import logging
 import os
@@ -26,10 +25,24 @@ import flet_generator
 import layout_model
 import project_format
 import pytkguivars as myVars
+import startup_checks
 import tool_defaults
 import undoredo
 
 log = logging.getLogger(name="mylogger")
+
+
+# ── ttkbootstrap version guard ─────
+# This application requires ttkbootstrap 2.0 or later.  Version 1.x has no
+# install_legacy_themes() and ttk.Window() rejects the `theme` keyword, so the
+# guard has to run before anything else touches the ttkbootstrap API.  Without
+# a window there is no message box, so the problem is reported on the console
+# and in the log rather than as a traceback.
+_startupError = startup_checks.check_ttkbootstrap(ttk)
+if _startupError:
+    # Logging is not configured yet this early, so report on the console.
+    print(_startupError, file=_sys.stderr)
+    _sys.exit(1)
 
 
 def getConfigPath() -> str:
@@ -119,55 +132,6 @@ rootWin = ttk.Window(theme=useTheme, iconphoto="snake.png")
 # that projects saved with legacy theme names load without DeprecationWarning.
 # Must be called AFTER ttk.Window() because that creates the Style singleton.
 ttk.install_legacy_themes()
-
-
-# ── ttkbootstrap version guard ─────
-# This application requires ttkbootstrap 2.0 or later.
-# Version 1.x uses a different import structure and is incompatible.
-def _check_ttkbootstrap_version():
-    """Warn (and exit) if ttkbootstrap is older than 2.0.
-
-    Version resolution order (most reliable first):
-      1. importlib.metadata — reads the installed package metadata,
-         works regardless of what the module exposes as __version__.
-      2. ttk.__version__ — present on some builds.
-      3. ttk.VERSION     — older ttkbootstrap attribute.
-    Falls back to "0.0" only if all three fail (should never happen on a
-    correctly installed package).
-    """
-
-    ver_str = "0.0"
-    try:
-        ver_str = _meta.version("ttkbootstrap")
-    except Exception:
-        # Package metadata not found — try module attributes
-        for _attr in ("__version__", "VERSION", "version"):
-            _v = getattr(ttk, _attr, None)
-            if _v and str(_v) not in ("", "0.0"):
-                ver_str = str(_v)
-                break
-    try:
-        # Parse major version — handle "2.0.1", "2.0.1.dev0", "2.0.1b1", etc.
-        major = int(str(ver_str).split(".", maxsplit=1)[0])
-    except (ValueError, AttributeError):
-        major = 0
-    if major < 2:
-
-        Messagebox.show_error(
-            title="Unsupported ttkbootstrap version",
-            message=(
-                f"PyTkQuickGui requires ttkbootstrap 2.0 or later.\n\n"
-                f"Installed version: {ver_str}\n\n"
-                "Please upgrade:  pip install --upgrade ttkbootstrap\n\n"
-                "The application will now exit."
-            ),
-        )
-        rootWin.destroy()
-
-        _sys.exit(1)
-
-
-_check_ttkbootstrap_version()
 rootWin.eval("tk::PlaceWindow . pointer")
 mainFrame = ttk.Frame()
 rootWin.title("Python Tk GUI Builder")
