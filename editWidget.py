@@ -140,6 +140,47 @@ class widgetEditPopup:
         # This is needed to keep the validatecommand going
         return True
 
+    def closePopup(self, popupFrame) -> None:
+        """Close the attribute popup without destroying widgets mid-event.
+
+        The Close button used to call ``popupFrame.destroy`` directly, so the
+        popup was torn down inside its own button binding.  Destroying the
+        focused spinbox makes Tk fire ``focusout``, and its ``validatecommand``
+        then runs while the widget is being destroyed - that re-enters Tk's
+        config code and frees a 3D border twice, which is the segfault this
+        project's core dumps show (``Tk_Get3DBorderFromObj`` under
+        ``Tk_FreeConfigOptions``, reached from ``Tk_BindEvent``).
+
+        Validation is switched off first, and the destroy is deferred out of
+        the binding with ``after_idle``.  Closing twice is harmless.
+        """
+        self._disable_validation(popupFrame)
+
+        def _destroy() -> None:
+            try:
+                popupFrame.destroy()
+            except tk.TclError:
+                pass  # already gone
+
+        try:
+            popupFrame.winfo_toplevel().after_idle(_destroy)
+        except tk.TclError:
+            pass
+
+    @classmethod
+    def _disable_validation(cls, widget) -> None:
+        """Turn off ``validate`` on *widget* and its children, best effort."""
+        try:
+            widget.configure(validate="none")
+        except tk.TclError:
+            pass  # not every widget has a validate option
+        try:
+            children = widget.winfo_children()
+        except tk.TclError:
+            return
+        for child in children:
+            cls._disable_validation(child)
+
     def changeColour(self, key, swatch_btn=None):
         """
         Choose a Colour and immediately apply it to the live widget.
@@ -1221,7 +1262,7 @@ class widgetEditPopup:
                 buttonBar,
                 style="warning",
                 text="Close",
-                command=editPopupFrame.destroy,
+                command=lambda frame=editPopupFrame: self.closePopup(frame),
             ).pack(side=tk.LEFT, expand=True, fill=tk.X, padx=2)
             ttk.Button(
                 buttonBar,
@@ -1313,7 +1354,7 @@ class widgetEditPopup:
         gridRow += 1
         keys = self.widget.keys()
         if keys == {}:
-            editPopupFrame.destroy()
+            self.closePopup(editPopupFrame)
             return
         log.debug("Keys %s", str(keys))
         self.keys = keys
