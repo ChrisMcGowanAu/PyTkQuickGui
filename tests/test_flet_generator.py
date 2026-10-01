@@ -693,16 +693,16 @@ class FletGeneratorTests(unittest.TestCase):
 
         ast.parse(source)
         self.assertIn("rootWidget = ft.Stack(", source)
-        widget1 = source[source.index("Widget1 = "):source.index("Widget2 = ")]
-        self.assertIn("width=200", widget1)         # the label's measured 200px
+        widget1 = source[source.index("Widget1 = ") : source.index("Widget2 = ")]
+        self.assertIn("width=200", widget1)  # the label's measured 200px
         self.assertIn("height=60", widget1)
-        widget2 = source[source.index("Widget2 = "):source.index("Widget3 = ")]
-        self.assertIn("left=200", widget2)          # after column 0
-        self.assertIn("top=60", widget2)            # after row 0
-        self.assertIn("width=120", widget2)         # its own 120px
-        widget3 = source[source.index("Widget3 = "):]
-        self.assertIn("top=92", widget3)            # rows 0 and 1 are 60 + 32
-        self.assertIn("height=32", widget3)         # rowspan of two 16px rows
+        widget2 = source[source.index("Widget2 = ") : source.index("Widget3 = ")]
+        self.assertIn("left=200", widget2)  # after column 0
+        self.assertIn("top=60", widget2)  # after row 0
+        self.assertIn("width=120", widget2)  # its own 120px
+        widget3 = source[source.index("Widget3 = ") :]
+        self.assertIn("top=92", widget3)  # rows 0 and 1 are 60 + 32
+        self.assertIn("height=32", widget3)  # rowspan of two 16px rows
 
     def test_grid_absolute_mode_keeps_the_tool_default_as_a_floor(self):
         """An empty textvariable makes a widget measure small; do not shrink."""
@@ -729,11 +729,11 @@ class FletGeneratorTests(unittest.TestCase):
             [ROOT, "Widget1"],
             ROOT,
             grid_mode="absolute",
-            natural_sizes={"Widget1": (8, 27)},   # an empty caption measures 8px
+            natural_sizes={"Widget1": (8, 27)},  # an empty caption measures 8px
         )
 
-        widget1 = source[source.index("Widget1 = "):]
-        self.assertIn("width=100", widget1)   # the tool default for a button
+        widget1 = source[source.index("Widget1 = ") :]
+        self.assertIn("width=100", widget1)  # the tool default for a button
         self.assertIn("height=32", widget1)
 
     def test_grid_absolute_mode_keeps_minsize_as_a_floor(self):
@@ -763,7 +763,7 @@ class FletGeneratorTests(unittest.TestCase):
             natural_sizes={"Widget1": (12, 10)},
         )
 
-        widget1 = source[source.index("Widget1 = "):]
+        widget1 = source[source.index("Widget1 = ") :]
         # The label's own design size (120x32) is larger than the 40x30
         # minsize, so the minsize is not what decides the cell here.
         self.assertIn("width=120", widget1)
@@ -813,7 +813,7 @@ class FletGeneratorTests(unittest.TestCase):
 
         ast.parse(source)
         # The frame is emitted after its children (child-first ordering).
-        frame = source[source.index("Widget1 = "):]
+        frame = source[source.index("Widget1 = ") :]
         # Container grids use the 40x24 minsize the Python backend emits, and
         # the buttons themselves default to 100x32, so the frame is two 100px
         # cells wide and 32px tall.
@@ -1060,15 +1060,13 @@ class FletGeneratorTests(unittest.TestCase):
 
         ast.parse(source)
         self.assertIn("bgcolor='#95b5f9'", source)
-        self.assertIn("color='#000000'", source)          # ink on a light fill
-        self.assertIn("bgcolor='#1a1b26'", source)        # outline keeps the surface
+        self.assertIn("color='#000000'", source)  # ink on a light fill
+        self.assertIn("bgcolor='#1a1b26'", source)  # outline keeps the surface
         self.assertIn("ft.BorderSide(1, '#c9aef9')", source)
-        self.assertIn("bgcolor='#1f202d'", source)        # entry surface
+        self.assertIn("bgcolor='#1f202d'", source)  # entry surface
         # Theme border, not the bootstyle colour, spelled as Flet 1.0 wants.
-        self.assertIn(
-            "ft.OutlineInputBorder(side=ft.BorderSide(1, '#3f3f49'))", source
-        )
-        self.assertIn("color='#c0caf5'", source)          # entry text
+        self.assertIn("ft.OutlineInputBorder(side=ft.BorderSide(1, '#3f3f49'))", source)
+        self.assertIn("color='#c0caf5'", source)  # entry text
 
     def test_styles_are_translated_not_dropped(self):
         data = project(
@@ -1125,9 +1123,9 @@ class FletGeneratorTests(unittest.TestCase):
         data = project(theme="tokyo-night-dark")
         project_view = flet_generator._Project(data, [ROOT], ROOT)
         ink = project_view.ink
-        self.assertEqual(ink("#b1d888"), "#000000")   # light fill -> black
-        self.assertEqual(ink("#375a7f"), "#ffffff")   # dark fill -> white
-        self.assertEqual(ink(""), "#c0caf5")          # falls back to theme fg
+        self.assertEqual(ink("#b1d888"), "#000000")  # light fill -> black
+        self.assertEqual(ink("#375a7f"), "#ffffff")  # dark fill -> white
+        self.assertEqual(ink(""), "#c0caf5")  # falls back to theme fg
 
     def test_palette_covers_the_themes_the_projects_use(self):
         palette = flet_generator.load_theme_palette()
@@ -1186,7 +1184,7 @@ class FletGeneratorTests(unittest.TestCase):
         source = flet_generator.emit_program(data, [ROOT, "Widget1"], ROOT)
 
         self.assertIn("bgcolor='#3d8bfd'", source)
-        self.assertIn("color='#ffffff'", source)   # not the rule's black
+        self.assertIn("color='#ffffff'", source)  # not the rule's black
 
     def test_report_names_the_theme(self):
         data = project(theme="darkly")
@@ -1283,8 +1281,8 @@ class FletGeneratorTests(unittest.TestCase):
         )
 
         ast.parse(source)
-        widgets = source[source.index("Widget1 = "):source.index("rootWidget = ")]
-        rows = source[source.index("rootWidget = "):]
+        widgets = source[source.index("Widget1 = ") : source.index("rootWidget = ")]
+        rows = source[source.index("rootWidget = ") :]
         # The controls are wrapped, never given sizes they cannot take ...
         self.assertNotIn("= ft.RadioGroup(", widgets)
         self.assertNotIn("= ft.Divider(", widgets)
@@ -1320,11 +1318,11 @@ class FletGeneratorTests(unittest.TestCase):
         )
 
         ast.parse(source)
-        entry = source[source.index("Widget1 = "):source.index("Widget2 = ")]
+        entry = source[source.index("Widget1 = ") : source.index("Widget2 = ")]
         # sticky=ew: fills across, keeps its designed height (set on the cell).
         self.assertIn("expand=True", entry)
         self.assertNotIn("height=", entry)
-        rows = source[source.index("rootWidget = "):]
+        rows = source[source.index("rootWidget = ") :]
         self.assertIn("height=32", rows)
         # sticky=nsew: fills the cell in both directions, no pinned height.
         self.assertIn("vertical_alignment=ft.CrossAxisAlignment.STRETCH", rows)
@@ -1366,7 +1364,7 @@ class FletGeneratorTests(unittest.TestCase):
         ]
 
         self.assertEqual(len(weights), 2)
-        self.assertGreater(weights[0], weights[1])   # tall row vs one line row
+        self.assertGreater(weights[0], weights[1])  # tall row vs one line row
         # The weights follow the content (plus each cell's padding), so they
         # are proportional rather than equal.
         self.assertEqual(weights[1], 36)
@@ -1480,11 +1478,11 @@ class FletGeneratorTests(unittest.TestCase):
         source = flet_generator.emit_program(data, [ROOT, "Widget1", "Widget2"], ROOT)
 
         ast.parse(source)
-        entry_block = source[source.index("Widget1 = "):source.index("Widget2 = ")]
+        entry_block = source[source.index("Widget1 = ") : source.index("Widget2 = ")]
         entry_lines = [line.strip() for line in entry_block.split("\n")]
         self.assertIn("text_size=18,", entry_lines)
-        self.assertNotIn("size=18,", entry_lines)   # no bare size on a field
-        label = source[source.index("Widget2 = "):]
+        self.assertNotIn("size=18,", entry_lines)  # no bare size on a field
+        label = source[source.index("Widget2 = ") :]
         self.assertIn("size=18", label)
         self.assertIn("font_family='Liberation Mono'", label)
 
@@ -1510,12 +1508,12 @@ class FletGeneratorTests(unittest.TestCase):
 
         ast.parse(source)
         self.assertIn("Widget1 = ft.Container(", source)
-        self.assertIn("bgcolor='#9933cc'", source)          # cyborg's info colour
+        self.assertIn("bgcolor='#9933cc'", source)  # cyborg's info colour
         self.assertIn("value='Given Name'", source)
-        self.assertIn("ft.Alignment.CENTER_LEFT", source)   # ttk anchor="w"
+        self.assertIn("ft.Alignment.CENTER_LEFT", source)  # ttk anchor="w"
         # The inner Text must not carry the fill, or it paints behind the text
         # only and the label loses its bar.
-        inner = source[source.index("content=ft.Text("):source.index("ft.Alignment")]
+        inner = source[source.index("content=ft.Text(") : source.index("ft.Alignment")]
         self.assertNotIn("bgcolor=", inner)
 
     def test_label_with_an_explicit_background_is_filled_too(self):
@@ -1539,7 +1537,7 @@ class FletGeneratorTests(unittest.TestCase):
 
         ast.parse(source)
         self.assertIn("Widget1 = ft.Container(", source)
-        self.assertIn("bgcolor='#2724db'", source)   # the explicit colour wins
+        self.assertIn("bgcolor='#2724db'", source)  # the explicit colour wins
 
     def test_plain_label_stays_a_text_control(self):
         data = project(
@@ -1582,7 +1580,7 @@ class FletGeneratorTests(unittest.TestCase):
 
         ast.parse(source)
         self.assertIn("Widget1 = ft.Container(", source)
-        self.assertIn("ft.BorderSide(1, '#2e2e2e')", source)   # cyborg's border
+        self.assertIn("ft.BorderSide(1, '#2e2e2e')", source)  # cyborg's border
 
     def test_label_without_a_border_stays_flat(self):
         for attributes in (
@@ -1674,10 +1672,10 @@ class FletGeneratorTests(unittest.TestCase):
         source = flet_generator.emit_program(data, [ROOT, "Widget1"], ROOT)
 
         ast.parse(source)
-        column = source[source.index("ft.Column("):source.index("spacing=2")]
+        column = source[source.index("ft.Column(") : source.index("spacing=2")]
         # The caption row comes after the content for a south anchor.
         self.assertGreater(column.index("ft.Text(value='Progress'"), 0)
-        self.assertIn("ft.MainAxisAlignment.START", source)   # sw anchors west
+        self.assertIn("ft.MainAxisAlignment.START", source)  # sw anchors west
 
     def test_labelframe_borderwidth_zero_draws_no_box(self):
         """Platypus' Camera frame: ttk draws the caption only."""
@@ -1778,10 +1776,10 @@ class FletGeneratorTests(unittest.TestCase):
         source = flet_generator.emit_program(data, [ROOT, "Widget1"], ROOT)
 
         ast.parse(source)
-        group = source[source.index("ft.RadioGroup("):source.index("ft.Radio(")]
-        self.assertIn("value=str(choice)", group)      # follows the variable
-        self.assertNotIn("value='0',", group)          # not its own identity
-        self.assertIn("ft.Radio(value='0'", source)    # identity on the radio
+        group = source[source.index("ft.RadioGroup(") : source.index("ft.Radio(")]
+        self.assertIn("value=str(choice)", group)  # follows the variable
+        self.assertNotIn("value='0',", group)  # not its own identity
+        self.assertIn("ft.Radio(value='0'", source)  # identity on the radio
 
     def test_page_theme_is_seeded_from_the_project_primary(self):
         data = project(theme="darkly")
@@ -1833,7 +1831,7 @@ class FletGeneratorTests(unittest.TestCase):
             walk(control)
 
         self.assertIs(found["checkbox"].value, False)
-        self.assertEqual(found["radio"].value, "0.0")   # matches no radio
+        self.assertEqual(found["radio"].value, "0.0")  # matches no radio
 
     def test_multiline_lines_from_a_design_height(self):
         self.assertEqual(flet_generator.multiline_lines(224), 12)
@@ -1864,11 +1862,11 @@ class FletGeneratorTests(unittest.TestCase):
         ast.parse(source)
         self.assertIn("Widget1 = ft.Container(", source)
         self.assertIn("clip_behavior=ft.ClipBehavior.HARD_EDGE", source)
-        self.assertIn("min_lines=12", source)          # from the 224px design box
-        self.assertIn("border=None", source)           # no border of its own
+        self.assertIn("min_lines=12", source)  # from the 224px design box
+        self.assertIn("border=None", source)  # no border of its own
         self.assertIn("bgcolor='#290af5'", source)
         # The Container carries the placement, so the box is exactly the design.
-        block = source[source.index("Widget1 = "):]
+        block = source[source.index("Widget1 = ") :]
         self.assertIn("height=224", block)
         self.assertIn("width=320", block)
 
@@ -2075,8 +2073,8 @@ class FletGeneratorTests(unittest.TestCase):
 
         namespace["set_text"]("calcvar", "4")
 
-        self.assertEqual(display.value, "4")            # the control refreshed
-        self.assertEqual(namespace["calcvar"], "4")     # the variable too
+        self.assertEqual(display.value, "4")  # the control refreshed
+        self.assertEqual(namespace["calcvar"], "4")  # the variable too
         self.assertIs(namespace["PAGE"], page)
 
     def test_the_variable_section_explains_set_text(self):
@@ -2236,11 +2234,9 @@ def clicked_5(e=None):
             handle.write("this is not python(")
 
         data = project(theme="darkly")
-        source = flet_generator.emit_program(
-            data, [ROOT], ROOT, preserve_from=path
-        )
+        source = flet_generator.emit_program(data, [ROOT], ROOT, preserve_from=path)
 
-        ast.parse(source)   # regenerated cleanly rather than failing
+        ast.parse(source)  # regenerated cleanly rather than failing
         self.assertIn("import flet as ft", source)
 
     @unittest.skipUnless(FLET_AVAILABLE, "flet is not installed")

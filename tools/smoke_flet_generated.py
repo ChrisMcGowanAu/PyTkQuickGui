@@ -112,7 +112,7 @@ def build_program(source):
     original_run = ft.run
     ft.run = lambda entry, *args, **kwargs: captured.setdefault("main", entry)
     try:
-        with redirect_stderr(io.StringIO()):   # the version guard writes there
+        with redirect_stderr(io.StringIO()):  # the version guard writes there
             # Running the generated module is the whole point of the tool.
             exec(  # noqa: S102  # pylint: disable=exec-used
                 compile(source, "<generated flet>", "exec"), namespace
@@ -138,7 +138,7 @@ def check_project(path):
     except (OSError, ValueError) as error:
         return [f"cannot read the project: {error}"]
     if not isinstance(project_data, dict) or "widgetCount" not in project_data:
-        return None        # not a project file (a tool default, a theme, ...)
+        return None  # not a project file (a tool default, a theme, ...)
     order = widget_order(project_data)
     for label, options in MODES:
         try:
@@ -174,7 +174,7 @@ def main(argv) -> int:
     for path in paths:
         problems = check_project(path)
         if problems is None:
-            continue                      # not a project file
+            continue  # not a project file
         checked += 1
         for problem in problems:
             broken.add(os.path.basename(path))

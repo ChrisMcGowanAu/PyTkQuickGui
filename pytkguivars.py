@@ -487,8 +487,7 @@ def saveWidgetAsDict(widgetName) -> dict:
             widgetDict = Merge(
                 widgetDict,
                 {
-                    "Attribute"
-                    + str(keyCount): {"Key": _dkey, "Value": _dval},
+                    "Attribute" + str(keyCount): {"Key": _dkey, "Value": _dval},
                 },
             )
             keyCount += 1

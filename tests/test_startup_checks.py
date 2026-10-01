@@ -41,9 +41,7 @@ class StartupChecksTests(unittest.TestCase):
         for version in ("2.0.1", "2.5", "3.0.0"):
             with self.subTest(version=version):
                 self.assertIsNone(
-                    startup_checks.check_ttkbootstrap(
-                        None, lookup_for(version)
-                    )
+                    startup_checks.check_ttkbootstrap(None, lookup_for(version))
                 )
 
     def test_check_explains_how_to_upgrade_for_old_releases(self):
@@ -54,9 +52,7 @@ class StartupChecksTests(unittest.TestCase):
         self.assertIn(startup_checks.UPGRADE_COMMAND, message)
 
     def test_check_fails_closed_when_the_version_is_unknown(self):
-        message = startup_checks.check_ttkbootstrap(
-            SimpleNamespace(), failing_lookup
-        )
+        message = startup_checks.check_ttkbootstrap(SimpleNamespace(), failing_lookup)
         self.assertIsNotNone(message)
         self.assertIn("Installed version: 0.0", message)
 

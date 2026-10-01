@@ -609,7 +609,8 @@ def parse_bootstyle(value: Any) -> tuple[str, frozenset[str]]:
     variants = {
         part.lower()
         for part in parts[1:]
-        if part.lower() in STYLE_VARIANTS and part.lower() != "horizontal"
+        if part.lower() in STYLE_VARIANTS
+        and part.lower() != "horizontal"
         and part.lower() != "vertical"
     }
     orientations = {
@@ -626,9 +627,7 @@ def hex_luminance(colour: Any) -> float:
     if len(raw) < 6:
         return 0.5
     try:
-        red, green, blue = (
-            int(raw[start:start + 2], 16) for start in (0, 2, 4)
-        )
+        red, green, blue = (int(raw[start : start + 2], 16) for start in (0, 2, 4))
     except ValueError:
         return 0.5
     return (0.299 * red + 0.587 * green + 0.114 * blue) / 255
@@ -1036,8 +1035,7 @@ class _Project:
         candidates = [
             child
             for child in self.children.get(parent, [])
-            if child != scrollbar
-            and self.widget_type(child) in SCROLLABLE_WIDGET_TYPES
+            if child != scrollbar and self.widget_type(child) in SCROLLABLE_WIDGET_TYPES
         ]
         return candidates[0] if len(candidates) == 1 else ""
 
@@ -1226,9 +1224,7 @@ class _Emitter:
         if control == "ft.Text":
             arguments["value"] = self._caption(name, "value", properties, arguments)
         elif control == "ft.Button":
-            arguments["content"] = self._caption(
-                name, "content", properties, arguments
-            )
+            arguments["content"] = self._caption(name, "content", properties, arguments)
         elif control == "ft.Checkbox":
             arguments["label"] = repr(properties.pop("text", name))
             if "value" in properties:
@@ -1610,9 +1606,11 @@ class _Emitter:
         resolved = self.project.bootstyle_styles(bootstyle) if bootstyle else {}
         slot = self.project.colour(bootstyle) if bootstyle else None
         surface = self.project.colour("bg") or "#ffffff"
-        border = self.project.widget_surface("entry_border") or self.project.colour(
-            "border"
-        ) or surface
+        border = (
+            self.project.widget_surface("entry_border")
+            or self.project.colour("border")
+            or surface
+        )
         muted = self.project.colour("fg") or "#ffffff"
         widget_type = self.project.widget_type(name)
 
@@ -1642,9 +1640,7 @@ class _Emitter:
             if "inverse" in variants:
                 return {
                     "bgcolor": repr(value("inverse_bg", slot) or surface),
-                    "color": repr(
-                        value("inverse_fg", self.project.ink(slot)) or muted
-                    ),
+                    "color": repr(value("inverse_fg", self.project.ink(slot)) or muted),
                     "size": str(DEFAULT_TEXT_SIZE),
                 }
             # ttk paints a label with the theme's surface, which is what keeps
@@ -2075,9 +2071,7 @@ class _Emitter:
             if fills_vertical:
                 # ttk's sticky=nsew stretches the widget to its cell, which is
                 # what makes a sudoku board grow with the window.
-                arguments.append(
-                    "vertical_alignment=ft.CrossAxisAlignment.STRETCH"
-                )
+                arguments.append("vertical_alignment=ft.CrossAxisAlignment.STRETCH")
             rows.append(_call("ft.Row", arguments))
         return _call(
             "ft.Column",
@@ -2161,8 +2155,10 @@ class _Emitter:
             else:
                 start, span = state.column, max(1, state.columnspan)
                 size = natural[0] + 2 * max(0, state.padx)
-            share = max(1, int(round(size / span))) if axis == "column" else max(
-                1, int(size)
+            share = (
+                max(1, int(round(size / span)))
+                if axis == "column"
+                else max(1, int(size))
             )
             for index in range(start, start + span):
                 weights[index] = max(weights.get(index, 0), share)
@@ -2355,10 +2351,7 @@ class _Emitter:
             self._define_spinbox(name)
             return name
         arguments, unmapped = self._arguments(name, control)
-        if (
-            self.project.geom_manager == "Grid"
-            and not self.project.absolute_grid
-        ):
+        if self.project.geom_manager == "Grid" and not self.project.absolute_grid:
             # ttk semantics: sticky decides which axes the widget fills. The
             # other axis keeps the widget's own size, which is also what stops
             # Flet's taller default controls (48px fields, 40px buttons) from
@@ -2482,18 +2475,14 @@ class _Emitter:
                     "controls", [f"ft.Container(content={inner_call})"]
                 ),
             }
-            rendered.update(
-                {key: f"{key}={value}" for key, value in placement.items()}
-            )
+            rendered.update({key: f"{key}={value}" for key, value in placement.items()})
             return rendered
         if control in POSITIONABLE_CONTROLS:
             rendered = {"__control__": control}
             rendered.update({key: f"{key}={value}" for key, value in arguments.items()})
             rendered.update({key: f"{key}={value}" for key, value in placement.items()})
             return rendered
-        inner = _call(
-            control, [f"{key}={value}" for key, value in arguments.items()]
-        )
+        inner = _call(control, [f"{key}={value}" for key, value in arguments.items()])
         rendered = {"__control__": "ft.Container", "content": f"content={inner}"}
         rendered.update({key: f"{key}={value}" for key, value in placement.items()})
         return rendered
@@ -2592,9 +2581,7 @@ class _Emitter:
                 f"# {name}: spinbox value list is not reproduced - "
                 "numeric stepping only"
             )
-        call = _call(
-            f"{name} = {rendered.pop('__control__')}", list(rendered.values())
-        )
+        call = _call(f"{name} = {rendered.pop('__control__')}", list(rendered.values()))
         self.lines.extend(_indent_lines(call, 4).split("\n"))
 
     def _register_spin_helper(self) -> None:
@@ -2651,9 +2638,7 @@ class _Emitter:
             children = [content, row] if content else [row]
         else:
             children = [row, content] if content else [row]
-        return _call(
-            "ft.Column", [_list_argument("controls", children), "spacing=2"]
-        )
+        return _call("ft.Column", [_list_argument("controls", children), "spacing=2"])
 
     def _label_anchor(self, name: str) -> str:
         """Return a labelframe's labelanchor, defaulting to ttk's "n"."""
@@ -2864,9 +2849,7 @@ def emit_program(
                     f"   {project_format.VARIABLE_MARKER}"
                 )
             else:
-                lines.append(
-                    f"{variable} = '0.0'   {project_format.VARIABLE_MARKER}"
-                )
+                lines.append(f"{variable} = '0.0'   {project_format.VARIABLE_MARKER}")
     else:
         lines.append("# No widget variables are referenced by this project.")
 
@@ -2938,9 +2921,7 @@ def emit_program(
     if emitter.text_bindings:
         lines.append("")
         for variable, controls in sorted(emitter.text_bindings.items()):
-            pairs = [
-                f"({control}, {attribute!r})" for control, attribute in controls
-            ]
+            pairs = [f"({control}, {attribute!r})" for control, attribute in controls]
             statement = f"TEXT_BINDINGS[{variable!r}] = {_list_expression(pairs)}"
             lines.extend(_indent_lines(statement, 4).split("\n"))
         lines.append(
@@ -3076,9 +3057,11 @@ def compatibility_report(
         + (
             " (absolute positions)"
             if project.absolute_grid
-            else " (responsive rows and columns)"
-            if project.geom_manager == "Grid"
-            else ""
+            else (
+                " (responsive rows and columns)"
+                if project.geom_manager == "Grid"
+                else ""
+            )
         ),
         "",
     ]

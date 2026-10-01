@@ -241,9 +241,7 @@ def flet_grid_mode(source: Any) -> str:
     return value if value in FLET_GRID_MODES else FLET_GRID_MODE
 
 
-def flet_policy(
-    widget_name: str, policies: Mapping[str, str] | None = None
-) -> str:
+def flet_policy(widget_name: str, policies: Mapping[str, str] | None = None) -> str:
     """Return how File -> Generate Flet should treat one widget type."""
     table = policies if isinstance(policies, Mapping) else FLET_WIDGET_POLICY
     key = _widget_key(widget_name)
@@ -270,9 +268,7 @@ def normalise(data: Mapping[str, Any] | None) -> dict[str, Any]:
     result["placeWidgetDefaults"] = normalise_place_widget_layouts(
         source.get("placeWidgetDefaults")
     )
-    result["fletWidgetPolicy"] = normalise_flet_policy(
-        source.get("fletWidgetPolicy")
-    )
+    result["fletWidgetPolicy"] = normalise_flet_policy(source.get("fletWidgetPolicy"))
     result["fletGridMode"] = flet_grid_mode(source.get("fletGridMode"))
     result["formatVersion"] = FORMAT_VERSION
     return result

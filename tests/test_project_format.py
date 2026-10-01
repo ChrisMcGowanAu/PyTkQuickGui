@@ -204,9 +204,7 @@ class ProjectFormatTests(unittest.TestCase):
             },
         }
 
-        defaults = project_format.variable_defaults(
-            project, ["rootWidget", "Widget1"]
-        )
+        defaults = project_format.variable_defaults(project, ["rootWidget", "Widget1"])
 
         self.assertEqual(defaults, {})
 
@@ -303,13 +301,9 @@ class ProjectFormatTests(unittest.TestCase):
     def test_a_user_edited_variable_is_kept(self):
         source = "calcvar = '99'   # my own default\n"
 
-        _functions, variables = project_format.preserved_pieces(
-            source, [], ["calcvar"]
-        )
+        _functions, variables = project_format.preserved_pieces(source, [], ["calcvar"])
 
-        self.assertEqual(
-            variables, {"calcvar": "calcvar = '99'   # my own default"}
-        )
+        self.assertEqual(variables, {"calcvar": "calcvar = '99'   # my own default"})
 
     def test_preserved_pieces_ignores_an_unparsable_file(self):
         functions, variables = project_format.preserved_pieces(

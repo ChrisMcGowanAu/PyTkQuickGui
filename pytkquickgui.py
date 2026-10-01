@@ -417,9 +417,7 @@ def _generated_variable_lines(runDict, createdWidgetOrder, rootName) -> dict:
     return {
         name: f"{name} = tk.StringVar(rootWin,{defaults.get(name, '0.0')!r})"
         f"   {project_format.VARIABLE_MARKER}"
-        for name in project_format.variable_names(
-            runDict, createdWidgetOrder, rootName
-        )
+        for name in project_format.variable_names(runDict, createdWidgetOrder, rootName)
     }
 
 

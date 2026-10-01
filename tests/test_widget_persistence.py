@@ -1,5 +1,5 @@
-import unittest
 import tkinter as tk
+import unittest
 
 import createWidget as cw
 import project_format
@@ -369,9 +369,7 @@ class CraftedProjectTests(unittest.TestCase):
         self.assertTrue(definition.startswith("ttk.Label(mainFrame"))
 
     def test_a_normal_option_still_comes_through(self):
-        definition = my_vars.buildAWidget(
-            0, self.crafted("ttk::label", "text")
-        )
+        definition = my_vars.buildAWidget(0, self.crafted("ttk::label", "text"))
 
         self.assertIn("text='text'", definition)
 
