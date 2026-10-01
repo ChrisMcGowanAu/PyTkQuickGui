@@ -1280,21 +1280,13 @@ class _Emitter:
                 )
             arguments.update(self._progress_arguments(properties))
             properties = {}
-        elif control == "ft.ListView":
-            values = properties.pop("values", None)
-            if values:
-                arguments["controls"] = _list_expression(
-                    [f"ft.Text({value!r})" for value in values]
-                )
-            if properties.pop("list_variable", None):
-                self.notes.append(
-                    f"# {name}: listbox items live in the module level list "
-                    "of the same name - append to it and call page.update()"
-                )
+
         elif control == "ft.Container" and self._is_filled_label(name):
             arguments.update(self._filled_label(name, properties))
         elif control == "ft.Container" and widget_type in TEXT_WIDGET_TYPES:
             arguments.update(self._text_area(name, properties))
+        elif control == "ft.Container" and widget_type in ("listbox", "ttk::listbox"):
+            arguments.update(self._list_box(name, properties))
         elif control == "ft.Container" and widget_type in (
             "ttk::frame",
             "ttk::canvas",
@@ -1376,6 +1368,35 @@ class _Emitter:
         }
         return mapping.get(anchor.strip().lower(), "ft.Alignment.CENTER")
 
+    def _list_box(self, name: str, properties: dict[str, Any]) -> dict[str, str]:
+        """Return a Container holding a listbox's ListView.
+
+        The Container carries the designer's background and border, because
+        neither ft.ListView nor an empty list paints anything.
+        """
+        background = str(
+            properties.pop("bgcolor", None) or self.project.colour("inputbg") or ""
+        ).strip("'\"")
+        values = properties.pop("values", None)
+        items = [f"ft.Text({value!r})" for value in values] if values else []
+        list_arguments = [_list_argument("controls", items)]
+        attachment = self.project.attachment(name)
+        if attachment is not None and attachment.mode == "native":
+            # The scroll belongs on the list: a Container takes no scroll.
+            list_arguments.append(f"scroll={attachment.scrollbar_call()}")
+        arguments = {"content": _call("ft.ListView", list_arguments)}
+        if background:
+            arguments["bgcolor"] = repr(background)
+        border = self.project.colour("border")
+        if border:
+            arguments["border"] = self._border(border)
+        if properties.pop("list_variable", None):
+            self.notes.append(
+                f"# {name}: listbox items live in the module level list "
+                "of the same name - append to it and call page.update()"
+            )
+        return arguments
+
     def _text_height(self, name: str) -> int:
         """Return the height the designer gave a widget, in pixels."""
         height = _number(self._placement_arguments(name).get("height"))
@@ -1398,8 +1419,10 @@ class _Emitter:
         # The style values are quoted literals; _border() wants the raw colour.
         border_colour = str(style.pop("border_color", "")).strip("'\"") or None
         border_width = style.pop("border_width", None)
+        # The Container carries the border, so the field inside has none.
+        style.pop("border", None)
         lines = multiline_lines(self._text_height(name))
-        field_arguments = ["multiline=True", "border_width=0"]
+        field_arguments = ["multiline=True", "border=None"]
         if lines:
             field_arguments.append(f"min_lines={lines}")
         field_name = f"{name}_field"
@@ -1667,8 +1690,11 @@ class _Emitter:
                     or self.project.colour("inputfg")
                     or muted
                 ),
-                "border_color": repr(border),
-                "border_width": "1",
+                # Flet 1.0 deprecates border_color/border_width on both
+                # ft.TextField and ft.Dropdown - with a warning on every run -
+                # so the border is spelled out as a side.
+                "border": f"ft.OutlineInputBorder("
+                f"side=ft.BorderSide(1, {border!r}))",
                 "text_size": str(DEFAULT_TEXT_SIZE),
                 "content_padding": _call(
                     "ft.Padding",
@@ -1681,7 +1707,6 @@ class _Emitter:
                 ),
             }
             if control == "ft.TextField":
-                # ft.Dropdown has no text_vertical_align.
                 arguments["text_vertical_align"] = "ft.VerticalAlignment.CENTER"
             return arguments
         if control == "ft.ProgressBar":
@@ -2292,6 +2317,14 @@ class _Emitter:
                 control = "ft.Container"
         if widget_type in TEXT_WIDGET_TYPES:
             control = "ft.Container"
+        if widget_type in ("listbox", "ttk::listbox"):
+            # An ft.ListView paints nothing on its own (and takes no background),
+            # so an empty listbox would be invisible.
+            control = "ft.Container"
+        if widget_type == "ttk::panedwindow":
+            # ttk paints a panedwindow with the bootstyle colour; a bare
+            # ft.Row with no panes shows nothing at all.
+            control = "ft.Container"
         if widget_type == NOTEBOOK_WIDGET_TYPE and any(
             self.project.is_tab(child) for child in children
         ):
@@ -2337,7 +2370,14 @@ class _Emitter:
                 arguments["width"] = str(int(natural[0]))
         attachment = self.project.attachment(name)
         if attachment is not None and attachment.mode == "native":
-            arguments["scroll"] = attachment.scrollbar_call()
+            if control == "ft.ListView":
+                arguments["scroll"] = attachment.scrollbar_call()
+            else:
+                # Wrapped (a bare ListView paints nothing), so the scroll goes
+                # on the list inside the Container instead.
+                self.notes.append(
+                    f"# {name}: scrollbar attached to the list inside the Container"
+                )
 
         if widget_type == NOTEBOOK_WIDGET_TYPE:
             tabs = [child for child in children if self.project.is_tab(child)]

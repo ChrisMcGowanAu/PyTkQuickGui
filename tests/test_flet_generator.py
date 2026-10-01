@@ -501,7 +501,10 @@ class FletGeneratorTests(unittest.TestCase):
         )
 
         ast.parse(source)
-        self.assertIn("Widget1 = ft.ListView(", source)
+        # The list sits in a Container so the listbox paints its background,
+        # and the scroll belongs on the list rather than the Container.
+        self.assertIn("Widget1 = ft.Container(", source)
+        self.assertIn("content=ft.ListView(", source)
         self.assertIn("scroll=ft.Scrollbar(thickness=20)", source)
         self.assertNotIn("Widget2 =", source)
         self.assertIn("attached to Widget1", source)
@@ -1053,7 +1056,10 @@ class FletGeneratorTests(unittest.TestCase):
         self.assertIn("bgcolor='#1a1b26'", source)        # outline keeps the surface
         self.assertIn("ft.BorderSide(1, '#c9aef9')", source)
         self.assertIn("bgcolor='#1f202d'", source)        # entry surface
-        self.assertIn("border_color='#3f3f49'", source)   # theme border, not bootstyle
+        # Theme border, not the bootstyle colour, spelled as Flet 1.0 wants.
+        self.assertIn(
+            "ft.OutlineInputBorder(side=ft.BorderSide(1, '#3f3f49'))", source
+        )
         self.assertIn("color='#c0caf5'", source)          # entry text
 
     def test_styles_are_translated_not_dropped(self):
@@ -1851,7 +1857,7 @@ class FletGeneratorTests(unittest.TestCase):
         self.assertIn("Widget1 = ft.Container(", source)
         self.assertIn("clip_behavior=ft.ClipBehavior.HARD_EDGE", source)
         self.assertIn("min_lines=12", source)          # from the 224px design box
-        self.assertIn("border_width=0", source)        # the field's own border
+        self.assertIn("border=None", source)           # no border of its own
         self.assertIn("bgcolor='#290af5'", source)
         # The Container carries the placement, so the box is exactly the design.
         block = source[source.index("Widget1 = "):]
