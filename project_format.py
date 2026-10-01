@@ -320,7 +320,7 @@ def variable_defaults(
 def preserved_pieces(
     source: str,
     function_names: Iterable[str],
-    variable_names: Iterable[str],
+    var_names: Iterable[str],
 ) -> tuple[dict[str, str], dict[str, str]]:
     """Return the parts of an earlier generated file the user has taken over.
 
@@ -339,7 +339,7 @@ def preserved_pieces(
     except (SyntaxError, ValueError):
         return functions, variable_lines
     wanted_functions = set(function_names)
-    wanted_variables = set(variable_names)
+    wanted_variables = set(var_names)
     # Whole physical lines, not the AST segment: the marker is a trailing
     # comment, which a segment for a bare assignment would not include.
     lines = source.splitlines()
