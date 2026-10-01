@@ -1,0 +1,184 @@
+PyTkQuickGui - installation from scratch
+========================================
+
+This file takes a fresh machine to a running designer.  It is written for
+Linux first, then Windows and macOS.  If you only want to try the tool, the
+short version is:
+
+    git clone https://github.com/ChrisMcGowanAu/PyTkQuickGui.git
+    cd PyTkQuickGui
+    python3 -m venv venv
+    venv/bin/pip install --upgrade pip
+    venv/bin/pip install -r requirments.txt
+    venv/bin/python pytkquickgui.py
+
+
+What you need
+-------------
+
+* Python 3.10 or newer (3.12 is what it is developed and tested against).
+* Tkinter, which ships with Python on Windows and macOS but is a separate
+  package on many Linux distributions.
+* Git, to clone the repository.
+* A desktop session.  The designer draws real Tk widgets, so it needs a
+  display; it cannot run over a plain SSH session without X forwarding.
+* ttkbootstrap 2.0 or newer.  1.x will not work: the tool checks the version
+  at startup and stops with a message telling you to upgrade.
+
+
+Linux (apt based distributions)
+-------------------------------
+
+1. System packages
+
+    sudo apt update
+    sudo apt install python3-full python3-venv python3-pip python3-tk git
+
+2. Clone the repository (HTTPS, no GitHub account needed)
+
+    cd /opt                                   # or wherever you keep source
+    git clone https://github.com/ChrisMcGowanAu/PyTkQuickGui.git
+    cd PyTkQuickGui
+
+3. Create a virtual environment and install the dependencies
+
+    python3 -m venv venv
+    venv/bin/pip install --upgrade pip
+    venv/bin/pip install -r requirments.txt
+
+   `requirments.txt` asks for `ttkbootstrap>=2.0` and, optionally, `flet>=1.0`.
+   Flet is only used to run programs written by *File -> Generate Flet*; the
+   designer itself never imports it.
+
+4. Run it
+
+    venv/bin/python pytkquickgui.py           # or: ./run.sh
+
+5. Check the install (optional but quick)
+
+    venv/bin/python -m unittest discover -s tests
+
+   You should see all tests pass.  They need no display.
+
+
+Windows 10 / 11
+---------------
+
+1. Install Python from https://python.org/downloads/windows and tick
+   "Add python.exe to PATH" during setup.  Tkinter is included.
+
+2. Install Git for Windows (https://git-scm.com/download/win).  The examples
+   below use Git Bash.
+
+3. Clone and install
+
+    cd /c/Users/<you>/source
+    git clone https://github.com/ChrisMcGowanAu/PyTkQuickGui.git
+    cd PyTkQuickGui
+    python -m venv venv
+    venv/Scripts/pip install --upgrade pip
+    venv/Scripts/pip install -r requirments.txt
+
+4. Run it
+
+    venv/Scripts/python pytkquickgui.py
+
+   The generated programs are run with the same interpreter, so keep using
+   `venv/Scripts/python` for those too.
+
+   Note: filename case.  This file used to exist as `install.txt`; it is
+   `INSTALL.TXT` only, because on Windows the two names are the same file.
+
+
+macOS
+-----
+
+1. Install Python with Tk support, for example
+
+    brew install python-tk
+
+2. Clone and install
+
+    cd ~/source
+    git clone https://github.com/ChrisMcGowanAu/PyTkQuickGui.git
+    cd PyTkQuickGui
+    python3 -m venv venv
+    venv/bin/pip install --upgrade pip
+    venv/bin/pip install -r requirments.txt
+
+3. Run it
+
+    venv/bin/python pytkquickgui.py
+
+   macOS has had less testing than Linux.  A three button mouse is needed to
+   reach the widget context menu, and on some setups buttons 2 and 3 are
+   swapped; the code has no Mac specific quirks handling yet.
+
+
+If the generated programs cannot find their packages
+----------------------------------------------------
+
+In some environments the interpreter that runs the tool is not the one that
+runs the generated Python file, and the generated file then cannot import
+ttkbootstrap or flet.  The fix is to put one environment on your PATH:
+
+    # in your home directory
+    python3 -m venv .venv
+    .venv/bin/pip install --upgrade pip
+    .venv/bin/pip install -r /opt/PyTkQuickGui/requirments.txt   # your path
+
+    # add this line to ~/.bashrc (or your shell's equivalent)
+    export PATH=$HOME/.venv/bin/:$PATH
+
+Log out and in again, then check `echo $PATH`.  Afterwards `python3` is the
+environment that has everything, so *Trial Run* and the generated files all
+use the same packages.
+
+
+Troubleshooting
+---------------
+
+"PyTkQuickGui requires ttkbootstrap 2.0 or later"
+    The environment you started it with has an older ttkbootstrap.  Either
+    install the requirements into that environment (`pip install -r
+    requirments.txt`) or start the tool with the environment that has them.
+
+The window does not appear
+    There is no display, or Tk is missing.  Check that `python3 -c "import
+    tkinter; tkinter.Tk().destroy()"` works in the environment you are using.
+
+A generated Flet program prints "This program targets Flet 1.0 or later"
+    It is running under an older Flet.  `pip install --upgrade flet`.  The
+    program still runs; set `FLET_VERSION_STRICT = True` in the generated file
+    if you would rather it stopped.
+
+The tool crashes with a segmentation fault
+    Tk and Flet both contain C code, so a fault can end the process without a
+    Python traceback.  `faulthandler` is enabled at startup, so you should see
+    the Python frame that was running on stderr; `kill -USR1 <pid>` prints a
+    traceback of every thread, which is the quickest way to see where a hung
+    window is stuck.  Cores are kept by systemd on Linux:
+
+        coredumpctl list                 # every crash, with pid and time
+        coredumpctl info <pid>           # summary and stack trace
+        coredumpctl gdb <pid>            # load it in gdb: bt, py-bt
+
+    `py-bt` needs `sudo apt install python3.12-dbg`; without it a core shows
+    only C frames.
+
+Bugs and feature requests
+    https://github.com/ChrisMcGowanAu/PyTkQuickGui/issues
+
+
+Working on the tool itself
+--------------------------
+
+    venv/bin/python -m unittest discover -s tests      # the test suite
+    flake8 --max-line-length=88 *.py tests/*.py        # style
+    pylint --disable=<the list in .github/workflows/pylint.yml> *.py
+
+`tools/export_theme_colors.py` regenerates `flet_theme_colors.json`, the
+per-theme palette the Flet generator colours its output from.  Run it after
+upgrading ttkbootstrap, with an interpreter that has ttkbootstrap 2.x
+installed and a display available.  `tools/qa.sh` expects isort, black and
+ruff inside `venv/`.
