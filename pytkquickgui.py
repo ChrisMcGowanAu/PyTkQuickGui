@@ -599,11 +599,30 @@ def buildPython() -> str:
         name = str(f[myVars.WIDGET]) + str(f[myVars.KEY])
         print(name + " = tk.PhotoImage(file='" + f[myVars.FILENAME] + "')")
     # Deduplicate tk variables (one widget may reference the same variable)
+    _variable_defaults = project_format.variable_defaults(
+        runDict, createdWidgetOrder, rootName
+    )
     seen_vars: set = set()
     for v in tkvars:
         if v and v not in seen_vars:
             seen_vars.add(v)
-            if v in _preserved_tkvars:
+            if v in _variable_defaults:
+                # The designer shows this value, so it is the default - even
+                # over a preserved line, which would otherwise keep an older
+                # value for ever.
+                if v in _preserved_tkvars:
+                    log.info(
+                        "buildPython: using designer value %r for %s",
+                        _variable_defaults[v],
+                        v,
+                    )
+                print(
+                    v
+                    + " = tk.StringVar(rootWin,"
+                    + repr(_variable_defaults[v])
+                    + ")"
+                )
+            elif v in _preserved_tkvars:
                 # User has changed this initialisation – keep their version
                 print(_preserved_tkvars[v])
             else:

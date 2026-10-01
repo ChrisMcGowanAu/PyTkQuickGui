@@ -2793,9 +2793,15 @@ def emit_program(
         for variable in sorted(project.list_variables):
             if variable not in declared:
                 declared.append(variable)
+        defaults = project_format.variable_defaults(
+            project.data, project.order, project.root_name
+        )
         for variable in declared:
             if variable in project.list_variables:
                 lines.append(f"{variable} = []   # listbox items")
+            elif variable in defaults:
+                # The value the designer showed for this variable.
+                lines.append(f"{variable} = {defaults[variable]!r}")
             else:
                 lines.append(f"{variable} = '0.0'")
     else:

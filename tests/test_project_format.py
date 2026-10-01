@@ -163,6 +163,53 @@ class ProjectFormatTests(unittest.TestCase):
             self.assertFalse(Path(result + ".tmp").exists())
             self.assertFalse(Path(result + ".backup-tmp").exists())
 
+    def test_variable_defaults_reads_the_designer_value(self):
+        project = {
+            "Widget1": {
+                "WidgetName": "ttk::entry",
+                "WidgetParent": "rootWidget",
+                "Widget1-KeyCount": 2,
+                "Attribute0": {"Key": "textvariable", "Value": "calcvar"},
+                "Attribute1": {"Key": "var_value", "Value": "123"},
+            },
+            "Widget2": {
+                "WidgetName": "ttk::checkbutton",
+                "WidgetParent": "rootWidget",
+                "Widget2-KeyCount": 2,
+                "Attribute0": {"Key": "variable", "Value": "flag"},
+                "Attribute1": {"Key": "var_value", "Value": "1"},
+            },
+            "Widget3": {
+                "WidgetName": "ttk::entry",
+                "WidgetParent": "rootWidget",
+                "Widget3-KeyCount": 1,
+                "Attribute0": {"Key": "textvariable", "Value": "empty"},
+            },
+        }
+
+        defaults = project_format.variable_defaults(
+            project, ["rootWidget", "Widget1", "Widget2", "Widget3"]
+        )
+
+        self.assertEqual(defaults, {"calcvar": "123", "flag": "1"})
+
+    def test_variable_defaults_ignores_names_that_are_not_identifiers(self):
+        project = {
+            "Widget1": {
+                "WidgetName": "ttk::entry",
+                "WidgetParent": "rootWidget",
+                "Widget1-KeyCount": 2,
+                "Attribute0": {"Key": "textvariable", "Value": "PY_VAR0 "},
+                "Attribute1": {"Key": "var_value", "Value": "1"},
+            },
+        }
+
+        defaults = project_format.variable_defaults(
+            project, ["rootWidget", "Widget1"]
+        )
+
+        self.assertEqual(defaults, {})
+
 
 if __name__ == "__main__":
     unittest.main()

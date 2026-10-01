@@ -17,10 +17,15 @@ from typing import Any
 
 FORMAT_VERSION = 2
 
+#: Records the value a variable should start with: the text or number the
+#: widget showed for it in the designer.  Written by saveWidgetAsDict and read
+#: by both generators, so a variable is no longer always initialised to '0.0'.
+VAR_VALUE_KEY = "var_value"
+
 #: Attributes the designer records for its own purposes.  They are not Tk
 #: options, so they must never be handed to a widget constructor - and they do
 #: not appear in ``widget.keys()``, so they have to be captured explicitly.
-DESIGN_ONLY_KEYS = ("tab_count", "tab_labels")
+DESIGN_ONLY_KEYS = ("tab_count", "tab_labels", VAR_VALUE_KEY)
 
 
 def is_design_only(key: Any) -> bool:
@@ -207,3 +212,32 @@ def variable_names(
         )
         if valid_python_name(name)
     ]
+
+
+def variable_defaults(
+    project_data: Mapping[str, Any],
+    widget_order: Iterable[str],
+    root_name: str = "rootWidget",
+) -> dict[str, str]:
+    """Return ``{variable: starting value}`` captured from the designer.
+
+    A widget bound to a ``textvariable`` or ``variable`` records the value it
+    showed as ``var_value`` metadata.  The first non-empty value wins, so
+    several widgets sharing one variable agree; a variable with nothing
+    captured is simply absent and the generators fall back to "0.0".
+    """
+    defaults: dict[str, str] = {}
+    for name in widget_order:
+        if name == root_name:
+            continue
+        widget_data = project_data.get(name)
+        if not isinstance(widget_data, Mapping):
+            continue
+        attributes = attribute_map(name, widget_data)
+        variable = attributes.get("textvariable") or attributes.get("variable")
+        value = attributes.get(VAR_VALUE_KEY)
+        if not variable or not value:
+            continue
+        if valid_python_name(variable) and variable not in defaults:
+            defaults[variable] = str(value)
+    return defaults

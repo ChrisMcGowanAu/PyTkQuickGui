@@ -270,5 +270,61 @@ class NotebookPersistenceTests(unittest.TestCase):
         self.assertNotIn("tab_labels", attributes)
 
 
+class FakeEntry(FakeWidget):
+    """An entry that shows a value for its variable."""
+
+    widgetName = "ttk::entry"
+
+    def __init__(self, shown="123"):
+        super().__init__()
+        self._shown = shown
+
+    def get(self):
+        return self._shown
+
+    def getvar(self, _name):
+        return self._shown
+
+
+class VariableDefaultTests(unittest.TestCase):
+    def setUp(self):
+        self.old_names = cw.createWidget.widgetNameList
+        self.old_objects = cw.createWidget.widgetObjectList
+        self.old_manager = my_vars.geomManager
+        my_vars.geomManager = "Place"
+
+    def tearDown(self):
+        cw.createWidget.widgetNameList = self.old_names
+        cw.createWidget.widgetObjectList = self.old_objects
+        my_vars.geomManager = self.old_manager
+
+    def _save(self, widget):
+        cw.createWidget.widgetNameList = [
+            ["Widget0", "rootWidget", widget, []],
+        ]
+        cw.createWidget.widgetObjectList = [FakeCreateWidget(widget)]
+        return my_vars.saveWidgetAsDict("Widget0")["Widget0"]
+
+    def test_the_shown_value_is_captured_as_the_variable_default(self):
+        saved = self._save(FakeEntry("123"))
+        attributes = project_format.attribute_map("Widget0", saved)
+
+        self.assertEqual(attributes["textvariable"], "button_text")
+        self.assertEqual(attributes["var_value"], "123")
+
+    def test_an_empty_widget_records_nothing(self):
+        saved = self._save(FakeEntry(""))
+        attributes = project_format.attribute_map("Widget0", saved)
+
+        self.assertNotIn("var_value", attributes)
+
+    def test_the_capture_never_reaches_the_constructor(self):
+        saved = self._save(FakeEntry("123"))
+
+        definition = my_vars.buildAWidget(0, saved)
+
+        self.assertNotIn("var_value=", definition)
+
+
 if __name__ == "__main__":
     unittest.main()

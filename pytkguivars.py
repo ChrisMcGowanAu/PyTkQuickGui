@@ -436,6 +436,36 @@ def saveWidgetAsDict(widgetName) -> dict:
                         newWidget = Merge(widgetDict, widgetAttribute)
                         widgetDict = newWidget
                         keyCount += 1
+    # The value the widget shows for its variable is the right starting value
+    # for the generated program: variables used to be initialised to '0.0'
+    # whatever the designer showed.  The variable itself lives in Tcl (its name
+    # came from the saved attributes just emitted), so read it from there.
+    _var_key = ""
+    _var_name = ""
+    for _attr in widgetDict.values():
+        if isinstance(_attr, dict) and str(_attr.get("Key", "")) in (
+            "textvariable",
+            "variable",
+        ):
+            _var_key = str(_attr.get("Key"))
+            _var_name = str(_attr.get("Value", ""))
+            break
+    if _var_name and project_format.valid_python_name(_var_name):
+        _shown = _shown_variable_value(w, _var_key, _var_name)
+        if _shown:
+            widgetDict = Merge(
+                widgetDict,
+                {
+                    "Attribute"
+                    + str(keyCount): {
+                        "Key": project_format.VAR_VALUE_KEY,
+                        "Value": _shown,
+                    }
+                },
+            )
+            keyCount += 1
+            log.debug("saveWidgetAsDict: %s = %r", _var_name, _shown)
+
     # A notebook keeps its tab captions on the tab ids rather than as widget
     # options, so w.keys() never reports them.  Record them explicitly or a
     # label typed in the attribute editor is lost on the next save.
@@ -463,6 +493,21 @@ def saveWidgetAsDict(widgetName) -> dict:
     tmpDict = Merge(widgetDict, {widgetKeys: keyCount})
     newWidget = {widgetName: tmpDict}
     return newWidget
+
+
+def _shown_variable_value(widget, variable_key: str, variable_name: str) -> str:
+    """Return the value a widget shows for its variable, or ``""``.
+
+    An entry, combobox or spinbox knows its own text, so ``get()`` returns what
+    the user sees; other widgets read the variable itself.  This never raises:
+    a design-time default is a nicety, not something that should break a save.
+    """
+    try:
+        if variable_key == "textvariable" and hasattr(widget, "get"):
+            return str(widget.get())
+        return str(widget.getvar(variable_name) or "")
+    except (tk.TclError, AttributeError, TypeError, ValueError):
+        return ""
 
 
 def _is_notebook_widget(widget) -> bool:

@@ -403,6 +403,11 @@ Things worth knowing:
   (`ft.Column(scroll=ft.Scrollbar())`) rather than exposing a free-standing
   widget, and `ft.RadioGroup`/`ft.Divider` are not positional controls, so
   they are wrapped in a `ft.Container` to keep the designer's coordinates.
+- A variable starts at **the value its widget showed in the designer** rather
+  than a fixed `'0.0'`: type the value into the widget on the canvas (or tick a
+  checkbutton), save or generate, and that is what the generated program
+  initialises. A variable with nothing captured still starts at `'0.0'`, and
+  the Python backend emits it as `tk.StringVar(rootWin, '123')`.
 - A widget bound to a `textvariable` (a sudoku cell, a calculator display, a
   text area) keeps that binding: the generated program declares the variable,
   points the control at it, and provides `set_text(name, value)` to change it -

@@ -2116,6 +2116,46 @@ class FletGeneratorTests(unittest.TestCase):
         self.assertIn("def _step_value(", source)
         self.assertIn("def set_text(", source)
 
+    def test_variable_starts_at_the_value_the_designer_showed(self):
+        """Variables used to be '0.0' however the designer looked."""
+        data = project(
+            theme="dracula-dark",
+            widgets=(
+                widget(
+                    "Widget1",
+                    "ttk::entry",
+                    attributes=(
+                        ("textvariable", "calcvar"),
+                        ("var_value", "123"),
+                    ),
+                    place={"x": "0", "y": "0", "width": "320", "height": "32"},
+                ),
+            ),
+        )
+
+        source = flet_generator.emit_program(data, [ROOT, "Widget1"], ROOT)
+
+        ast.parse(source)
+        self.assertIn("calcvar = '123'", source)
+        self.assertNotIn("calcvar = '0.0'", source)
+
+    def test_variable_without_a_captured_value_still_defaults(self):
+        data = project(
+            theme="darkly",
+            widgets=(
+                widget(
+                    "Widget1",
+                    "ttk::entry",
+                    attributes=(("textvariable", "calcvar"),),
+                    place={"x": "0", "y": "0", "width": "320", "height": "32"},
+                ),
+            ),
+        )
+
+        source = flet_generator.emit_program(data, [ROOT, "Widget1"], ROOT)
+
+        self.assertIn("calcvar = '0.0'", source)
+
     @unittest.skipUnless(FLET_AVAILABLE, "flet is not installed")
     def test_generated_program_builds_real_flet_controls(self):
         data = project(
