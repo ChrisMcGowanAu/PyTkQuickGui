@@ -705,6 +705,23 @@ When contributing:
 Bug reports are most useful when they include the project JSON, the selected
 geometry manager, the sequence of editing actions, and the complete traceback.
 
+### Checking generated Flet code after an upgrade
+
+Several Flet mappings rest on *measured* behaviour - a multiline field takes its
+height from `min_lines`, a `ft.TextStyle` with no weight is drawn bold, Material
+paints a check/radio fill in every state, `ft.Tabs` takes a
+`TabBar`/`TabBarView` content - and a Flet upgrade can change any of them
+without changing the major version. `tools/smoke_flet_generated.py` is the
+answer: it generates every saved project (default, exact-position Grid and
+skip-optional modes), parses the result, builds the controls with the installed
+Flet and exits non-zero on failure.
+
+```bash
+venv/bin/python tools/smoke_flet_generated.py          # the saved projects
+venv/bin/python tools/smoke_flet_generated.py --all    # including backups
+venv/bin/python tools/smoke_flet_generated.py ~/elsewhere/*.json
+```
+
 ## License
 
 MIT. See [`LICENSE`](LICENSE).

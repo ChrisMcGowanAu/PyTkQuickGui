@@ -174,11 +174,19 @@ Working on the tool itself
 --------------------------
 
     venv/bin/python -m unittest discover -s tests      # the test suite
-    flake8 --max-line-length=88 *.py tests/*.py        # style
+    venv/bin/python tools/smoke_flet_generated.py      # every saved project,
+                                                       # generated and built
+    venv/bin/flake8 *.py tests/*.py tools/*.py         # style (see .flake8)
+    venv/bin/ruff check .
     pylint --disable=<the list in .github/workflows/pylint.yml> *.py
+
+The smoke tool is the one to run after upgrading Flet: it generates every
+saved project (including the exact-position Grid and skip-optional modes),
+parses the result and builds the controls with the installed Flet, then exits
+non-zero if anything is refused.
 
 `tools/export_theme_colors.py` regenerates `flet_theme_colors.json`, the
 per-theme palette the Flet generator colours its output from.  Run it after
 upgrading ttkbootstrap, with an interpreter that has ttkbootstrap 2.x
-installed and a display available.  `tools/qa.sh` expects isort, black and
-ruff inside `venv/`.
+installed and a display available.  `tools/qa.sh` runs isort, black and
+ruff from `venv/`; flake8 and ruff are installed by `requirments.txt`.
