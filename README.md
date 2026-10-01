@@ -42,6 +42,11 @@ stabilised.
 - coloredlogs
 - Pillow
 
+Flet is optional and only needed to run programs written by
+**File → Generate Flet**. The designer itself never imports flet. Install
+`flet>=1.0` — the generated programs target the 1.0 API (they still run on the
+0.8x releases, with a version warning).
+
 The complete Python dependency list is in
 [`requirments.txt`](requirments.txt). The filename is retained for compatibility
 with existing setup instructions.
@@ -84,7 +89,8 @@ On Windows, activate the environment with:
    geometry.
 6. Use **File → Save Project** to save the JSON project.
 7. Use **File → Trial Run** to preview it or **File → Generate Python** to
-   write a program.
+   write a program. **File → Generate Flet** writes the same layout as a
+   [Flet](https://flet.dev) application.
 
 ## Interface
 
@@ -103,7 +109,7 @@ layouts. Start a new project to use a different manager.
 
 | Menu | Important actions |
 |---|---|
-| File | New, open, close, save, save as, Trial Run, Generate Python |
+| File | New, open, close, save, save as, Trial Run, Generate Python, Trial Run (Flet), Generate Flet |
 | Edit | Undo, redo, group selected widgets, ungroup |
 | Theme | Light, dark, and legacy ttkbootstrap themes |
 | Tools | Label borders, default fonts/styles, backups, widget tree, Compact Grid |
@@ -262,6 +268,11 @@ The top-level Grid settings are:
 Per-widget records live under `gridWidgetDefaults` and
 `placeWidgetDefaults`. Place records contain only `width` and `height`.
 
+Flet output is configured by two further keys, described under
+[Generating Flet](#generating-flet): `fletGridMode` (`responsive` or
+`absolute`) and `fletWidgetPolicy` (per widget type: `full`, `placeholder` or
+`skip`).
+
 Grid rows, columns, guide colour, minimum sizes, and padding are also saved in
 each project. Project values override tool defaults when that project is
 opened; tool defaults remain the starting values for new projects.
@@ -338,6 +349,238 @@ longer referenced by a widget are also retained.
 **Trial Run** writes and launches a temporary generated file. It is intended for
 layout testing and does not replace the explicitly saved Python file.
 
+## Generating Flet
+
+**File → Generate Flet** writes a standalone [Flet](https://flet.dev) program
+(`import flet as ft`, `def main(page)`, `ft.run(main)`) from the same project
+data. The translation lives in `flet_generator.py` and is a pure function of the
+project, so it can be tested without a display.
+
+| Designer | Flet output |
+|---|---|
+| Place | `ft.Stack` with absolute `left`/`top`/`width`/`height` |
+| Grid (default) | nested `ft.Column`/`ft.Row`; rows share the space and a widget with `sticky=nsew` fills its cell, so the layout stretches with the window the way ttk does |
+| Grid (exact positions) | `ft.Stack` with `rowspan`/`columnspan` reproduced exactly; cells are sized from the widgets themselves (the designer's measurements, the tool default per type as a floor, minsize only as a floor like Tk) |
+| Pack | `ft.Row`/`ft.Column` groups by `side` |
+| Frame / Canvas | `ft.Container` (background preserved) holding an `ft.Stack` |
+| Labelframe | `ft.Container` with the caption as an `ft.Text` line |
+| Notebook | `ft.Tabs` with `ft.TabBar` and `ft.TabBarView` |
+| Panedwindow | `ft.Row`/`ft.Column` (Flet has no draggable splitter) |
+| Label / Button / Entry / Combobox / Checkbutton / Radiobutton / Scale / Progressbar / Separator | `ft.Text` / `ft.Button` / `ft.TextField` / `ft.Dropdown` / `ft.Checkbox` / `ft.RadioGroup` / `ft.Slider` / `ft.ProgressBar` / `ft.Divider` |
+| Spinbox | `ft.Row` of a numeric `ft.TextField` and ↑/↓ `ft.IconButton`s, stepping by the saved `from`/`to`/`increment` through a generated `_step_value` helper |
+| Treeview | `ft.DataTable` with the saved column headings (rows are never stored in the project) |
+| Listbox | `ft.ListView` |
+| Scrollbar | folded into the widget it scrolls: `scroll=ft.Scrollbar(...)` on a `ft.ListView`, or a scrolling `ft.Column` wrapped around a canvas/table |
+| Text | multiline `ft.TextField` (its own scrollbar is dropped) |
+| `command`, `textvariable`, `variable` | `on_click`/`on_change`, plain Python values, `bool(...)` for check buttons |
+| Tk colours | CSS hex (named Tk colours are mapped, unknown names are dropped) |
+
+Things worth knowing:
+
+- The output targets the **Flet 1.0** control API (`ft.Button`,
+  `ft.DropdownOption`, `TabBar`/`TabBarView`) while staying compatible with the
+  0.8x releases. Flet 1.0 removes `ft.ElevatedButton`, so buttons are emitted
+  as `ft.Button`, which both generations provide.
+- Every generated program opens with a version guard. It compares the running
+  Flet against `MINIMUM_FLET_VERSION` (`'1.0'`) and, when the runtime is older,
+  names the installed version and the upgrade command:
+
+  ```
+  warning: This program targets Flet 1.0 or later. Installed: 0.86.5.
+  Upgrade with:  pip install --upgrade flet
+  ```
+
+  The program still runs — the 0.8x API is compatible — but set
+  `FLET_VERSION_STRICT = True` in the generated file to make it refuse to
+  start instead of warning.
+- Tk options with no Flet equivalent (`takefocus`, `cursor`, `style`, …) are left
+  out and listed in a `Translation notes` comment per widget, so nothing
+  disappears silently.
+- Flet attaches scrollbars to a scrollable control
+  (`ft.Column(scroll=ft.Scrollbar())`) rather than exposing a free-standing
+  widget, and `ft.RadioGroup`/`ft.Divider` are not positional controls, so
+  they are wrapped in a `ft.Container` to keep the designer's coordinates.
+- A widget whose caption lives in a `textvariable` (a common designer
+  pattern - a sudoku cell, for example) keeps that binding: the generated
+  program declares the variable, points the control at it, and provides
+  `set_text(page, name, value)` to change it. One variable can caption many
+  controls, exactly as a Tk variable does.
+- The window opens at a size worked out from the design rather than a fixed
+  800x600: Grid and Pack from the widgets and their spans, Place from the
+  furthest edge anything is placed at. It is clamped to 1280x900 and written to
+  the generated file as `WINDOW_WIDTH`/`WINDOW_HEIGHT` with a comment, so
+  adjusting it is a one line edit. Grid and Pack layouts reflow as the window
+  is resized; Place positions are absolute, so they stay where the designer put
+  them (a widget using relative width/height still stretches).
+- **Trial Run (Flet)** launches the generated program with `python3`.
+- Regeneration overwrites the whole file: unlike the Python backend there is no
+  edit-preserving pass for Flet output yet, so keep hand-written changes in a
+  module that imports the generated one.
+- ttkbootstrap themes are not Flet themes; the project theme is emitted as a
+  `THEME` constant for reference only.
+
+### Which geometry manager to use for Flet
+
+**Place is the recommended target for Flet output.** It translates one to one:
+every widget keeps the coordinates the designer gave it, the result looks like
+the Trial Run, and there is nothing to interpret. If a Flet app is the goal,
+design in Place.
+
+**Grid works, but it is an interpretation, and it may need size tweaks.** Flet
+has no grid layout at all - no spans, no minsize, no weights - so a Grid
+project is rebuilt from rows and columns of `expand` weights. Known differences:
+
+- `rowspan` is approximated: a widget that covers several rows occupies one
+  band, at its designed size, instead of stretching down across the rows.
+  **Exact positions** (the dialog option, or Tools → Flet: exact Grid
+  positions) reproduces spans properly, at the cost of not reflowing.
+- `minsize` is only a floor in Tk, and the designer's minsizes are Tk units
+  (`2.5m` is about 9 pixels), so cell sizes are worked out from the widgets
+  themselves. A design that relies on minsizes for its proportions will look
+  different.
+- `sticky` decides which axes a widget fills; partial stickies (`ew`, `w`) keep
+  the designed size on the axes they do not fill.
+
+**Pack** is the weakest of the three and is best avoided for Flet output.
+
+### Writing or generating a project file by hand
+
+A project is just JSON, so a program can be produced without opening the
+designer - useful for scripted or generated UIs. The designer opens such a file
+with **File → Open Project** as usual, and `flet_generator.emit_program()` /
+`buildPython()` accept the same dictionary directly.
+
+The smallest useful file needs the project keys plus one record per widget:
+
+```json
+{
+  "formatVersion": 2,
+  "ProjectName": "handwritten",
+  "geomManager": "Place",
+  "theme": "darkly",
+  "backgroundColor": "skyBlue3",
+  "imageFileNames": [],
+  "widgetCount": 2,
+  "Widget0": {
+    "WidgetName": "ttk::button",
+    "WidgetParent": "rootWidget",
+    "Place": {"x": "16", "y": "16", "width": "120", "height": "32", "anchor": "nw"},
+    "GeomData": {},
+    "Attribute0": {"Key": "text", "Value": "Say hello"},
+    "Attribute1": {"Key": "style", "Value": "success.TButton"},
+    "Widget0-KeyCount": 2
+  }
+}
+```
+
+- `WidgetName` is the Tk widget type (`ttk::button`, `ttk::frame`, `canvas`,
+  `text`, `listbox`, …); `WidgetParent` is another widget name or `rootWidget`.
+- Attributes are Tk options: `text`, `textvariable`, `command`, `style`,
+  `values`, `from`/`to`/`increment`, and so on. Keys Flet cannot express are
+  reported in the generated file rather than silently dropped.
+- Coordinates are relative to the parent, exactly as the designer stores them.
+- `widgetNameList` is optional here: the loader rebuilds it from the widgets'
+  parents if it is missing, and the designer writes it back on the next save.
+- `theme` is what drives Flet colours, so it is worth setting even by hand.
+
+### Theme colours
+
+Project colours come from the ttkbootstrap theme named in the project, so a
+Flet build looks like the Trial Run rather than like Flet's defaults. Your
+widgets carry a `style` such as `primary.TButton`, `secondary.Outline.TButton`
+or `success.Inverse.TLabel`, and the generator resolves each one:
+
+| Style | Flet result |
+|---|---|
+| `primary.TButton` | filled with the theme's primary colour, text in black or white depending on the fill |
+| `secondary.Outline.TButton` | theme background, primary-coloured border and caption |
+| `primary.TLabel` | theme text colour (no background) |
+| `success.Inverse.TLabel` | filled with the bootstyle colour, contrasting text |
+| `primary.TFrame` | filled with the bootstyle colour |
+| `primary.TLabelframe` | theme surface, bootstyle border, theme text caption |
+| `primary.TEntry` / `TCombobox` / `TSpinbox` | the theme's input surface and text, with the theme's border colour |
+| `primary.Horizontal.TProgressbar` | bootstyle-coloured bar on the theme's trough colour |
+| `primary.Horizontal.TScale` | bootstyle-coloured track and thumb |
+| `primary.TCheckbutton` / `TRadiobutton` | bootstyle-coloured indicator, theme-coloured caption |
+| `primary.TNotebook` | theme surface with the theme's border |
+| (window) | the theme's background, with Flet's own theme set to dark or light to match |
+
+The colours are **exported from ttkbootstrap itself** into
+`flet_theme_colors.json` by `tools/export_theme_colors.py`: each theme's
+bootstyle colours and the resolved colours of real widgets, probed with
+`style.lookup`. That matters because the Bootswatch-derived themes shade their
+bootstyle colour (minty's buttons are `#609b8a`, not its `#78c2ad` slot) and
+because ttk chooses black or white text per fill. The generator reads the JSON
+only, so it still needs neither Tk nor ttkbootstrap.
+
+Regenerate the palette after upgrading ttkbootstrap:
+
+```bash
+python3 tools/export_theme_colors.py     # needs ttkbootstrap 2.x and a display
+```
+
+Approximations worth knowing: a ttk progressbar draws its fill from a shaded
+image, so the Flet bar uses the bootstyle colour directly; the same applies to
+scale tracks and separator lines. If a project's theme is missing from the
+palette (a custom theme, or a very old project), generation still works and
+falls back to the palette slot colours — **Tools → Flet compatibility report**
+says which happened.
+
+### Flet compatibility report and per-type policy
+
+**Tools → Flet compatibility report** lists every widget in the project with the
+control it becomes, or why it cannot be one:
+
+```
+Widget0   canvas            ft.Container + ft.Stack (3 children)
+Widget6   ttk::scrollbar    wraps Widget0 in a scrolling ft.Column (...)  [folded]
+
+Summary: 7 widgets - 6 mapped, 1 folded into a scroll target, 0 placeholder, 0 skipped
+```
+
+**Generate Flet** and **Trial Run (Flet)** ask how to lay out a Grid project
+before writing anything, because the two mappings suit different purposes:
+
+- **Responsive** - rows and columns grow with the window, so the layout
+  stretches the way a Flet app is expected to. A widget with `sticky=nsew`
+  fills its cell; one with `sticky=ew` keeps the height the designer gave it.
+  Row heights follow their content, so a one line widget is not stretched to
+  the height of the tallest row.
+- **Exact positions** - a `ft.Stack` that reproduces the designer's pixel
+  layout, including `rowspan` and `columnspan`, but stays fixed when the window
+  is resized.
+
+The dialog shows the window size it worked out from the design and remembers
+your answer in `tool_defaults.json` as `fletGridMode`. Place and Pack projects
+have a single mapping, so they are not asked. **Tools → Flet: exact Grid
+positions** still sets the remembered default without generating.
+
+Both settings live in `tool_defaults.json`, next to the existing geometry
+defaults, so they can be edited by hand or layered per project:
+
+```json
+{
+  "fletGridMode": "responsive",
+  "fletWidgetPolicy": {
+    "default": "full",
+    "treeview": "skip",
+    "canvas": "placeholder"
+  }
+}
+```
+
+The policy is per widget type, using the same lower-case keys as
+`gridWidgetDefaults`:
+
+| Policy | Effect |
+|---|---|
+| `full` (default) | Emit the best mapping above; fall back to a placeholder only when Flet has no equivalent at all |
+| `placeholder` | Emit a plain `ft.Container` with a note instead of the mapping — useful when a lossy mapping would be more misleading than an obvious gap |
+| `skip` | Leave the widget out of the generated program entirely; children of a skipped container are promoted to its parent |
+
+Skipping a widget never removes it from the project or from the Python
+backend — it only affects Flet output.
+
 ## Themes
 
 The Theme menu groups ttkbootstrap 2.0 light and dark themes and retains legacy
@@ -365,6 +608,19 @@ those differences; check a Trial Run when exact Place dimensions matter.
   are stabilised.
 - Some complex widgets require application-specific setup that a visual builder
   cannot infer, such as connecting scrollbars to targets.
+- Flet output is regenerated whole: edits to a generated Flet file are not
+  preserved (the Python backend does preserve them).
+- Flet has no draggable splitter, and a Tk scrollbar with no scrollable target
+  (or a horizontal one) stays a placeholder Container.
+- **Exact Grid positions** sizes a cell from the widgets in it, not from the
+  stored minsize: `2.5m` is only 9px, and Tk treats minsize as a floor too. A
+  designer widget that measures small because its caption comes from an empty
+  `textvariable` never shrinks below the tool default for its type. Exact mode
+  keeps the layout fixed instead of reflowing, so use it for position parity,
+  not for a window the user is expected to resize.
+- In Grid output the empty columns the designer draws still take a share of the
+  width, because the Python backend gives every column `weight=1` - so a board
+  that spans 9 of 10 columns leaves a strip on the right in both backends.
 - Trial Run and visual editing require a desktop session with Tk support.
 - Legacy pickle compatibility is temporary and should be treated as a migration
   path to JSON.
@@ -384,7 +640,10 @@ When contributing:
 3. Use `logging` instead of diagnostic `print` calls in application code.
 4. Test both Grid and Place, including a child widget inside a container.
 5. Test a save, reload, Trial Run, and generated Python file.
-6. Check at least one light and one dark ttkbootstrap theme.
+6. Run the Flet generator over the same project (`Generate Flet`) when widget
+   mapping or geometry changes, and re-run `tools/export_theme_colors.py` when
+   ttkbootstrap itself is upgraded.
+7. Check at least one light and one dark ttkbootstrap theme.
 
 Bug reports are most useful when they include the project JSON, the selected
 geometry manager, the sequence of editing actions, and the complete traceback.

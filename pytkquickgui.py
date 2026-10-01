@@ -1,5 +1,4 @@
 import ast
-import importlib.metadata as _meta
 import json
 import logging
 import os
@@ -22,13 +21,28 @@ from ttkbootstrap.dialogs.colorchooser import ColorChooserDialog
 
 import cdefs as C
 import createWidget as cw
+import flet_generator
 import layout_model
 import project_format
 import pytkguivars as myVars
+import startup_checks
 import tool_defaults
 import undoredo
 
 log = logging.getLogger(name="mylogger")
+
+
+# ── ttkbootstrap version guard ─────
+# This application requires ttkbootstrap 2.0 or later.  Version 1.x has no
+# install_legacy_themes() and ttk.Window() rejects the `theme` keyword, so the
+# guard has to run before anything else touches the ttkbootstrap API.  Without
+# a window there is no message box, so the problem is reported on the console
+# and in the log rather than as a traceback.
+_startupError = startup_checks.check_ttkbootstrap(ttk)
+if _startupError:
+    # Logging is not configured yet this early, so report on the console.
+    print(_startupError, file=_sys.stderr)
+    _sys.exit(1)
 
 
 def getConfigPath() -> str:
@@ -118,55 +132,6 @@ rootWin = ttk.Window(theme=useTheme, iconphoto="snake.png")
 # that projects saved with legacy theme names load without DeprecationWarning.
 # Must be called AFTER ttk.Window() because that creates the Style singleton.
 ttk.install_legacy_themes()
-
-
-# ── ttkbootstrap version guard ─────
-# This application requires ttkbootstrap 2.0 or later.
-# Version 1.x uses a different import structure and is incompatible.
-def _check_ttkbootstrap_version():
-    """Warn (and exit) if ttkbootstrap is older than 2.0.
-
-    Version resolution order (most reliable first):
-      1. importlib.metadata — reads the installed package metadata,
-         works regardless of what the module exposes as __version__.
-      2. ttk.__version__ — present on some builds.
-      3. ttk.VERSION     — older ttkbootstrap attribute.
-    Falls back to "0.0" only if all three fail (should never happen on a
-    correctly installed package).
-    """
-
-    ver_str = "0.0"
-    try:
-        ver_str = _meta.version("ttkbootstrap")
-    except Exception:
-        # Package metadata not found — try module attributes
-        for _attr in ("__version__", "VERSION", "version"):
-            _v = getattr(ttk, _attr, None)
-            if _v and str(_v) not in ("", "0.0"):
-                ver_str = str(_v)
-                break
-    try:
-        # Parse major version — handle "2.0.1", "2.0.1.dev0", "2.0.1b1", etc.
-        major = int(str(ver_str).split(".", maxsplit=1)[0])
-    except (ValueError, AttributeError):
-        major = 0
-    if major < 2:
-
-        Messagebox.show_error(
-            title="Unsupported ttkbootstrap version",
-            message=(
-                f"PyTkQuickGui requires ttkbootstrap 2.0 or later.\n\n"
-                f"Installed version: {ver_str}\n\n"
-                "Please upgrade:  pip install --upgrade ttkbootstrap\n\n"
-                "The application will now exit."
-            ),
-        )
-        rootWin.destroy()
-
-        _sys.exit(1)
-
-
-_check_ttkbootstrap_version()
 rootWin.eval("tk::PlaceWindow . pointer")
 mainFrame = ttk.Frame()
 rootWin.title("Python Tk GUI Builder")
@@ -979,6 +944,272 @@ def generatePython():
         )
 
 
+def measureWidgetSizes(widgetOrder) -> dict:
+    """Return ``{widget name: (width, height)}`` for the live design widgets.
+
+    Tk sizes a grid column to the largest widget in it, so the exact-position
+    Flet Grid mode needs the size each widget actually asks for.  The designer
+    already knows it: these are the same measurements Tk uses.
+    """
+    sizes: dict = {}
+    for widgetName in widgetOrder:
+        if widgetName == myVars.rootWidgetName:
+            continue
+        entry = cw.findPythonWidgetNameList(widgetName)
+        widget = entry[cw.WIDGET] if entry else None
+        if widget is None:
+            continue
+        try:
+            width = int(widget.winfo_reqwidth())
+            height = int(widget.winfo_reqheight())
+        except tk.TclError:
+            continue
+        if width > 0 and height > 0:
+            sizes[str(widgetName)] = (width, height)
+    return sizes
+
+
+def buildFlet() -> str:
+    """Generate a Flet program for the current project.
+
+    Flet is an optional dependency: this only writes a file, so the designer
+    itself never needs flet installed.  Returns the written file name, or an
+    empty string when generation was cancelled.
+    """
+    if not saveProject():
+        log.error("buildFlet: project save failed; generation cancelled")
+        return ""
+    createdWidgetOrder = workOutWidgetCreationOrder()
+    images = {
+        str(f[myVars.WIDGET]): str(f[myVars.FILENAME])
+        for f in (myVars.widgetImageFilenames or [])
+    }
+    naturalSizes = measureWidgetSizes(createdWidgetOrder)
+    try:
+        program = flet_generator.emit_program(
+            myVars.projectDict,
+            createdWidgetOrder,
+            myVars.rootWidgetName,
+            myVars.geomManager,
+            images,
+            myVars.fletGridMode,
+            myVars.fletWidgetPolicy,
+            flet_generator.DEFAULT_MINIMUM_FLET_VERSION,
+            flet_generator.DEFAULT_STRICT_FLET_VERSION,
+            naturalSizes,
+        )
+    except (KeyError, TypeError, ValueError) as e:
+        log.error("buildFlet: cannot generate Flet code: %s", e)
+        return ""
+    fileName = getConfigPath() + "/" + "flet_test.py"
+    try:
+        with open(fileName, "w", encoding="utf8") as handle:
+            handle.write(program)
+    except OSError as e:
+        log.error("buildFlet: cannot write %s: %s", fileName, e)
+        return ""
+    log.info("Flet program written to %s", fileName)
+    return fileName
+
+
+def runFlet():
+    if not askFletOptions():
+        return
+    fileName = buildFlet()
+    if not fileName:
+        return
+    log.info("flet fileName ->%s<-", fileName)
+    cmd = "python3 " + fileName + " &"
+    os.system(cmd)
+
+
+def generateFlet():
+    """Ask for a save path, generate Flet code and write it there."""
+    if not askFletOptions():
+        return
+    initialDir, initialFile = project_format.generated_python_dialog_defaults(
+        myVars.projectName,
+        myVars.saveDirName,
+        myVars.generatedFletFile,
+        os.environ["HOME"],
+    )
+    newFile = tk.filedialog.asksaveasfilename(
+        initialdir=initialDir,
+        initialfile=initialFile,
+        filetypes=[("Python file", "*.py")],
+        defaultextension="py",
+    )
+    if not newFile:
+        return  # user cancelled
+    myVars.saveDirName = os.path.dirname(newFile)
+    myVars.generatedFletFile = newFile
+    fileName = buildFlet()
+    if not fileName:
+        Messagebox.show_error(
+            title="Generate Error",
+            message="The project could not be saved, so Flet generation was cancelled.",
+        )
+        return
+    try:
+        shutil.copy2(fileName, newFile)
+        log.info("Generated Flet program written to %s", newFile)
+    except OSError as e:
+        log.error("Failed to copy generated file: %s", e)
+        Messagebox.show_error(
+            title="Generate Error", message=f"Could not write to {newFile}:\n{e}"
+        )
+
+
+def showFletCompatibilityReport():
+    """Show how the current project maps onto Flet controls."""
+    if not saveProject():
+        Messagebox.show_error(
+            title="Flet Compatibility",
+            message="The project could not be saved, so the report is unavailable.",
+        )
+        return
+    createdWidgetOrder = workOutWidgetCreationOrder()
+    images = {
+        str(f[myVars.WIDGET]): str(f[myVars.FILENAME])
+        for f in (myVars.widgetImageFilenames or [])
+    }
+    report = flet_generator.compatibility_report(
+        myVars.projectDict,
+        createdWidgetOrder,
+        myVars.rootWidgetName,
+        myVars.geomManager,
+        images,
+        myVars.fletGridMode,
+        myVars.fletWidgetPolicy,
+    )
+    log.info("Flet compatibility report requested")
+    _textWindow("PyTkQuickGui - Flet compatibility", report)
+
+
+def askFletOptions() -> str:
+    """Ask how Flet should lay out a Grid project before generating.
+
+    Returns the chosen Grid mode, or an empty string when the user cancels.
+    Place and Pack projects have a single mapping, so nothing is asked.
+    """
+    if myVars.geomManager != "Grid":
+        return myVars.fletGridMode
+    if not saveProject():
+        Messagebox.show_error(
+            title="Flet Options",
+            message="The project could not be saved, so generation was cancelled.",
+        )
+        return ""
+    order = workOutWidgetCreationOrder()
+    sizes = measureWidgetSizes(order)
+    width, height = flet_generator.window_size_for(
+        myVars.projectDict,
+        order,
+        myVars.rootWidgetName,
+        myVars.geomManager,
+        myVars.fletGridMode,
+        myVars.fletWidgetPolicy,
+        sizes,
+    )
+
+    choice = tk.StringVar(value=myVars.fletGridMode)
+    dialog = tk.Toplevel(rootWin)
+    dialog.title("Generate Flet")
+    dialog.transient(rootWin)
+    dialog.resizable(False, False)
+
+    body = ttk.Frame(dialog)
+    body.pack(fill="both", expand=True, padx=12, pady=12)
+    ttk.Label(
+        body,
+        justify="left",
+        text=(
+            "This project uses the Grid layout manager.\n"
+            "Choose how the Flet program should lay it out:"
+        ),
+    ).pack(anchor="w")
+    ttk.Radiobutton(
+        body,
+        text="Responsive - rows and columns grow with the window (recommended)",
+        variable=choice,
+        value="responsive",
+    ).pack(anchor="w", pady=(10, 0))
+    ttk.Radiobutton(
+        body,
+        text="Exact positions - keeps the designer's pixel layout, fixed size",
+        variable=choice,
+        value="absolute",
+    ).pack(anchor="w", pady=(4, 0))
+    ttk.Label(
+        body,
+        justify="left",
+        text=(
+            f"\nThe window opens at {width} x {height}, worked out from this design.\n"
+            "WINDOW_WIDTH and WINDOW_HEIGHT in the generated file are there to edit."
+        ),
+    ).pack(anchor="w", pady=(10, 0))
+
+    answer = {"mode": ""}
+
+    def _accept() -> None:
+        answer["mode"] = choice.get()
+        dialog.destroy()
+
+    buttons = ttk.Frame(body)
+    buttons.pack(fill="x", pady=(14, 0))
+    ttk.Button(buttons, text="Cancel", command=dialog.destroy).pack(side="right")
+    ttk.Button(buttons, text="Generate", style="success", command=_accept).pack(
+        side="right", padx=(0, 6)
+    )
+
+    dialog.grab_set()
+    rootWin.wait_window(dialog)
+    if answer["mode"]:
+        myVars.fletGridMode = answer["mode"]
+        variable = getattr(myVars, "fletGridVar", None)
+        if variable is not None:
+            variable.set(myVars.fletGridMode == "absolute")
+        saveToolDefaults()
+        log.info("Flet Grid mode chosen: %s", myVars.fletGridMode)
+    return answer["mode"]
+
+
+def setFletGridMode(variable) -> None:
+    """Switch Flet Grid output between responsive and exact-position layout."""
+    myVars.fletGridMode = "absolute" if variable.get() else "responsive"
+    saveToolDefaults()
+    log.info("Flet Grid mode set to %s", myVars.fletGridMode)
+
+
+def _textWindow(title: str, body: str) -> None:
+    """Open a read-only window showing *body* in a scrollable text area."""
+    window = ttk.Toplevel(rootWin)
+    window.title(title)
+    window.geometry("820x560")
+    window.resizable(True, True)
+    frame = ttk.Frame(window)
+    frame.pack(fill="both", expand=True, padx=8, pady=8)
+    scroll = ttk.Scrollbar(frame, orient="vertical", style="info round")
+    text = tk.Text(
+        frame,
+        wrap="none",
+        state="normal",
+        font=("Courier", 10),
+        padx=8,
+        pady=4,
+        borderwidth=0,
+        yscrollcommand=scroll.set,
+    )
+    scroll.config(command=text.yview)
+    scroll.pack(side="right", fill="y")
+    text.pack(side="left", fill="both", expand=True)
+    text.insert("1.0", body)
+    text.config(state="disabled")
+    ttk.Button(window, text="Close", style="warning", command=window.destroy).pack(
+        pady=(0, 8)
+    )
+
+
 def deleteWidgetData():
     log.info("Removing all existing Widgets")
     # Destroy each widget defensively.  When a parent widget is destroyed Tk
@@ -1568,6 +1799,17 @@ def loadProject(project, altFileName):
         projectTheme = runDict.get("theme")
         myVars.backgroundColor = runDict.get("backgroundColor")
         widgetNameList = runDict.get("widgetNameList")
+        if not isinstance(widgetNameList, list) or not widgetNameList:
+            # Hand written and older projects may not carry the list; it is
+            # derivable from each widget's WidgetParent, so rebuild it rather
+            # than failing later on the first iteration.
+            widgetNameList = layout_model.rebuild_widget_list(
+                runDict, myVars.rootWidgetName
+            )
+            log.info(
+                "Project has no widgetNameList; rebuilt %d entries from parents",
+                len(widgetNameList),
+            )
         # Not used?
         # nWidgets = runDict.get("widgetCount")
         myVars.widgetImageFilenames = runDict.get("imageFileNames")
@@ -2723,6 +2965,8 @@ def buildMenu():
     fileMenu.add_command(label="Save Project As...", command=saveProjectAs)
     fileMenu.add_command(label="Trial Run", command=runMe)
     fileMenu.add_command(label="Generate Python", command=generatePython)
+    fileMenu.add_command(label="Trial Run (Flet)", command=runFlet)
+    fileMenu.add_command(label="Generate Flet", command=generateFlet)
     fileMenu.add_separator()
 
     fileMenu.add_command(label="Exit", command=exitApp)
@@ -2755,6 +2999,9 @@ def buildMenu():
     themeMenu.add_cascade(label="Legacy Themes", menu=legacyMenu)
 
     toolsMenu = ttk.Menu(menuBar, tearoff=0)
+    # Kept on myVars so askFletOptions() can update the tick after a choice.
+    myVars.fletGridVar = tk.BooleanVar(value=myVars.fletGridMode == "absolute")
+    fletGridVar = myVars.fletGridVar
     toolsMenu.add_command(label="Hide Label Borders", command=hideLabelBorders)
     toolsMenu.add_command(label="Show Label Borders", command=showLabelBorders)
     toolsMenu.add_command(label="Set tools default Theme", command=setDefaultToolTheme)
@@ -2763,6 +3010,15 @@ def buildMenu():
     toolsMenu.add_command(label="Set default style font", command=setDefaultStyleFont)
     toolsMenu.add_command(label="Open backup file", command=openBackupFile)
     toolsMenu.add_command(label="Widget Tree", command=widgetTree)
+    toolsMenu.add_separator()
+    toolsMenu.add_command(
+        label="Flet compatibility report", command=showFletCompatibilityReport
+    )
+    toolsMenu.add_checkbutton(
+        label="Flet: exact Grid positions",
+        variable=fletGridVar,
+        command=partial(setFletGridMode, fletGridVar),
+    )
     toolsMenu.add_separator()
     toolsMenu.add_command(
         label="Change Layout Manager",

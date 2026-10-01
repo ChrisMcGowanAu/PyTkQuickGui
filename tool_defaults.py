@@ -58,6 +58,23 @@ GRID_WIDGET_DEFAULTS: dict[str, dict[str, Any]] = {
     "sizegrip": {**_BASE_LAYOUT, "columnspan": 1, "sticky": "se"},
 }
 
+#: How File -> Generate Flet treats each widget type.  ``full`` uses the real
+#: Flet control, ``placeholder`` emits the documented stand-in, and ``skip``
+#: leaves the widget out of the generated program entirely.  Keys use the same
+#: lower-case names as GRID_WIDGET_DEFAULTS; "default" applies to every type
+#: that is not listed here.
+#: Shipped as ``full`` for every type.  Add entries such as
+#: ``"treeview": "skip"`` to leave a widget type out of generated Flet code.
+FLET_WIDGET_POLICY: dict[str, str] = {"default": "full"}
+
+#: How Grid projects are rendered for Flet: ``responsive`` (nested
+#: ft.Row/ft.Column with expand weights) or ``absolute`` (a ft.Stack placed
+#: from the saved Grid minsizes, which reproduces rowspan exactly).
+FLET_GRID_MODE = "responsive"
+FLET_GRID_MODES = ("responsive", "absolute")
+
+FLET_POLICY_VALUES = ("full", "placeholder", "skip")
+
 _BASE_PLACE_SIZE = {"width": 120, "height": 32}
 
 # Place defaults intentionally contain only dimensions.  The drop position is
@@ -202,6 +219,37 @@ def normalise_place_widget_layouts(
     return layouts
 
 
+def normalise_flet_policy(source: Any) -> dict[str, str]:
+    """Return a validated Flet widget policy mapping.
+
+    Unknown keys are kept (so a future widget type can be configured ahead of
+    time) but unknown values fall back to the default policy.
+    """
+    policies: dict[str, str] = dict(FLET_WIDGET_POLICY)
+    if isinstance(source, Mapping):
+        for key, value in source.items():
+            name = str(key).strip().lower()
+            policy = str(value).strip().lower()
+            if name and policy in FLET_POLICY_VALUES:
+                policies[name] = policy
+    return policies
+
+
+def flet_grid_mode(source: Any) -> str:
+    """Return a validated Flet Grid layout mode."""
+    value = str(source or "").strip().lower()
+    return value if value in FLET_GRID_MODES else FLET_GRID_MODE
+
+
+def flet_policy(
+    widget_name: str, policies: Mapping[str, str] | None = None
+) -> str:
+    """Return how File -> Generate Flet should treat one widget type."""
+    table = policies if isinstance(policies, Mapping) else FLET_WIDGET_POLICY
+    key = _widget_key(widget_name)
+    return str(table.get(key, table.get("default", "full")))
+
+
 def normalise(data: Mapping[str, Any] | None) -> dict[str, Any]:
     """Return a complete, validated tool-defaults dictionary."""
     source = data if isinstance(data, Mapping) else {}
@@ -222,6 +270,10 @@ def normalise(data: Mapping[str, Any] | None) -> dict[str, Any]:
     result["placeWidgetDefaults"] = normalise_place_widget_layouts(
         source.get("placeWidgetDefaults")
     )
+    result["fletWidgetPolicy"] = normalise_flet_policy(
+        source.get("fletWidgetPolicy")
+    )
+    result["fletGridMode"] = flet_grid_mode(source.get("fletGridMode"))
     result["formatVersion"] = FORMAT_VERSION
     return result
 

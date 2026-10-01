@@ -149,6 +149,46 @@ class ToolDefaultsTests(unittest.TestCase):
         self.assertEqual(loaded["placeWidgetDefaults"]["button"]["width"], 150)
         self.assertEqual(loaded["placeWidgetDefaults"]["button"]["height"], 44)
 
+    def test_flet_policy_defaults_to_full_and_accepts_overrides(self):
+        self.assertEqual(tool_defaults.flet_policy("ttk::label"), "full")
+        self.assertEqual(tool_defaults.flet_policy("sizegrip"), "full")
+        policies = tool_defaults.normalise_flet_policy({"treeview": "skip"})
+        self.assertEqual(policies["treeview"], "skip")
+        self.assertEqual(policies["default"], "full")
+        self.assertEqual(tool_defaults.flet_policy("ttk::treeview", policies), "skip")
+
+    def test_flet_policy_ignores_unknown_values(self):
+        policies = tool_defaults.normalise_flet_policy(
+            {"label": "explode", "button": "PLACEHOLDER"}
+        )
+        self.assertEqual(tool_defaults.flet_policy("label", policies), "full")
+        self.assertEqual(tool_defaults.flet_policy("button", policies), "placeholder")
+
+    def test_flet_grid_mode_is_validated(self):
+        self.assertEqual(tool_defaults.normalise({})["fletGridMode"], "responsive")
+        self.assertEqual(
+            tool_defaults.normalise({"fletGridMode": "absolute"})["fletGridMode"],
+            "absolute",
+        )
+        self.assertEqual(
+            tool_defaults.normalise({"fletGridMode": "sideways"})["fletGridMode"],
+            "responsive",
+        )
+
+    def test_flet_grid_mode_round_trips_through_save(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = os.path.join(directory, "tool_defaults.json")
+            data = tool_defaults.normalise(
+                {"fletGridMode": "absolute", "fletWidgetPolicy": {"canvas": "skip"}}
+            )
+            tool_defaults.write(path, data)
+            reloaded = tool_defaults.read(path)
+            self.assertEqual(reloaded["fletGridMode"], "absolute")
+            self.assertEqual(
+                tool_defaults.flet_policy("canvas", reloaded["fletWidgetPolicy"]),
+                "skip",
+            )
+
     def test_place_update_preserves_other_manual_defaults(self):
         supplied = {
             "gridRowMinsize": "4m",
