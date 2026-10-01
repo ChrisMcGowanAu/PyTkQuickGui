@@ -659,6 +659,39 @@ def _grow_axis(axis: list[int], start: int, span: int, needed: int) -> None:
         axis[start + span - 1] += needed - current
 
 
+def preserved_pieces(
+    source: str, callbacks: Sequence[str], variables: Sequence[str]
+) -> tuple[dict[str, str], dict[str, str]]:
+    """Return the parts of an earlier generated file the user has taken over.
+
+    A function counts as theirs once the ``# AUTO-GENERATED STUB`` marker is
+    gone, and a variable line counts as theirs once it differs from the
+    generated one - the same convention the Python backend uses, so hand
+    written handler code is never overwritten.  An unparsable file returns
+    nothing, because regenerating beats refusing to.
+    """
+    functions: dict[str, str] = {}
+    variable_lines: dict[str, str] = {}
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return functions, variable_lines
+    wanted_functions = set(callbacks)
+    wanted_variables = set(variables)
+    for node in tree.body:
+        segment = ast.get_source_segment(source, node)
+        if not segment:
+            continue
+        if isinstance(node, ast.FunctionDef) and node.name in wanted_functions:
+            if STUB_SENTINEL not in segment:
+                functions[node.name] = segment
+        elif isinstance(node, ast.Assign) and len(node.targets) == 1:
+            target = node.targets[0]
+            if isinstance(target, ast.Name) and target.id in wanted_variables:
+                variable_lines[target.id] = segment
+    return functions, variable_lines
+
+
 def multiline_lines(height: Any, text_size: int = DEFAULT_TEXT_SIZE) -> int:
     """Return the ``min_lines`` that makes a multiline field as tall as *height*."""
     pixels = _number(height)
@@ -2713,6 +2746,7 @@ def emit_program(
     minimum_flet_version: str = DEFAULT_MINIMUM_FLET_VERSION,
     strict_flet_version: bool = DEFAULT_STRICT_FLET_VERSION,
     natural_sizes: Mapping[str, Sequence[int]] | None = None,
+    preserve_from: str = "",
 ) -> str:
     """Return a complete, runnable Flet program for *project_data*.
 
@@ -2732,6 +2766,10 @@ def emit_program(
     them (``winfo_reqwidth``/``winfo_reqheight``).  Exact-position Grid output
     uses them to size cells the way Tk does; without them the tool defaults are
     used instead.
+
+    ``preserve_from`` names an earlier generated file: functions whose
+    ``# AUTO-GENERATED STUB`` marker has been removed, and variable lines the
+    user changed, are carried over instead of being regenerated.
     """
     project = _Project(
         project_data,
@@ -2749,6 +2787,12 @@ def emit_program(
         if project.skipped(scrollbar):
             continue
         emitter.notes.append(f"# {scrollbar} (scrollbar): {attachment.summary()}")
+    preserved_functions: dict[str, str] = {}
+    preserved_variables: dict[str, str] = {}
+    if preserve_from:
+        preserved_functions, preserved_variables = _read_preserved(
+            preserve_from, project
+        )
     root_expression = emitter.root()
     width, height = emitter.window_size()
     theme = _text(project_data.get("theme"))
@@ -2837,7 +2881,9 @@ def emit_program(
             project.data, project.order, project.root_name
         )
         for variable in declared:
-            if variable in project.list_variables:
+            if variable in preserved_variables:
+                lines.extend(preserved_variables[variable].split("\n"))
+            elif variable in project.list_variables:
                 lines.append(f"{variable} = []   # listbox items")
             elif variable in defaults:
                 # The value the designer showed for this variable.
@@ -2851,6 +2897,9 @@ def emit_program(
     if project.callbacks:
         for callback in project.callbacks:
             lines.append("")
+            if callback in preserved_functions:
+                lines.extend(preserved_functions[callback].split("\n"))
+                continue
             lines.append(f"def {callback}(e=None):")
             if project.variables:
                 # Without this an assignment in a handler creates a local name
@@ -2964,6 +3013,18 @@ def _mapping_description(project: _Project, name: str) -> tuple[str, str]:
     if widget_type == "ttk::panedwindow":
         return "mapped", "ft.Row/ft.Column (no draggable splitter)"
     return "mapped", widget_control(widget_type)
+
+
+def _read_preserved(
+    path: str, project: "_Project"
+) -> tuple[dict[str, str], dict[str, str]]:
+    """Return the parts of an earlier generated file the user has taken over."""
+    try:
+        with open(path, encoding="utf-8") as handle:
+            existing = handle.read()
+    except OSError:
+        return {}, {}
+    return preserved_pieces(existing, project.callbacks, project.variables)
 
 
 def window_size_for(

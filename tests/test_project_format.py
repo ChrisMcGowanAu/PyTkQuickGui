@@ -43,7 +43,7 @@ class ProjectFormatTests(unittest.TestCase):
 
     def test_generated_filename_uses_project_name_and_last_directory(self):
         self.assertEqual(
-            project_format.generated_python_dialog_defaults(
+            project_format.generated_dialog_defaults(
                 "gridtest16",
                 "/tmp/older",
                 "/home/chris/previous-name.py",
@@ -52,7 +52,7 @@ class ProjectFormatTests(unittest.TestCase):
             ("/home/chris", "gridtest16.py"),
         )
         self.assertEqual(
-            project_format.generated_python_dialog_defaults(
+            project_format.generated_dialog_defaults(
                 "new-project",
                 "/common/python",
                 "",
@@ -209,6 +209,32 @@ class ProjectFormatTests(unittest.TestCase):
         )
 
         self.assertEqual(defaults, {})
+
+    def test_generated_filename_names_the_backend_and_defaults_to_a_folder(self):
+        # A brand new project: <home>/<project>/<project>_<backend>.py
+        self.assertEqual(
+            project_format.generated_dialog_defaults(
+                "Calculator", "", "", "/home/chris", suffix="flet"
+            ),
+            ("/home/chris/Calculator", "Calculator_flet.py"),
+        )
+        self.assertEqual(
+            project_format.generated_dialog_defaults(
+                "Calculator", "", "", "/home/chris", suffix="ttk"
+            ),
+            ("/home/chris/Calculator", "Calculator_ttk.py"),
+        )
+        # Once saved, its own directory is offered again.
+        self.assertEqual(
+            project_format.generated_dialog_defaults(
+                "Calculator",
+                "",
+                "/home/chris/Calculator/Calculator_flet.py",
+                "/home/chris",
+                suffix="flet",
+            ),
+            ("/home/chris/Calculator", "Calculator_flet.py"),
+        )
 
 
 if __name__ == "__main__":

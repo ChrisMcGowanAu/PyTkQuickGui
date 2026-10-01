@@ -48,16 +48,27 @@ def format_python_call(call_expression: str, arguments: Iterable[str]) -> str:
     return f"{call_expression}(\n{body}\n)"
 
 
-def generated_python_dialog_defaults(
+def generated_dialog_defaults(
     project_name: str,
     save_directory: str,
     generated_file: str,
     home_directory: str,
+    suffix: str = "",
 ) -> tuple[str, str]:
-    """Return the last output directory and a project-derived Python name."""
+    """Return the output directory and filename offered when generating.
+
+    The first suggestion is ``<home>/<project>/`` with the backend named in the
+    file, so the two outputs of one project sit together and cannot be mistaken
+    for each other: ``Calculator/Calculator_ttk.py`` and
+    ``Calculator/Calculator_flet.py``.  Once a file has been saved, its own
+    directory is offered again.
+    """
+    name = str(project_name).strip() or "project"
     previous_directory = os.path.dirname(generated_file) if generated_file else ""
-    directory = previous_directory or save_directory or home_directory
-    filename = (str(project_name).strip() or "project") + ".py"
+    directory = previous_directory or save_directory or os.path.join(
+        home_directory, name
+    )
+    filename = f"{name}_{suffix}.py" if suffix else f"{name}.py"
     return directory, filename
 
 

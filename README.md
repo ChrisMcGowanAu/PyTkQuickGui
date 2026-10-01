@@ -437,9 +437,10 @@ Things worth knowing:
   save and reload, and both backends write it (`notebook.add(frame, text=…)`
   and `ft.Tab(label=…)`). A tab with no label is called "Tab".
 - **Trial Run (Flet)** launches the generated program with `python3`.
-- Regeneration overwrites the whole file: unlike the Python backend there is no
-  edit-preserving pass for Flet output yet, so keep hand-written changes in a
-  module that imports the generated one.
+- Regeneration keeps your work: a handler you have taken over - the
+  `# AUTO-GENERATED STUB` line removed - and a variable line you have changed
+  are carried over from the file you last generated to, exactly as the Python
+  backend does. Untouched stubs are regenerated.
 - ttkbootstrap themes are not Flet themes; the project theme is emitted as a
   `THEME` constant for reference only.
 
@@ -661,8 +662,11 @@ hit it, the traceback from the steps above points at the Python line.
   are stabilised.
 - Some complex widgets require application-specific setup that a visual builder
   cannot infer, such as connecting scrollbars to targets.
-- Flet output is regenerated whole: edits to a generated Flet file are not
-  preserved (the Python backend does preserve them).
+- **Place is the default** for a new project, and the recommended target for
+  Flet output: it translates one to one, where Grid has to be interpreted.
+- Generated files are suggested as `<home>/<project>/<project>_ttk.py` and
+  `<project>_flet.py`, so both outputs of a project sit together; the path you
+  choose is remembered with the project and used for edit preservation.
 - Flet has no draggable splitter, and a Tk scrollbar with no scrollable target
   (or a horizontal one) stays a placeholder Container.
 - **Exact Grid positions** sizes a cell from the widgets in it, not from the

@@ -350,6 +350,7 @@ def saveProject():
         "gridRowPad": myVars.gridRowPad,
         "gridColPad": myVars.gridColPad,
         "generatedPyFile": myVars.generatedPyFile,
+        "generatedFletFile": myVars.generatedFletFile,
         "widgetNameList": cleanList,
         "backgroundColor": myVars.backgroundColor,
         "imageFileNames": createCleanImageList(),
@@ -951,12 +952,17 @@ def generatePython():
     """
     # Reuse the last output directory, but always derive the filename from the
     # current project instead of carrying over another project's filename.
-    initialDir, initialFile = project_format.generated_python_dialog_defaults(
+    initialDir, initialFile = project_format.generated_dialog_defaults(
         myVars.projectName,
         myVars.saveDirName,
         myVars.generatedPyFile,
         os.environ["HOME"],
+        suffix="ttk",
     )
+    try:
+        os.makedirs(initialDir, exist_ok=True)
+    except OSError as e:
+        log.debug("could not create %s: %s", initialDir, e)
     newFile = tk.filedialog.asksaveasfilename(
         initialdir=initialDir,
         initialfile=initialFile,
@@ -1042,6 +1048,7 @@ def buildFlet() -> str:
             flet_generator.DEFAULT_MINIMUM_FLET_VERSION,
             flet_generator.DEFAULT_STRICT_FLET_VERSION,
             naturalSizes,
+            myVars.generatedFletFile,
         )
     except (KeyError, TypeError, ValueError) as e:
         log.error("buildFlet: cannot generate Flet code: %s", e)
@@ -1072,12 +1079,17 @@ def generateFlet():
     """Ask for a save path, generate Flet code and write it there."""
     if not askFletOptions():
         return
-    initialDir, initialFile = project_format.generated_python_dialog_defaults(
+    initialDir, initialFile = project_format.generated_dialog_defaults(
         myVars.projectName,
         myVars.saveDirName,
         myVars.generatedFletFile,
         os.environ["HOME"],
+        suffix="flet",
     )
+    try:
+        os.makedirs(initialDir, exist_ok=True)
+    except OSError as e:
+        log.debug("could not create %s: %s", initialDir, e)
     newFile = tk.filedialog.asksaveasfilename(
         initialdir=initialDir,
         initialfile=initialFile,
@@ -1453,8 +1465,9 @@ def newProject():
     undoredo.stack.clear()
 
     # Keep the last output directory, but never preserve functions from a
-    # different project's previously generated Python file.
+    # different project's previously generated files.
     myVars.generatedPyFile = ""
+    myVars.generatedFletFile = ""
     path = os.path.join(configPath, name)
     # Create directory only if it doesn't already exist
     os.makedirs(path, exist_ok=True)
@@ -1495,11 +1508,13 @@ def _askGeomManager() -> tuple:
     ).pack(pady=(16, 4), padx=16)
 
     descriptions = {
-        "Place": "Free-form drag & drop (absolute x/y)",
-        "Grid": "Row / column grid layout  ← recommended",
+        "Place": "Free-form drag & drop (absolute x/y)  ← recommended",
+        "Grid": "Row / column grid layout",
         "Pack": "Stack widgets top-to-bottom or left-to-right  (coming soon)",
     }
-    chosen = tk.StringVar(value="Grid")
+    # A new project starts from the tool default (Place), not from whatever
+    # geometry manager the project that happens to be open uses.
+    chosen = tk.StringVar(value=myVars.DEFAULT_GEOM_MANAGER)
     for mgr, desc in descriptions.items():
         rb = ttk.Radiobutton(top, text=f"{mgr}  —  {desc}", variable=chosen, value=mgr)
         if mgr == "Pack":
@@ -1930,6 +1945,10 @@ def loadProject(project, altFileName):
             myVars.generatedPyFile = savedPyFile
             myVars.saveDirName = os.path.dirname(savedPyFile)
             log.info("Restored generatedPyFile path: %s", savedPyFile)
+        savedFletFile = runDict.get("generatedFletFile", "")
+        if savedFletFile and os.path.isfile(savedFletFile):
+            myVars.generatedFletFile = savedFletFile
+            log.info("Restored generatedFletFile path: %s", savedFletFile)
         savedGroups = runDict.get("groups", {})
         if isinstance(savedGroups, dict):
             myVars.groups = savedGroups

@@ -100,8 +100,11 @@ widgetsUsed = (
 # Valid values: 'Place'  'Grid'  'Pack'
 # Some objects use Grid and Pack internally; the root window uses Grid.
 GEOM_MANAGERS = ("Place", "Grid", "Pack")
+#: Place is the default: it translates one to one, and is the better target
+#: for Flet output because Flet has no grid layout to map onto.
+DEFAULT_GEOM_MANAGER = "Place"
 # Default
-geomManager = "Grid"
+geomManager = DEFAULT_GEOM_MANAGER
 # Number of rows/columns in the initial grid (Grid mode only).
 # The grid auto-expands if more rows/cols are needed.
 gridRows: int = tool_defaults.GRID_DEFAULTS["gridRows"]
