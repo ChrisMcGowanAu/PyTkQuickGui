@@ -275,6 +275,50 @@ class ProjectFormatTests(unittest.TestCase):
             with self.subTest(key=bad):
                 self.assertFalse(project_format.is_safe_option_key(bad))
 
+    def test_the_marker_decides_who_owns_a_line(self):
+        """One rule for both backends: no marker means the user wrote it."""
+        source = (
+            "calcvar = '0.0'   # AUTO-GENERATED default\n"
+            "flag = '1'\n"
+            "\n"
+            "def clicked_4(e=None):\n"
+            "    global calcvar\n"
+            "    calcvar = '4'\n"
+            "\n"
+            "def clicked_5(e=None):\n"
+            "    # AUTO-GENERATED STUB\n"
+            "    print('clicked_5')\n"
+        )
+
+        functions, variables = project_format.preserved_pieces(
+            source, ["clicked_4", "clicked_5"], ["calcvar", "flag"]
+        )
+
+        # The hand written handler is kept, the untouched stub is regenerated.
+        self.assertEqual(list(functions), ["clicked_4"])
+        # 'calcvar' carries the marker, so its value is refreshed from the
+        # designer; 'flag' does not, so it is the user's.
+        self.assertEqual(variables, {"flag": "flag = '1'"})
+
+    def test_a_user_edited_variable_is_kept(self):
+        source = "calcvar = '99'   # my own default\n"
+
+        _functions, variables = project_format.preserved_pieces(
+            source, [], ["calcvar"]
+        )
+
+        self.assertEqual(
+            variables, {"calcvar": "calcvar = '99'   # my own default"}
+        )
+
+    def test_preserved_pieces_ignores_an_unparsable_file(self):
+        functions, variables = project_format.preserved_pieces(
+            "this is not python(", ["clicked_4"], ["calcvar"]
+        )
+
+        self.assertEqual(functions, {})
+        self.assertEqual(variables, {})
+
 
 if __name__ == "__main__":
     unittest.main()

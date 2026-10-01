@@ -1215,7 +1215,7 @@ class FletGeneratorTests(unittest.TestCase):
         source = flet_generator.emit_program(data, [ROOT, "Widget1"], ROOT)
 
         ast.parse(source)
-        self.assertIn("listvar = []   # listbox items", source)
+        self.assertIn("listvar = []   # AUTO-GENERATED default", source)
         self.assertIn("listbox items live in the module level list", source)
         self.assertNotIn("listvariable", source)
 

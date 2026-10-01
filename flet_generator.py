@@ -38,7 +38,8 @@ import layout_model
 import project_format
 import tool_defaults
 
-STUB_SENTINEL = "# AUTO-GENERATED STUB"
+#: Shared with the Python backend so the two cannot drift.
+STUB_SENTINEL = project_format.STUB_SENTINEL
 
 #: Flet API level the generated programs are written against.  They still run
 #: on the older 0.8x releases, so the emitted guard warns by default; flip
@@ -657,39 +658,6 @@ def _grow_axis(axis: list[int], start: int, span: int, needed: int) -> None:
     current = sum(axis[index] for index in range(start, start + span))
     if needed > current:
         axis[start + span - 1] += needed - current
-
-
-def preserved_pieces(
-    source: str, callbacks: Sequence[str], variables: Sequence[str]
-) -> tuple[dict[str, str], dict[str, str]]:
-    """Return the parts of an earlier generated file the user has taken over.
-
-    A function counts as theirs once the ``# AUTO-GENERATED STUB`` marker is
-    gone, and a variable line counts as theirs once it differs from the
-    generated one - the same convention the Python backend uses, so hand
-    written handler code is never overwritten.  An unparsable file returns
-    nothing, because regenerating beats refusing to.
-    """
-    functions: dict[str, str] = {}
-    variable_lines: dict[str, str] = {}
-    try:
-        tree = ast.parse(source)
-    except SyntaxError:
-        return functions, variable_lines
-    wanted_functions = set(callbacks)
-    wanted_variables = set(variables)
-    for node in tree.body:
-        segment = ast.get_source_segment(source, node)
-        if not segment:
-            continue
-        if isinstance(node, ast.FunctionDef) and node.name in wanted_functions:
-            if STUB_SENTINEL not in segment:
-                functions[node.name] = segment
-        elif isinstance(node, ast.Assign) and len(node.targets) == 1:
-            target = node.targets[0]
-            if isinstance(target, ast.Name) and target.id in wanted_variables:
-                variable_lines[target.id] = segment
-    return functions, variable_lines
 
 
 def multiline_lines(height: Any, text_size: int = DEFAULT_TEXT_SIZE) -> int:
@@ -2882,14 +2850,23 @@ def emit_program(
         )
         for variable in declared:
             if variable in preserved_variables:
+                # The user's own line; keep it exactly.
                 lines.extend(preserved_variables[variable].split("\n"))
             elif variable in project.list_variables:
-                lines.append(f"{variable} = []   # listbox items")
+                lines.append(
+                    f"{variable} = []   {project_format.VARIABLE_MARKER}"
+                    " - listbox items"
+                )
             elif variable in defaults:
                 # The value the designer showed for this variable.
-                lines.append(f"{variable} = {defaults[variable]!r}")
+                lines.append(
+                    f"{variable} = {defaults[variable]!r}"
+                    f"   {project_format.VARIABLE_MARKER}"
+                )
             else:
-                lines.append(f"{variable} = '0.0'")
+                lines.append(
+                    f"{variable} = '0.0'   {project_format.VARIABLE_MARKER}"
+                )
     else:
         lines.append("# No widget variables are referenced by this project.")
 
@@ -3018,13 +2995,21 @@ def _mapping_description(project: _Project, name: str) -> tuple[str, str]:
 def _read_preserved(
     path: str, project: "_Project"
 ) -> tuple[dict[str, str], dict[str, str]]:
-    """Return the parts of an earlier generated file the user has taken over."""
+    """Return the parts of an earlier generated file the user has taken over.
+
+    The comparison lines are the ones this run would write, so a variable the
+    user edited is kept while a value that is merely stale - the designer has
+    changed it since - is refreshed.  Rules live in project_format, shared with
+    the Python backend.
+    """
     try:
         with open(path, encoding="utf-8") as handle:
             existing = handle.read()
     except OSError:
         return {}, {}
-    return preserved_pieces(existing, project.callbacks, project.variables)
+    return project_format.preserved_pieces(
+        existing, project.callbacks, project.variables
+    )
 
 
 def window_size_for(

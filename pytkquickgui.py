@@ -413,87 +413,45 @@ _SEC_WIDGETS = "####### Widgets #######"
 _SEC_MAIN = "####### Main  #######"
 
 
-def _parseExistingPython(filePath: str) -> tuple[dict, dict]:
-    """Parse *filePath* (a previously generated .py file) and return:
+def _generated_variable_lines(runDict, createdWidgetOrder, rootName) -> dict:
+    """Return ``{variable: init line}`` as this run would write it."""
+    defaults = project_format.variable_defaults(runDict, createdWidgetOrder, rootName)
+    return {
+        name: f"{name} = tk.StringVar(rootWin,{defaults.get(name, '0.0')!r})"
+        f"   {project_format.VARIABLE_MARKER}"
+        for name in project_format.variable_names(
+            runDict, createdWidgetOrder, rootName
+        )
+    }
 
-    * ``func_bodies``  – ``{func_name: full_source_string}`` for every
-      function that the user has modified (stub sentinel absent).
-    * ``tkvar_lines``  – ``{var_name: init_line}`` for every tk variable
-      line that differs from the plain auto-generated default
-      (``var = tk.StringVar(rootWin,'0.0')``).
 
-    Returns two empty dicts if the file cannot be read or parsed.
+def _parseExistingPython(
+    filePath: str,
+    function_names=None,
+    variable_names=None,
+) -> tuple[dict, dict]:
+    """Parse *filePath*, a previously generated .py file, and return:
+
+    * ``func_bodies``  - ``{func_name: full_source_string}`` for every function
+      the user has taken over (stub sentinel absent).
+    * ``tkvar_lines``  - ``{var_name: init_line}`` for every tk variable line
+      that differs from the one this run would generate.
+
+    The rules live in :func:`project_format.preserved_pieces`, shared with the
+    Flet backend so the two cannot drift.  Two empty dicts come back when the
+    file cannot be read or parsed.
     """
-    func_bodies: dict[str, str] = {}
-    tkvar_lines: dict[str, str] = {}
-
     if not filePath or not os.path.isfile(filePath):
-        return func_bodies, tkvar_lines
-
+        return {}, {}
     try:
-        src = open(filePath, "r", encoding="utf-8").read()
+        with open(filePath, "r", encoding="utf-8") as handle:
+            source = handle.read()
     except OSError as e:
         log.warning("_parseExistingPython: cannot read %s: %s", filePath, e)
-        return func_bodies, tkvar_lines
-
-    lines = src.splitlines(keepends=True)
-
-    # ---- Locate section boundaries by scanning for the sentinel comments --
-    sec_tkvars = sec_functions = sec_widgets = sec_main = None
-    for i, line in enumerate(lines):
-        stripped = line.strip()
-        if stripped == _SEC_TKVARS:
-            sec_tkvars = i
-        elif stripped == _SEC_FUNCTIONS:
-            sec_functions = i
-        elif stripped == _SEC_WIDGETS:
-            sec_widgets = i
-        elif stripped == _SEC_MAIN:
-            sec_main = i
-
-    # ---- Extract user-modified tk variable lines -------------------------
-    if sec_tkvars is not None:
-        end = sec_functions if sec_functions is not None else len(lines)
-        var_pat = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*tk\.StringVar\s*\(.*\)")
-        for line in lines[sec_tkvars + 1 : end]:
-            m = var_pat.match(line.strip())
-            if m:
-                var_name = m.group(1)
-                default_line = f"{var_name} = tk.StringVar(rootWin,'0.0')"
-                actual_line = line.rstrip()
-                if actual_line.strip() != default_line:
-                    tkvar_lines[var_name] = actual_line.strip()
-                    log.debug("_parseExistingPython: preserved tkvar %s", var_name)
-
-    # ---- Extract user-modified function bodies ---------------------------
-    if sec_functions is not None:
-        end = (
-            sec_widgets
-            if sec_widgets is not None
-            else (sec_main if sec_main is not None else len(lines))
-        )
-        # Walk function definitions using the AST for reliability
-        func_region = "".join(lines[sec_functions + 1 : end])
-        try:
-            ast_tree = ast.parse(func_region)
-        except SyntaxError as e:
-            log.warning("_parseExistingPython: SyntaxError in functions section: %s", e)
-            ast_tree = None
-        if ast_tree:
-            region_lines = func_region.splitlines(keepends=True)
-            for node in ast.walk(ast_tree):
-                if not isinstance(node, ast.FunctionDef):
-                    continue
-                name = node.name
-                # Grab source lines for this function
-                start = node.lineno - 1  # ast lines are 1-based
-                end_ln = node.end_lineno  # inclusive 1-based
-                func_src = "".join(region_lines[start:end_ln])
-                # Check for stub sentinel anywhere in body
-                if _STUB_SENTINEL not in func_src:
-                    func_bodies[name] = func_src
-                    log.debug("_parseExistingPython: preserved user function %s", name)
-    return func_bodies, tkvar_lines
+        return {}, {}
+    return project_format.preserved_pieces(
+        source, function_names or (), variable_names or ()
+    )
 
 
 def buildPython() -> str:
@@ -532,7 +490,16 @@ def buildPython() -> str:
     fileName = configPath + "/" + "test.py"
 
     # ---- Load existing user edits (if any) from the last saved .py ------
-    _preserved_funcs, _preserved_tkvars = _parseExistingPython(myVars.generatedPyFile)
+    # The lines this run will write: used both to decide whether an existing
+    # line is a user edit and to write it.
+    _generated_var_lines = _generated_variable_lines(
+        runDict, createdWidgetOrder, rootName
+    )
+    _preserved_funcs, _preserved_tkvars = _parseExistingPython(
+        myVars.generatedPyFile,
+        project_format.callback_names(runDict, createdWidgetOrder, rootName),
+        project_format.variable_names(runDict, createdWidgetOrder, rootName),
+    )
     if _preserved_funcs or _preserved_tkvars:
         log.info(
             "buildPython: preserving %d function(s) and %d tkvar(s) from %s",
@@ -601,34 +568,23 @@ def buildPython() -> str:
         name = str(f[myVars.WIDGET]) + str(f[myVars.KEY])
         print(name + " = tk.PhotoImage(file='" + f[myVars.FILENAME] + "')")
     # Deduplicate tk variables (one widget may reference the same variable)
-    _variable_defaults = project_format.variable_defaults(
-        runDict, createdWidgetOrder, rootName
-    )
     seen_vars: set = set()
     for v in tkvars:
         if v and v not in seen_vars:
             seen_vars.add(v)
-            if v in _variable_defaults:
-                # The designer shows this value, so it is the default - even
-                # over a preserved line, which would otherwise keep an older
-                # value for ever.
-                if v in _preserved_tkvars:
-                    log.info(
-                        "buildPython: using designer value %r for %s",
-                        _variable_defaults[v],
-                        v,
-                    )
-                print(
-                    v
-                    + " = tk.StringVar(rootWin,"
-                    + repr(_variable_defaults[v])
-                    + ")"
-                )
-            elif v in _preserved_tkvars:
-                # User has changed this initialisation – keep their version
+            if v in _preserved_tkvars:
+                # The user's own version of this initialisation.
                 print(_preserved_tkvars[v])
             else:
-                print(v + " = tk.StringVar(rootWin,'0.0')")
+                # Either the designer's captured value or the '0.0' fallback.
+                print(
+                    _generated_var_lines.get(
+                        v,
+                        v
+                        + " = tk.StringVar(rootWin,'0.0')"
+                        + f"   {project_format.VARIABLE_MARKER}",
+                    )
+                )
     print("")
     print(_SEC_FUNCTIONS)
     # Deduplicate function names (a command may appear on multiple widgets)

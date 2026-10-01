@@ -8,6 +8,7 @@ from ``widget.cget()``.
 
 from __future__ import annotations
 
+import ast
 import json
 import keyword
 import os
@@ -62,6 +63,13 @@ KNOWN_WIDGET_TYPES = frozenset(
         "treeview",
     }
 )
+
+#: Marks anything the generator wrote.  A function or a variable line that no
+#: longer carries it is the user's, and regeneration must not overwrite it -
+#: one rule for both backends, and for both kinds of line.
+AUTO_MARKER = "# AUTO-GENERATED"
+STUB_SENTINEL = AUTO_MARKER + " STUB"
+VARIABLE_MARKER = AUTO_MARKER + " default"
 
 #: A Tk option name.  Anything else cannot be one - and is exactly what a hand
 #: crafted project file would use to break out of the widget call, which is
@@ -307,3 +315,44 @@ def variable_defaults(
         if valid_python_name(variable) and variable not in defaults:
             defaults[variable] = str(value)
     return defaults
+
+
+def preserved_pieces(
+    source: str,
+    function_names: Iterable[str],
+    variable_names: Iterable[str],
+) -> tuple[dict[str, str], dict[str, str]]:
+    """Return the parts of an earlier generated file the user has taken over.
+
+    Shared by both backends so their rules cannot drift: anything the generator
+    wrote carries :data:`AUTO_MARKER`, so a function or a variable assignment
+    without it is the user's and is returned to be emitted verbatim.  A value
+    the designer has since changed is therefore refreshed, while a hand
+    written one is kept.
+
+    An unparsable file returns nothing, because regenerating beats refusing to.
+    """
+    functions: dict[str, str] = {}
+    variable_lines: dict[str, str] = {}
+    try:
+        tree = ast.parse(source)
+    except (SyntaxError, ValueError):
+        return functions, variable_lines
+    wanted_functions = set(function_names)
+    wanted_variables = set(variable_names)
+    # Whole physical lines, not the AST segment: the marker is a trailing
+    # comment, which a segment for a bare assignment would not include.
+    lines = source.splitlines()
+    for node in tree.body:
+        start = max(0, (node.lineno or 1) - 1)
+        stop = node.end_lineno or node.lineno or 1
+        segment = "\n".join(lines[start:stop])
+        if not segment.strip() or AUTO_MARKER in segment:
+            continue
+        if isinstance(node, ast.FunctionDef) and node.name in wanted_functions:
+            functions[node.name] = segment
+        elif isinstance(node, ast.Assign) and len(node.targets) == 1:
+            target = node.targets[0]
+            if isinstance(target, ast.Name) and target.id in wanted_variables:
+                variable_lines[target.id] = segment
+    return functions, variable_lines
