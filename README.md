@@ -364,7 +364,7 @@ project, so it can be tested without a display.
 | Pack | `ft.Row`/`ft.Column` groups by `side` |
 | Frame / Canvas | `ft.Container` (background preserved) holding an `ft.Stack` |
 | Labelframe | `ft.Container` with the caption above the content (below for a south `labelanchor`), aligned as the designer's `labelanchor` says - centred for the default `n`. A `borderwidth` of 0 draws no box, as ttk does |
-| Notebook | `ft.Tabs` with `ft.TabBar` and `ft.TabBarView` |
+| Notebook | a panel `ft.Container` holding `ft.Tabs` with `ft.TabBar` and `ft.TabBarView`; the tab bar is pinned to ttk's manner (compact padding, left aligned, bootstyle accent on the selected tab) because Material's defaults are roomier and overflowed small notebooks |
 | Panedwindow | `ft.Row`/`ft.Column` (Flet has no draggable splitter) |
 | Label / Button / Entry / Combobox / Checkbutton / Radiobutton / Scale / Progressbar / Separator | `ft.Text` / `ft.Button` / `ft.TextField` / `ft.Dropdown` / `ft.Checkbox` / `ft.RadioGroup` / `ft.Slider` / `ft.ProgressBar` / `ft.Divider` |
 | Spinbox | `ft.Row` of a numeric `ft.TextField` and ↑/↓ `ft.IconButton`s, stepping by the saved `from`/`to`/`increment` through a generated `_step_value` helper |
@@ -418,6 +418,10 @@ Things worth knowing:
 - Text style is pinned to a normal weight: Flet renders a `ft.TextStyle` whose
   weight is left unset in bold, which made button captions and check/radio
   labels heavier than the ttk originals.
+- Notebook tabs are all labelled "Tab", as the Python backend writes them:
+  the designer's attribute editor offers `tab_labels`, but they are not saved
+  with the project, so there is nothing to read back. A hand written project
+  file can set `tab_labels` ("First,Second") and the generator will use them.
 - **Trial Run (Flet)** launches the generated program with `python3`.
 - Regeneration overwrites the whole file: unlike the Python backend there is no
   edit-preserving pass for Flet output yet, so keep hand-written changes in a

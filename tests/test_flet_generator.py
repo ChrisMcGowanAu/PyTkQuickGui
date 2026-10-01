@@ -267,7 +267,9 @@ class FletGeneratorTests(unittest.TestCase):
         self.assertIn("length=2", source)
         self.assertIn("ft.TabBar(", source)
         self.assertIn("ft.TabBarView(", source)
-        self.assertIn("ft.Tab(label='Tab 1')", source)
+        # ttk's default: every tab is called "Tab" (the Python backend too).
+        self.assertIn("ft.Tab(label='Tab')", source)
+        self.assertNotIn("Tab 1", source)
 
     def test_tk_colours_are_translated_or_dropped(self):
         self.assertEqual(flet_generator.tk_color("skyBlue3"), "#6ca6cd")
@@ -1895,6 +1897,75 @@ class FletGeneratorTests(unittest.TestCase):
         for style in re.findall(r"ft\.TextStyle\(([^)]*)\)", source):
             with self.subTest(style=style.strip().split(chr(10))[0]):
                 self.assertIn("weight=ft.FontWeight.NORMAL", style)
+
+    def test_notebook_is_a_panel_with_ttk_style_tabs(self):
+        data = project(
+            theme="tokyo-night-dark",
+            widgets=(
+                widget(
+                    "Widget0",
+                    "ttk::notebook",
+                    attributes=(("style", "primary.TNotebook"),),
+                    place={"x": "64", "y": "32", "width": "144", "height": "160"},
+                ),
+                widget("Widget1", "ttk::frame", parent="Widget0"),
+                widget("Widget2", "ttk::frame", parent="Widget0"),
+                widget("Widget3", "ttk::frame", parent="Widget0"),
+            ),
+        )
+        order = widget_names("Widget0", "Widget1", "Widget2", "Widget3")
+
+        source = flet_generator.emit_program(data, order, ROOT)
+
+        ast.parse(source)
+        # A panel of its own, so the tabs sit inside the notebook.
+        self.assertIn("Widget0 = ft.Container(", source)
+        self.assertIn("bgcolor='#1a1b26'", source)
+        self.assertIn("ft.BorderSide(1, '#3f3f49')", source)
+        # ttk style tabs: compact, left aligned, bootstyle accent.
+        self.assertIn("length=3", source)
+        self.assertIn("tab_alignment=ft.TabAlignment.START", source)
+        self.assertIn("label_padding=ft.Padding(", source)
+        self.assertIn("indicator_color='#95b5f9'", source)
+        self.assertIn("unselected_label_color='#c0caf5'", source)
+
+    def test_notebook_tab_labels_match_the_python_backend(self):
+        """The designer does not save tab labels, so ttk calls them all "Tab"."""
+        data = project(
+            theme="darkly",
+            widgets=(
+                widget("Widget0", "ttk::notebook", place={"x": "0", "y": "0"}),
+                widget("Widget1", "ttk::frame", parent="Widget0"),
+                widget("Widget2", "ttk::frame", parent="Widget0"),
+            ),
+        )
+        order = widget_names("Widget0", "Widget1", "Widget2")
+
+        source = flet_generator.emit_program(data, order, ROOT)
+
+        self.assertIn("ft.Tab(label='Tab')", source)
+        self.assertNotIn("Tab 1", source)
+
+    def test_hand_written_tab_labels_are_honoured(self):
+        data = project(
+            theme="darkly",
+            widgets=(
+                widget(
+                    "Widget0",
+                    "ttk::notebook",
+                    attributes=(("tab_labels", "First,Second"),),
+                    place={"x": "0", "y": "0"},
+                ),
+                widget("Widget1", "ttk::frame", parent="Widget0"),
+                widget("Widget2", "ttk::frame", parent="Widget0"),
+            ),
+        )
+        order = widget_names("Widget0", "Widget1", "Widget2")
+
+        source = flet_generator.emit_program(data, order, ROOT)
+
+        self.assertIn("ft.Tab(label='First')", source)
+        self.assertIn("ft.Tab(label='Second')", source)
 
     @unittest.skipUnless(FLET_AVAILABLE, "flet is not installed")
     def test_generated_program_builds_real_flet_controls(self):

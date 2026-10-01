@@ -2186,21 +2186,62 @@ class _Emitter:
             [_list_argument("controls", sections), "spacing=0", "expand=True"],
         )
 
-    def _notebook(self, children: Sequence[str]) -> str:
-        """Return the ``ft.Column`` holding the tab bar and its pages."""
+    def _notebook(self, name: str, children: Sequence[str]) -> str:
+        """Return the ``ft.Tabs`` for a notebook, with a ttk-like tab bar.
+
+        ttk tabs are compact and left aligned, with the selected one picked out
+        in the bootstyle colour.  Material's defaults are roomier, which
+        overflowed small notebooks, so the padding, alignment, text style and
+        colours are all pinned.
+        """
+        labels = self._tab_labels(name, len(children))
         tabs: list[str] = []
         panes: list[str] = []
-        for index, child in enumerate(children, start=1):
-            tabs.append(f"ft.Tab(label={'Tab ' + str(index)!r})")
-            panes.append(self._define(child) or child)
-        tab_bar = _call("ft.TabBar", [_list_argument("tabs", tabs)])
+        for index, child in enumerate(children):
+            label = labels[index] if index < len(labels) else "Tab"
+            tabs.append(f"ft.Tab(label={label!r})")
+            panes.append(self._define(child))
+        bootstyle, _variants = self.project.style_of(name)
+        accent = (
+            self.project.bootstyle_styles(bootstyle).get("labelframe_border")
+            if bootstyle
+            else None
+        ) or self.project.colour("primary")
+        ink = self.project.colour("fg")
+        bar_arguments = [
+            _list_argument("tabs", tabs),
+            "tab_alignment=ft.TabAlignment.START",
+            "label_padding=ft.Padding(left=10, right=10, top=6, bottom=6)",
+            f"label_text_style={self._text_style()}",
+            f"unselected_label_text_style={self._text_style()}",
+        ]
+        if accent:
+            bar_arguments.append(f"indicator_color={accent!r}")
+            bar_arguments.append(f"label_color={accent!r}")
+        if ink:
+            bar_arguments.append(f"unselected_label_color={ink!r}")
+        tab_bar = _call("ft.TabBar", bar_arguments)
         view = _call(
             "ft.TabBarView", [_list_argument("controls", panes), "expand=True"]
         )
-        return _call(
+        body = _call(
             "ft.Column",
             [_list_argument("controls", [tab_bar, view]), "expand=True", "spacing=0"],
         )
+        return _call("ft.Tabs", [f"length={len(panes)}", f"content={body}"])
+
+    def _tab_labels(self, name: str, count: int) -> list[str]:
+        """Return the tab captions the designer stored, or ttk's default.
+
+        The designer's attribute editor offers tab_labels, but they are not
+        saved with the project, so this falls back to the same "Tab" the Python
+        backend writes for every tab.  A hand written file may set them.
+        """
+        raw = self.project.option(name, "tab_labels")
+        labels = [part.strip() for part in raw.split(",") if part.strip()]
+        while len(labels) < count:
+            labels.append("Tab")
+        return labels
 
     # -- tree walking ----------------------------------------------------
     def _define(self, name: str) -> str:
@@ -2222,6 +2263,12 @@ class _Emitter:
                 # glyphs, so the fill has to come from the outer Container.
                 control = "ft.Container"
         if widget_type in TEXT_WIDGET_TYPES:
+            control = "ft.Container"
+        if widget_type == NOTEBOOK_WIDGET_TYPE and any(
+            self.project.is_tab(child) for child in children
+        ):
+            # A panel of its own, so the tabs sit inside the notebook rather
+            # than floating on the page.
             control = "ft.Container"
         if widget_type == "ttk::treeview" and not parse_values(
             self.project.option(name, "columns")
@@ -2270,8 +2317,7 @@ class _Emitter:
             for child in others:
                 self._define(child)
             if tabs:
-                arguments["length"] = str(len(tabs))
-                arguments["content"] = self._notebook(tabs)
+                arguments["content"] = self._notebook(name, tabs)
             else:
                 self.notes.append(
                     f"# {name}: Notebook has no tab frames - emitted as its frame"
