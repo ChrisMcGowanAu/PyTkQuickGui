@@ -735,6 +735,10 @@ def translate_attributes(
         elif key in ("style", "bootstyle"):
             # Consumed by _style_arguments(), which needs the bootstyle.
             properties["style"] = raw
+        elif project_format.is_design_only(key):
+            # tab_count / tab_labels are read explicitly where they matter and
+            # are not widget options, so they are not "unmapped" either.
+            continue
         elif key in project_format.CALLBACK_KEYS:
             if raw in callbacks:
                 properties["command"] = raw

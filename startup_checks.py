@@ -9,7 +9,9 @@ free of Tk so the check can run — and be tested — before anything is built.
 
 from __future__ import annotations
 
+import faulthandler
 import importlib.metadata as metadata
+import signal
 from collections.abc import Callable
 from typing import Any
 
@@ -70,3 +72,25 @@ def check_ttkbootstrap(
         f"Please upgrade:  {UPGRADE_COMMAND}\n"
         "The application will now exit."
     )
+
+
+def enable_crash_diagnostics() -> bool:
+    """Print a Python traceback when the process takes a fatal signal.
+
+    Tk and Flet both carry C code that can segfault (Tk's own
+    ``Tk_Free3DBorderFromObj`` use-after-free has been seen here), and a core
+    dump alone cannot show the Python frame that was running.  ``faulthandler``
+    prints that traceback to stderr, and SIGUSR1 becomes an on-demand traceback
+    of every thread - ``kill -USR1 <pid>`` - which is the quickest way to see
+    where a hung GUI is stuck.
+
+    Diagnostics must never stop the application, so any failure is swallowed and
+    reported through the return value.
+    """
+    try:
+        faulthandler.enable()
+        if hasattr(signal, "SIGUSR1"):
+            faulthandler.register(signal.SIGUSR1, all_threads=True)
+    except (AttributeError, OSError, RuntimeError, ValueError):
+        return False
+    return True

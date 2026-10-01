@@ -126,6 +126,11 @@ def createFileName(sa, sb, sc) -> str:
 
 
 # This will be from a project's defaultdict
+# Crash diagnostics: a Python traceback on a fatal signal (Tk and Flet both
+# have C code that can segfault), and `kill -USR1 <pid>` for a traceback of a
+# hung app.  Must run before anything can crash.
+startup_checks.enable_crash_diagnostics()
+
 useTheme = getDefaultTheme()
 rootWin = ttk.Window(theme=useTheme, iconphoto="snake.png")
 # Register all pre-2.0 Bootswatch theme names (solar, darkly, cosmo, …) so
@@ -694,6 +699,11 @@ def buildPython() -> str:
                 val = str(aDict.get("Value", ""))
                 if not key:
                     log.error("buildPython: %s has no Key value", attribute)
+                    continue
+                if project_format.is_design_only(key):
+                    # tab_count / tab_labels are the designer's own metadata;
+                    # ttk.Notebook would reject them as an unknown option.
+                    log.debug("buildPython: skipping design-only key %s", key)
                     continue
                 if key in specialKeys:
                     useValQuotes = False

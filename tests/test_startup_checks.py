@@ -1,3 +1,4 @@
+import faulthandler
 import unittest
 from types import SimpleNamespace
 
@@ -63,6 +64,24 @@ class StartupChecksTests(unittest.TestCase):
         """The guard has to work before any Tk window exists."""
         self.assertNotIn("tkinter", str(startup_checks.__dict__.keys()))
         self.assertNotIn("tkinter", startup_checks.__doc__ or "")
+
+    def test_crash_diagnostics_are_enabled(self):
+        """A segfault should print the Python frame, and SIGUSR1 a traceback."""
+        self.assertTrue(startup_checks.enable_crash_diagnostics())
+        self.assertTrue(faulthandler.is_enabled())
+
+    def test_crash_diagnostics_never_raise(self):
+        """Diagnostics must not be able to stop the application."""
+        original = startup_checks.faulthandler.enable
+        startup_checks.faulthandler.enable = _raise_oserror
+        try:
+            self.assertFalse(startup_checks.enable_crash_diagnostics())
+        finally:
+            startup_checks.faulthandler.enable = original
+
+
+def _raise_oserror():
+    raise OSError("no stderr")
 
 
 if __name__ == "__main__":

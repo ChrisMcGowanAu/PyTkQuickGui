@@ -612,6 +612,35 @@ those differences; check a Trial Run when exact Place dimensions matter.
 - Runtime detail is written through Python logging. Benign Tk lookups on a
   widget already destroyed during cleanup are logged at debug level.
 
+### Debugging a crash
+
+Tk and Flet both carry C code, so a fault can end the process with a segfault
+rather than a traceback. Three things make that diagnosable:
+
+- **A Python traceback on a fatal signal.** `faulthandler` is enabled at
+  startup, so a crash prints the Python frame that was running to stderr.
+  `kill -USR1 <pid>` prints a traceback of every thread on demand, which is the
+  quickest way to see where a hung window is stuck.
+- **Core dumps are kept by systemd.** No `ulimit` needed - the kernel pipes
+  cores to `systemd-coredump`:
+
+  ```bash
+  coredumpctl list                 # every crash, with pid and time
+  coredumpctl info <pid>           # summary and stack trace
+  coredumpctl gdb <pid>            # load it in gdb: bt, py-bt
+  coredumpctl dump <pid> --output=core   # then: gdb -batch -ex bt /usr/bin/python3.12 core
+  ```
+
+- **Python frames in gdb** need `sudo apt install python3.12-dbg`; without it a
+  core shows only C frames (`_PyEval_EvalFrameDefault` and friends), with it
+  `py-bt` names the Python function.
+
+A crash seen here in the wild, for reference: `Tk_Get3DBorderFromObj` inside
+`Tk_Free3DBorderFromObj` inside `Tk_FreeConfigOptions`, reached from
+`Tk_BindEvent` - Tk freeing a widget's border while a binding was still running,
+i.e. a widget destroyed from inside a binding or a `validate=` callback. If you
+hit it, the traceback from the steps above points at the Python line.
+
 ## Current limitations
 
 - Pack cannot be selected for a new project.

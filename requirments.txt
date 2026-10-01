@@ -8,3 +8,7 @@ Pillow
 # PyTkQuickGui itself never imports flet.  Generated programs target the Flet
 # 1.0 API and warn when run on an older release.
 flet>=1.0
+
+# Developer diagnostics (system packages, not pip): the gdb helpers that show
+# Python frames in a core dump, so `coredumpctl gdb <pid>` + `py-bt` works.
+#   sudo apt install python3.12-dbg
