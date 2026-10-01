@@ -6,6 +6,7 @@ import os.path
 import pickle
 import re
 import shutil
+import subprocess
 import sys as _sys
 import tkinter as tk
 from collections import defaultdict
@@ -677,6 +678,13 @@ def buildPython() -> str:
         if wDict is not None:
             log.debug("Dictionary for %s = %s", widgetName, str(wDict))
             wType = wDict.get("WidgetName")
+            if not project_format.is_known_widget_type(wType):
+                log.error(
+                    "buildPython: skipping %s with unknown WidgetName %r",
+                    widgetName,
+                    wType,
+                )
+                continue
             t = myVars.fixWidgetTypeName(wType)
             wType = t
             widgetArguments = [parentName]
@@ -719,6 +727,13 @@ def buildPython() -> str:
                 val = str(aDict.get("Value", ""))
                 if not key:
                     log.error("buildPython: %s has no Key value", attribute)
+                    continue
+                if not project_format.is_safe_option_key(key):
+                    log.error(
+                        "buildPython: skipping unsafe option name %r on %s",
+                        key,
+                        widgetName,
+                    )
                     continue
                 if project_format.is_design_only(key):
                     # tab_count / tab_labels are the designer's own metadata;
@@ -929,19 +944,33 @@ def buildPython() -> str:
     print("\nrootWin.mainloop()")
     _sys.stdout.close()
     _sys.stdout = _sys.__stdout__
-    # _sys.stdout = open(fileName, "w", encoding="utf8")
-    # cmd = "python3 " + fileName + " &"
-    # os.system(cmd)
     return fileName
 
 
 def runMe():
+    """Run the generated Python in the interpreter running the tool.
+
+    `sys.executable` rather than `python3` on PATH: they are often different
+    environments, and the generated program needs the one that has
+    ttkbootstrap installed.  A list also survives spaces in the file name.
+    """
     fileName = buildPython()
     if not fileName:
         return
     log.info("python fileName ->%s<-", fileName)
-    cmd = "python3 " + fileName + " &"
-    os.system(cmd)
+    _launchProgram(fileName)
+
+
+def _launchProgram(fileName: str) -> None:
+    """Start a generated program without going through a shell."""
+    try:
+        subprocess.Popen([_sys.executable, fileName])
+    except OSError as e:
+        log.error("could not start %s: %s", fileName, e)
+        Messagebox.show_error(
+            title="Trial Run",
+            message=f"Could not start the generated program:\n{e}",
+        )
 
 
 def generatePython():
@@ -1071,8 +1100,7 @@ def runFlet():
     if not fileName:
         return
     log.info("flet fileName ->%s<-", fileName)
-    cmd = "python3 " + fileName + " &"
-    os.system(cmd)
+    _launchProgram(fileName)
 
 
 def generateFlet():

@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import keyword
 import os
+import re
 import shutil
 from collections.abc import Iterable, Iterator, Mapping
 from typing import Any
@@ -31,6 +32,60 @@ DESIGN_ONLY_KEYS = ("tab_count", "tab_labels", VAR_VALUE_KEY)
 def is_design_only(key: Any) -> bool:
     """Whether *key* is designer metadata rather than a Tk widget option."""
     return str(key) in DESIGN_ONLY_KEYS
+
+
+#: The widget types a project may contain: the palette, the containers, and the
+#: plain Tk widgets the designer can place.  ``fixWidgetTypeName`` accepts three
+#: spellings of the same thing ("ttk::button", "ttk.Button", "tk.button"), so
+#: the check normalises to the bare name.
+KNOWN_WIDGET_TYPES = frozenset(
+    {
+        "button",
+        "canvas",
+        "checkbutton",
+        "combobox",
+        "entry",
+        "frame",
+        "labelframe",
+        "label",
+        "listbox",
+        "notebook",
+        "panedwindow",
+        "progressbar",
+        "radiobutton",
+        "scale",
+        "scrollbar",
+        "separator",
+        "sizegrip",
+        "spinbox",
+        "text",
+        "treeview",
+    }
+)
+
+#: A Tk option name.  Anything else cannot be one - and is exactly what a hand
+#: crafted project file would use to break out of the widget call, which is
+#: assembled as a string and evaluated.
+_OPTION_KEY = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def base_widget_name(widget_type: Any) -> str:
+    """Return a widget type without its namespace prefix, lower case."""
+    name = str(widget_type or "").strip()
+    for prefix in ("ttk::", "ttk.", "tk."):
+        if name.startswith(prefix):
+            return name[len(prefix) :].lower()
+    return name.lower()
+
+
+def is_known_widget_type(widget_type: Any) -> bool:
+    """Whether *widget_type* is one this tool creates."""
+    return base_widget_name(widget_type) in KNOWN_WIDGET_TYPES
+
+
+def is_safe_option_key(key: Any) -> bool:
+    """Whether *key* can be a Tk option name."""
+    return bool(_OPTION_KEY.match(str(key or "")))
 
 
 CALLBACK_KEYS = ("command", "postcommand")

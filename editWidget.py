@@ -1363,8 +1363,8 @@ class widgetEditPopup:
         val: str = ""
         # Some widgets will need extra 'keys'
         if wName == "notebook":
-            # self.specialKeys("Tabs")
-            log.warning("TBD -- Adding Tabs for notebook")
+            # The tab count and labels get their own fields further down.
+            log.debug("notebook popup: tab_count / tab_labels fields follow")
         for key in self.keys:
             row += 1
             gridRow += 1

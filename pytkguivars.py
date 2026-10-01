@@ -552,6 +552,13 @@ def buildAWidget(widgetId: object, wDictOrig: dict) -> str:
         log.error("Cannot find %s Exception %s", "WidgetName", str(e))
         print("wDictOrig", wDictOrig)
         return ""
+    if not project_format.is_known_widget_type(wType):
+        # The call below is assembled as a string and evaluated, so a
+        # WidgetName the tool never writes is refused rather than run.
+        log.error(
+            "buildAWidget: refusing unknown WidgetName %r on %s", wType, widgetName
+        )
+        return ""
     t = fixWidgetTypeName(wType)
     wType = t
     keyCount = widgetName + "-KeyCount"
@@ -585,6 +592,11 @@ def buildAWidget(widgetId: object, wDictOrig: dict) -> str:
         val = str(aDict.get("Value", ""))
         if not key:
             log.error("buildAWidget: %s has no Key value", attribute)
+            continue
+        if not project_format.is_safe_option_key(key):
+            log.error(
+                "buildAWidget: refusing unsafe option name %r on %s", key, widgetName
+            )
             continue
         if project_format.is_design_only(key):
             # tab_count / tab_labels are the designer's own metadata; a widget

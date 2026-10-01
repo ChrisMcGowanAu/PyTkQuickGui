@@ -326,5 +326,55 @@ class VariableDefaultTests(unittest.TestCase):
         self.assertNotIn("var_value=", definition)
 
 
+class CraftedProjectTests(unittest.TestCase):
+    """A project file is data; the saved widget call must not run it."""
+
+    def setUp(self):
+        self.old_names = cw.createWidget.widgetNameList
+        self.old_objects = cw.createWidget.widgetObjectList
+        self.old_manager = my_vars.geomManager
+        my_vars.geomManager = "Place"
+
+    def tearDown(self):
+        cw.createWidget.widgetNameList = self.old_names
+        cw.createWidget.widgetObjectList = self.old_objects
+        my_vars.geomManager = self.old_manager
+
+    @staticmethod
+    def crafted(widget_type, key):
+        return {
+            "Widget0": {
+                "WidgetName": widget_type,
+                "WidgetParent": "rootWidget",
+                "Place": {},
+                "GeomData": {},
+                "Widget0-KeyCount": 1,
+                "Attribute0": {"Key": key, "Value": "text"},
+            }
+        }
+
+    def test_an_unknown_widget_type_is_refused(self):
+        definition = my_vars.buildAWidget(
+            0, self.crafted("__import__('os').system", "text")
+        )
+
+        self.assertEqual(definition, "")
+
+    def test_a_crafted_option_name_is_skipped(self):
+        definition = my_vars.buildAWidget(
+            0, self.crafted("ttk::label", "a=1) or __import__('os').system('x')")
+        )
+
+        self.assertNotIn("__import__", definition)
+        self.assertTrue(definition.startswith("ttk.Label(mainFrame"))
+
+    def test_a_normal_option_still_comes_through(self):
+        definition = my_vars.buildAWidget(
+            0, self.crafted("ttk::label", "text")
+        )
+
+        self.assertIn("text='text'", definition)
+
+
 if __name__ == "__main__":
     unittest.main()

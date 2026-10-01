@@ -889,6 +889,9 @@ class createWidget:
         construction_parent = createWidget.baseRoot
         if construction_parent is any or construction_parent is None:
             construction_parent = self.root
+        if not widgetDef:
+            log.error("clone: buildAWidget refused the widget definition")
+            return
         widget = eval(  # pylint: disable=eval-used
             widgetDef, globals(), {"mainFrame": construction_parent}
         )

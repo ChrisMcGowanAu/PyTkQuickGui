@@ -236,6 +236,45 @@ class ProjectFormatTests(unittest.TestCase):
             ("/home/chris/Calculator", "Calculator_flet.py"),
         )
 
+    def test_widget_type_whitelist_matches_the_palette(self):
+        """Every type the designer can create has to be accepted."""
+        import pytkguivars as my_vars
+
+        for name in my_vars.widgetsUsed + my_vars.containerWidgetsUsed:
+            for spelling in (name, "ttk::" + name.lower(), "ttk." + name):
+                with self.subTest(widget=spelling):
+                    self.assertTrue(project_format.is_known_widget_type(spelling))
+        for extra in ("ttk::notebook", "ttk::scrollbar", "ttk::treeview", "text"):
+            self.assertTrue(project_format.is_known_widget_type(extra))
+
+    def test_widget_type_whitelist_refuses_anything_else(self):
+        """A project file is data: an unknown type must never be run as code."""
+        for bad in (
+            "__import__('os').system",
+            "os.system",
+            "eval",
+            "",
+            None,
+            "ttk::evil",
+        ):
+            with self.subTest(widget=bad):
+                self.assertFalse(project_format.is_known_widget_type(bad))
+
+    def test_option_name_check_stops_a_crafted_key(self):
+        """The widget call is built by string and eval'd, so keys are checked."""
+        for good in ("text", "background", "command", "onvalue", "from"):
+            self.assertTrue(project_format.is_safe_option_key(good))
+        for bad in (
+            "a=1) or __import__('os').system('x') or dict(",
+            "text=",
+            "text value",
+            "'quoted'",
+            "",
+            None,
+        ):
+            with self.subTest(key=bad):
+                self.assertFalse(project_format.is_safe_option_key(bad))
+
 
 if __name__ == "__main__":
     unittest.main()
