@@ -1712,6 +1712,113 @@ class FletGeneratorTests(unittest.TestCase):
         ast.parse(source)
         self.assertIn("ft.BorderSide(2,", source)
 
+    def test_checkbox_state_follows_onvalue_not_truthiness(self):
+        """Tk selects a checkbutton when its variable equals onvalue."""
+        data = project(
+            theme="darkly",
+            widgets=(
+                widget(
+                    "Widget1",
+                    "ttk::checkbutton",
+                    attributes=(
+                        ("text", "Checkbutton"),
+                        ("variable", "flag"),
+                        ("onvalue", "1"),
+                        ("offvalue", "0"),
+                        ("style", "warning.TCheckbutton"),
+                    ),
+                    place={"x": "0", "y": "0", "width": "144", "height": "32"},
+                ),
+            ),
+        )
+
+        source = flet_generator.emit_program(data, [ROOT, "Widget1"], ROOT)
+
+        ast.parse(source)
+        self.assertIn("value=str(flag) == '1'", source)
+        self.assertNotIn("bool(flag)", source)
+        # A fill colour would be painted while unchecked too.
+        self.assertNotIn("fill_color=", source)
+
+    def test_radio_group_follows_the_variable_not_the_widget_value(self):
+        """A Tk radio is selected when the variable equals its own value."""
+        data = project(
+            theme="darkly",
+            widgets=(
+                widget(
+                    "Widget1",
+                    "ttk::radiobutton",
+                    attributes=(
+                        ("text", "Radiobutton"),
+                        ("variable", "choice"),
+                        ("value", "0"),
+                        ("style", "success.TRadiobutton"),
+                    ),
+                    place={"x": "0", "y": "0", "width": "144", "height": "32"},
+                ),
+            ),
+        )
+
+        source = flet_generator.emit_program(data, [ROOT, "Widget1"], ROOT)
+
+        ast.parse(source)
+        group = source[source.index("ft.RadioGroup("):source.index("ft.Radio(")]
+        self.assertIn("value=str(choice)", group)      # follows the variable
+        self.assertNotIn("value='0',", group)          # not its own identity
+        self.assertIn("ft.Radio(value='0'", source)    # identity on the radio
+
+    def test_page_theme_is_seeded_from_the_project_primary(self):
+        data = project(theme="darkly")
+
+        source = flet_generator.emit_program(data, [ROOT], ROOT)
+
+        ast.parse(source)
+        self.assertIn("page.theme = ft.Theme(color_scheme_seed='#375a7f')", source)
+
+    @unittest.skipUnless(FLET_AVAILABLE, "flet is not installed")
+    def test_unchecked_checkbox_and_unselected_radio_build_unset(self):
+        """Regression: a variable holding '0.0' must not look selected."""
+        data = project(
+            theme="darkly",
+            widgets=(
+                widget(
+                    "Widget1",
+                    "ttk::checkbutton",
+                    attributes=(("text", "C"), ("variable", "flag"), ("onvalue", "1")),
+                    place={"x": "0", "y": "0", "width": "144", "height": "32"},
+                ),
+                widget(
+                    "Widget2",
+                    "ttk::radiobutton",
+                    attributes=(("text", "R"), ("variable", "choice"), ("value", "0")),
+                    place={"x": "0", "y": "40", "width": "144", "height": "32"},
+                ),
+            ),
+        )
+
+        page = run_generated(
+            flet_generator.emit_program(data, [ROOT, "Widget1", "Widget2"], ROOT)
+        )
+
+        found = {}
+
+        def walk(control):
+            for child in getattr(control, "controls", []) or []:
+                walk(child)
+            content = getattr(control, "content", None)
+            if content is not None and not isinstance(content, str):
+                walk(content)
+            if isinstance(control, ft.Checkbox):
+                found["checkbox"] = control
+            if isinstance(control, ft.RadioGroup):
+                found["radio"] = control
+
+        for control in page.controls:
+            walk(control)
+
+        self.assertIs(found["checkbox"].value, False)
+        self.assertEqual(found["radio"].value, "0.0")   # matches no radio
+
     @unittest.skipUnless(FLET_AVAILABLE, "flet is not installed")
     def test_generated_program_builds_real_flet_controls(self):
         data = project(

@@ -1201,15 +1201,25 @@ class _Emitter:
         elif control == "ft.Checkbox":
             arguments["label"] = repr(properties.pop("text", name))
             if "value" in properties:
-                arguments["value"] = f"bool({properties.pop('value')})"
+                # Tk selects a checkbutton when its variable equals onvalue
+                # (default "1"), not when the value is merely non-empty - a
+                # variable holding the tool's usual '0.0' is *off*, and
+                # bool('0.0') would have drawn it ticked.
+                variable = properties.pop("value")
+                onvalue = self.project.option(name, "onvalue") or "1"
+                arguments["value"] = f"str({variable}) == {onvalue!r}"
         elif control == "ft.RadioGroup":
-            current = properties.pop("current", None)
+            # Tk: the widget is selected when the *variable* equals the
+            # widget's own value.  So the group follows the variable and the
+            # inner radio carries the widget's value - using the widget value
+            # for both would make every radio look selected.
+            widget_value = properties.pop("current", None)
             variable = properties.pop("value", None)
-            if current is not None:
-                arguments["value"] = repr(current)
-            elif variable is not None:
-                arguments["value"] = variable
-            radio_value = repr(_text(current) if current is not None else "0")
+            radio_value = repr(_text(widget_value) if widget_value is not None else "0")
+            if variable is not None:
+                arguments["value"] = f"str({variable})"
+            else:
+                arguments["value"] = radio_value
             label = repr(properties.pop("text", name))
             arguments["content"] = (
                 f"ft.Radio(value={radio_value}, label={label}"
@@ -1578,9 +1588,11 @@ class _Emitter:
             return {"color": repr(slot or border)}
         if control == "ft.Checkbox":
             caption = value("checkbutton_fg", muted) or muted
+            # Only the tick colour is set here.  A fill colour would be painted
+            # in both states, so the checked fill comes from the page's theme
+            # seed - the project's primary colour - which keeps the box empty
+            # while it is unchecked, as ttk draws it.
             return {
-                "active_color": repr(slot or surface),
-                "fill_color": repr(slot or surface),
                 "check_color": repr(self.project.ink(slot) or muted),
                 "label_style": (
                     f"ft.TextStyle(color={caption!r}, "
@@ -1626,14 +1638,10 @@ class _Emitter:
         leaves the caption in the theme's text colour.
         """
         bootstyle, _variants = self.project.style_of(name)
-        colour = self.project.colour(bootstyle) if bootstyle else None
         caption = self.project.bootstyle_styles(bootstyle).get(
             "checkbutton_fg"
         ) or self.project.colour("fg")
         parts = []
-        if colour:
-            parts.append(f"active_color={colour!r}")
-            parts.append(f"fill_color={colour!r}")
         if caption:
             parts.append(
                 f"label_style=ft.TextStyle(color={caption!r}, "
@@ -2664,6 +2672,17 @@ def emit_program(
     )
     if background:
         lines.append("    page.bgcolor = BACKGROUND_COLOR")
+    seed = project.colour("primary")
+    if seed:
+        lines.extend(
+            (
+                "    # Seed Flet's Material theme with the project's primary",
+                "    # colour so state-dependent controls fill with the theme",
+                "    # colour: a ticked checkbox or a selected radio is painted,",
+                "    # an untouched one stays empty, as ttk draws them.",
+                f"    page.theme = ft.Theme(color_scheme_seed={seed!r})",
+            )
+        )
     if project.images:
         lines.extend(("", "    # ---- Images ----"))
         for widget_name, filename in project.images.items():
