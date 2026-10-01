@@ -1,5 +1,7 @@
 # PyTkQuickGui
 
+# Now able to export FLET code. Still experimental.
+
 PyTkQuickGui is a visual drag-and-drop builder for Python desktop interfaces
 using tkinter and ttkbootstrap. Design a window on the live canvas, edit widget
 attributes and layout, save the project as JSON, then generate a readable Python
