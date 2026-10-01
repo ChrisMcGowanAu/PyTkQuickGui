@@ -436,10 +436,42 @@ def saveWidgetAsDict(widgetName) -> dict:
                         newWidget = Merge(widgetDict, widgetAttribute)
                         widgetDict = newWidget
                         keyCount += 1
+    # A notebook keeps its tab captions on the tab ids rather than as widget
+    # options, so w.keys() never reports them.  Record them explicitly or a
+    # label typed in the attribute editor is lost on the next save.
+    if _is_notebook_widget(w):
+        try:
+            tab_labels = [str(w.tab(tab_id, "text")) for tab_id in w.tabs()]
+        except tk.TclError as _te:
+            log.debug("saveWidgetAsDict: cannot read tab labels: %s", _te)
+            tab_labels = []
+        for _dkey, _dval in (
+            ("tab_labels", ",".join(tab_labels)),
+            ("tab_count", str(len(tab_labels))),
+        ):
+            if not _dval:
+                continue
+            widgetDict = Merge(
+                widgetDict,
+                {
+                    "Attribute"
+                    + str(keyCount): {"Key": _dkey, "Value": _dval},
+                },
+            )
+            keyCount += 1
     widgetKeys = widgetName + "-KeyCount"
     tmpDict = Merge(widgetDict, {widgetKeys: keyCount})
     newWidget = {widgetName: tmpDict}
     return newWidget
+
+
+def _is_notebook_widget(widget) -> bool:
+    """Whether *widget* is a ttk Notebook, whose tabs hold the captions."""
+    return (
+        "notebook" in str(getattr(widget, "widgetName", "")).lower()
+        and hasattr(widget, "tabs")
+        and hasattr(widget, "tab")
+    )
 
 
 def buildAWidget(widgetId: object, wDictOrig: dict) -> str:
@@ -505,6 +537,11 @@ def buildAWidget(widgetId: object, wDictOrig: dict) -> str:
         val = str(aDict.get("Value", ""))
         if not key:
             log.error("buildAWidget: %s has no Key value", attribute)
+            continue
+        if project_format.is_design_only(key):
+            # tab_count / tab_labels are the designer's own metadata; a widget
+            # constructor would reject them.
+            log.debug("buildAWidget: skipping design-only key %s", key)
             continue
         useValQuotes = True
         if key == "image":

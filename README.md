@@ -418,10 +418,11 @@ Things worth knowing:
 - Text style is pinned to a normal weight: Flet renders a `ft.TextStyle` whose
   weight is left unset in bold, which made button captions and check/radio
   labels heavier than the ttk originals.
-- Notebook tabs are all labelled "Tab", as the Python backend writes them:
-  the designer's attribute editor offers `tab_labels`, but they are not saved
-  with the project, so there is nothing to read back. A hand written project
-  file can set `tab_labels` ("First,Second") and the generator will use them.
+- Notebook tab captions are stored as `tab_labels` metadata ("Home,Config")
+  next to the widget, because they live on the tab ids rather than in the
+  notebook's options — a label typed in the attribute editor now survives a
+  save and reload, and both backends write it (`notebook.add(frame, text=…)`
+  and `ft.Tab(label=…)`). A tab with no label is called "Tab".
 - **Trial Run (Flet)** launches the generated program with `python3`.
 - Regeneration overwrites the whole file: unlike the Python backend there is no
   edit-preserving pass for Flet output yet, so keep hand-written changes in a

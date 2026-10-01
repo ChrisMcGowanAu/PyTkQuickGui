@@ -638,6 +638,7 @@ def buildPython() -> str:
         print("#     print('button clicked')")
     print("")
     print(_SEC_WIDGETS)
+    _notebookTabIndex: dict = {}
     for widgetName in createdWidgetOrder:
         # widgetId = "Widget" + str(n)
         if widgetName == rootName:
@@ -740,7 +741,22 @@ def buildPython() -> str:
                 _emit_grid_configuration(widgetName)
             geomData = wDict.get("GeomData", {})
             if layout_model.is_saved_notebook_tab(runDict, widgetName, rootName):
-                print(f"{parentName}.add({widgetName}, text='Tab')")
+                # Use the captions the designer saved (tab_labels metadata);
+                # every tab is called "Tab" when there are none, which is what
+                # this backend always did.
+                _labels = [
+                    part.strip()
+                    for part in project_format.attribute_map(
+                        parentName, runDict.get(parentName) or {}
+                    )
+                    .get("tab_labels", "")
+                    .split(",")
+                    if part.strip()
+                ]
+                _index = _notebookTabIndex.get(parentName, 0)
+                _notebookTabIndex[parentName] = _index + 1
+                _label = _labels[_index] if _index < len(_labels) else "Tab"
+                print(f"{parentName}.add({widgetName}, text={_label!r})")
             elif myVars.geomManager == "Place":
                 place = wDict.get("Place", geomData)
                 x = place.get("x", "0")
@@ -1660,6 +1676,56 @@ def openBackupFile():
         loadProject(projectName, filePath)
 
 
+def _restore_notebook_tab_labels(runDict, widgetNameList) -> None:
+    """Put a notebook's saved tab captions back on its tabs.
+
+    The captions are stored as ``tab_labels`` metadata rather than as widget
+    options, so they are applied here once the tab frames have been added to
+    their notebook.  Tabs are matched by position, the order the designer saved
+    them in.
+    """
+    for entry in widgetNameList or []:
+        name = entry[cw.NAME]
+        wDict = runDict.get(name)
+        if not isinstance(wDict, dict):
+            continue
+        labels = [
+            part.strip()
+            for part in project_format.attribute_map(name, wDict)
+            .get("tab_labels", "")
+            .split(",")
+            if part.strip()
+        ]
+        if not labels:
+            continue
+        found = cw.findPythonWidgetNameList(name)
+        notebook = found[cw.WIDGET] if found else None
+        if notebook is None or not _is_notebook_widget(notebook):
+            continue
+        try:
+            tab_ids = list(notebook.tabs())
+        except tk.TclError:
+            continue
+        for index, tab_id in enumerate(tab_ids):
+            if index >= len(labels):
+                break
+            try:
+                notebook.tab(tab_id, text=labels[index])
+            except tk.TclError as error:
+                log.debug("tab label restore failed for %s: %s", tab_id, error)
+        log.info("Restored %d tab label(s) on %s", min(len(tab_ids), len(labels)), name)
+
+
+def _is_notebook_widget(widget) -> bool:
+    """Whether *widget* is a ttk Notebook (its tabs carry the captions)."""
+    return (
+        "notebook" in str(getattr(widget, "widgetName", "")).lower()
+        and hasattr(widget, "tabs")
+        and hasattr(widget, "tab")
+    )
+
+
+
 def _loadProjectData(fullFileName: str):
     """Return the project dict from *fullFileName*.
 
@@ -2027,6 +2093,8 @@ def loadProject(project, altFileName):
         else:
             log.warning("name %s parent %s", name, parent)
             log.warning("widgetNameList %s", str(widgetNameList))
+
+    _restore_notebook_tab_labels(runDict, widgetNameList)
 
     # Grid mode: after reparenting, re-apply the saved grid geometry for every
     # widget.  changeParentOfTo preserves row/col/span from cwo, but a final

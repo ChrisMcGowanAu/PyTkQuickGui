@@ -17,6 +17,17 @@ from typing import Any
 
 FORMAT_VERSION = 2
 
+#: Attributes the designer records for its own purposes.  They are not Tk
+#: options, so they must never be handed to a widget constructor - and they do
+#: not appear in ``widget.keys()``, so they have to be captured explicitly.
+DESIGN_ONLY_KEYS = ("tab_count", "tab_labels")
+
+
+def is_design_only(key: Any) -> bool:
+    """Whether *key* is designer metadata rather than a Tk widget option."""
+    return str(key) in DESIGN_ONLY_KEYS
+
+
 CALLBACK_KEYS = ("command", "postcommand")
 VARIABLE_KEYS = ("textvariable", "variable")
 PRESERVED_STRING_KEYS = CALLBACK_KEYS + VARIABLE_KEYS

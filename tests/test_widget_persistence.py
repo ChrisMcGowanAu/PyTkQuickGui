@@ -202,5 +202,73 @@ class WidgetPersistenceTests(unittest.TestCase):
             cw.createWidget.widgetNameList = old_names
 
 
+class FakeNotebook(FakeWidget):
+    """A notebook whose tab captions live on the tabs, not in keys()."""
+
+    widgetName = "ttk::notebook"
+
+    def __init__(self):
+        super().__init__()
+        self.values = {}
+        self.labels = {"!.w0": "Home", "!.w1": "Tab"}
+
+    def keys(self):
+        return []
+
+    def tabs(self):
+        return list(self.labels)
+
+    def tab(self, tab_id, _option=None, **kwargs):
+        if "text" in kwargs:
+            self.labels[tab_id] = kwargs["text"]
+            return None
+        return self.labels[tab_id]
+
+
+class NotebookPersistenceTests(unittest.TestCase):
+    def setUp(self):
+        self.old_names = cw.createWidget.widgetNameList
+        self.old_objects = cw.createWidget.widgetObjectList
+        self.old_manager = my_vars.geomManager
+
+        self.notebook = FakeNotebook()
+        cw.createWidget.widgetNameList = [
+            ["Widget0", "rootWidget", self.notebook, []],
+        ]
+        cw.createWidget.widgetObjectList = [FakeCreateWidget(self.notebook)]
+        my_vars.geomManager = "Place"
+
+    def tearDown(self):
+        cw.createWidget.widgetNameList = self.old_names
+        cw.createWidget.widgetObjectList = self.old_objects
+        my_vars.geomManager = self.old_manager
+
+    def test_notebook_tab_labels_are_saved(self):
+        """They are not widget options, so they need capturing explicitly."""
+        saved = my_vars.saveWidgetAsDict("Widget0")["Widget0"]
+        attributes = project_format.attribute_map("Widget0", saved)
+
+        self.assertEqual(attributes["tab_labels"], "Home,Tab")
+        self.assertEqual(attributes["tab_count"], "2")
+
+    def test_design_only_keys_never_reach_the_constructor(self):
+        saved = my_vars.saveWidgetAsDict("Widget0")["Widget0"]
+
+        definition = my_vars.buildAWidget(0, saved)
+
+        self.assertNotIn("tab_labels=", definition)
+        self.assertNotIn("tab_count=", definition)
+        # The backend spells the constructor ttk.Notebook.
+        self.assertTrue(definition.startswith("ttk.Notebook(mainFrame"))
+
+    def test_a_notebook_without_labels_records_none(self):
+        self.notebook.labels = {}
+
+        saved = my_vars.saveWidgetAsDict("Widget0")["Widget0"]
+        attributes = project_format.attribute_map("Widget0", saved)
+
+        self.assertNotIn("tab_labels", attributes)
+
+
 if __name__ == "__main__":
     unittest.main()
