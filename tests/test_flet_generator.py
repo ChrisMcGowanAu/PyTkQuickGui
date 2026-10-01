@@ -1819,6 +1819,83 @@ class FletGeneratorTests(unittest.TestCase):
         self.assertIs(found["checkbox"].value, False)
         self.assertEqual(found["radio"].value, "0.0")   # matches no radio
 
+    def test_multiline_lines_from_a_design_height(self):
+        self.assertEqual(flet_generator.multiline_lines(224), 12)
+        self.assertEqual(flet_generator.multiline_lines(0), 0)
+        self.assertEqual(flet_generator.multiline_lines(None), 0)
+        self.assertGreaterEqual(flet_generator.multiline_lines(10), 1)
+
+    def test_text_widget_becomes_a_sized_container_around_the_field(self):
+        """A multiline field ignores height, so the box comes from a Container."""
+        data = project(
+            theme="darkly",
+            widgets=(
+                widget(
+                    "Widget1",
+                    "text",
+                    attributes=(
+                        ("background", "#290af5"),
+                        ("height", "5"),
+                        ("width", "20"),
+                    ),
+                    place={"x": "240", "y": "80", "width": "320", "height": "224"},
+                ),
+            ),
+        )
+
+        source = flet_generator.emit_program(data, [ROOT, "Widget1"], ROOT)
+
+        ast.parse(source)
+        self.assertIn("Widget1 = ft.Container(", source)
+        self.assertIn("clip_behavior=ft.ClipBehavior.HARD_EDGE", source)
+        self.assertIn("min_lines=12", source)          # from the 224px design box
+        self.assertIn("border_width=0", source)        # the field's own border
+        self.assertIn("bgcolor='#290af5'", source)
+        # The Container carries the placement, so the box is exactly the design.
+        block = source[source.index("Widget1 = "):]
+        self.assertIn("height=224", block)
+        self.assertIn("width=320", block)
+
+    def test_text_styles_pin_the_weight(self):
+        """Flet draws a TextStyle with no weight in bold; ttk does not."""
+        data = project(
+            theme="darkly",
+            widgets=(
+                widget(
+                    "Widget1",
+                    "ttk::button",
+                    attributes=(("text", "Go"), ("style", "primary.TButton")),
+                    place={"x": "0", "y": "0", "width": "80", "height": "32"},
+                ),
+                widget(
+                    "Widget2",
+                    "ttk::checkbutton",
+                    attributes=(("text", "C"), ("style", "primary.TCheckbutton")),
+                    place={"x": "0", "y": "40", "width": "140", "height": "32"},
+                ),
+                widget(
+                    "Widget3",
+                    "ttk::radiobutton",
+                    attributes=(
+                        ("text", "R"),
+                        ("variable", "choice"),
+                        ("value", "0"),
+                        ("style", "primary.TRadiobutton"),
+                    ),
+                    place={"x": "0", "y": "80", "width": "140", "height": "32"},
+                ),
+            ),
+        )
+
+        source = flet_generator.emit_program(
+            data, [ROOT, "Widget1", "Widget2", "Widget3"], ROOT
+        )
+
+        ast.parse(source)
+        for style in re.findall(r"ft\.TextStyle\(([^)]*)\)", source):
+            with self.subTest(style=style.strip().split(chr(10))[0]):
+                self.assertIn("weight=ft.FontWeight.NORMAL", style)
+
     @unittest.skipUnless(FLET_AVAILABLE, "flet is not installed")
     def test_generated_program_builds_real_flet_controls(self):
         data = project(

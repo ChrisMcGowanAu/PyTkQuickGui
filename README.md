@@ -371,7 +371,7 @@ project, so it can be tested without a display.
 | Treeview | `ft.DataTable` with the saved column headings (rows are never stored in the project) |
 | Listbox | `ft.ListView` |
 | Scrollbar | folded into the widget it scrolls: `scroll=ft.Scrollbar(...)` on a `ft.ListView`, or a scrolling `ft.Column` wrapped around a canvas/table |
-| Text | multiline `ft.TextField` (its own scrollbar is dropped) |
+| Text | a multiline `ft.TextField` inside a `ft.Container` that gives it the designer's exact box (Flet sizes a multiline field from its line count, not from a height); its own scrollbar is dropped |
 | `command`, `textvariable`, `variable` | `on_click`/`on_change`, plain Python values, `bool(...)` for check buttons |
 | Tk colours | CSS hex (named Tk colours are mapped, unknown names are dropped) |
 
@@ -415,6 +415,9 @@ Things worth knowing:
   adjusting it is a one line edit. Grid and Pack layouts reflow as the window
   is resized; Place positions are absolute, so they stay where the designer put
   them (a widget using relative width/height still stretches).
+- Text style is pinned to a normal weight: Flet renders a `ft.TextStyle` whose
+  weight is left unset in bold, which made button captions and check/radio
+  labels heavier than the ttk originals.
 - **Trial Run (Flet)** launches the generated program with `python3`.
 - Regeneration overwrites the whole file: unlike the Python backend there is no
   edit-preserving pass for Flet output yet, so keep hand-written changes in a

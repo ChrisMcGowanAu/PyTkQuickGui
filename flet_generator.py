@@ -76,6 +76,14 @@ BUTTON_PADDING_X = 6
 BUTTON_PADDING_Y = 2
 BUTTON_RADIUS = 4
 
+#: A multiline ft.TextField takes its height from min_lines: Flet ignores an
+#: explicit height on a multiline field (measured on 0.86.5 and 1.0.3, where
+#: height=120 rendered 46px tall).  A line measures about 1.43 x the text size
+#: and the field adds about 5px of padding and border, so the designer's height
+#: is turned into a line count instead.
+MULTILINE_LINE_RATIO = 1.43
+MULTILINE_CHROME = 5
+
 #: Flet's default field padding is tall enough to clip the text inside a ttk
 #: sized row (32px), so fields are given explicit tight padding.
 FIELD_PADDING_X = 6
@@ -150,6 +158,9 @@ CONTAINER_WIDGET_TYPES = (
     "canvas",
 )
 TEXT_MEASURED_TYPES = ("listbox", "ttk::listbox", "text", "ttk::text")
+#: A Tk text widget becomes a multiline field inside a Container, because a
+#: multiline ft.TextField takes its height from min_lines and ignores a height.
+TEXT_WIDGET_TYPES = ("text", "ttk::text")
 
 #: Tk widget type (as stored in ``WidgetName``) -> Flet control constructor.
 CONTROL_TYPES: dict[str, str] = {
@@ -640,6 +651,15 @@ def _grow_axis(axis: list[int], start: int, span: int, needed: int) -> None:
     current = sum(axis[index] for index in range(start, start + span))
     if needed > current:
         axis[start + span - 1] += needed - current
+
+
+def multiline_lines(height: Any, text_size: int = DEFAULT_TEXT_SIZE) -> int:
+    """Return the ``min_lines`` that makes a multiline field as tall as *height*."""
+    pixels = _number(height)
+    if not pixels:
+        return 0
+    line = max(1.0, text_size * MULTILINE_LINE_RATIO)
+    return max(1, int(round((float(pixels) - MULTILINE_CHROME) / line)))
 
 
 def _widget_key(widget_type: Any) -> str:
@@ -1260,6 +1280,8 @@ class _Emitter:
                 )
         elif control == "ft.Container" and self._is_filled_label(name):
             arguments.update(self._filled_label(name, properties))
+        elif control == "ft.Container" and widget_type in TEXT_WIDGET_TYPES:
+            arguments.update(self._text_area(name, properties))
         elif control == "ft.Container" and widget_type in (
             "ttk::frame",
             "ttk::canvas",
@@ -1336,6 +1358,55 @@ class _Emitter:
         }
         return mapping.get(anchor.strip().lower(), "ft.Alignment.CENTER")
 
+    def _text_height(self, name: str) -> int:
+        """Return the height the designer gave a widget, in pixels."""
+        height = _number(self._placement_arguments(name).get("height"))
+        if not height:
+            natural = self._natural_size(name)
+            height = natural[1] if natural else 0
+        return int(height or 0)
+
+    def _text_area(self, name: str, properties: dict[str, Any]) -> dict[str, str]:
+        """Return a Container holding a multiline field sized to the design.
+
+        Flet ignores an explicit height on a multiline field (measured: 120px
+        rendered 46px) and sizes it from ``min_lines`` instead, which lands
+        within about 10px.  The Container supplies the exact design box and
+        clips, and both it and the field carry the widget's background so the
+        fill is continuous.
+        """
+        style = dict(self._style_arguments(name, "ft.TextField"))
+        background = properties.pop("bgcolor", None) or style.pop("bgcolor", None)
+        # The style values are quoted literals; _border() wants the raw colour.
+        border_colour = str(style.pop("border_color", "")).strip("'\"") or None
+        border_width = style.pop("border_width", None)
+        lines = multiline_lines(self._text_height(name))
+        field_arguments = ["multiline=True", "border_width=0"]
+        if lines:
+            field_arguments.append(f"min_lines={lines}")
+        value = self._caption(name, "value", properties, {})
+        if value and value != "''":
+            field_arguments.append(f"value={value}")
+        for key in (
+            "color",
+            "text_size",
+            "content_padding",
+            "text_vertical_align",
+            "disabled",
+            "read_only",
+        ):
+            if key in style:
+                field_arguments.append(f"{key}={style[key]}")
+        if background:
+            field_arguments.append(f"bgcolor={background}")
+        arguments = {"content": _call("ft.TextField", field_arguments)}
+        if background:
+            arguments["bgcolor"] = background
+        if border_colour:
+            arguments["border"] = self._border(border_colour, int(border_width or 1))
+        arguments["clip_behavior"] = "ft.ClipBehavior.HARD_EDGE"
+        return arguments
+
     def _is_filled_label(self, name: str) -> bool:
         """Whether a label is drawn as a coloured box rather than plain text.
 
@@ -1402,6 +1473,22 @@ class _Emitter:
             return variable
         return repr("")
 
+    @staticmethod
+    def _text_style(colour: str | None = None, size: int = DEFAULT_TEXT_SIZE) -> str:
+        """Return an ``ft.TextStyle`` matching ttk's plain text.
+
+        Flet renders a TextStyle that leaves the weight unset in *bold* (the
+        field's default is None, and the Material label styles resolve that to
+        a heavy face), which made button captions and check/radio labels look
+        bolder than the ttk originals.  Both the weight and the letter spacing
+        are therefore pinned.
+        """
+        parts = [f"size={size}", "weight=ft.FontWeight.NORMAL", "letter_spacing=0"]
+        if colour:
+            # Callers pass the raw colour, not a Python literal.
+            parts.insert(0, f"color={str(colour).strip(chr(39) + chr(34))!r}")
+        return _call("ft.TextStyle", parts)
+
     def _button_style(self, side: str | None = None) -> str:
         """Return the ``ft.ButtonStyle`` that matches a ttk button closely.
 
@@ -1413,7 +1500,7 @@ class _Emitter:
             f"padding=ft.Padding(left={BUTTON_PADDING_X}, right={BUTTON_PADDING_X}"
             f", top={BUTTON_PADDING_Y}, bottom={BUTTON_PADDING_Y})",
             f"shape=ft.RoundedRectangleBorder(radius={BUTTON_RADIUS})",
-            f"text_style=ft.TextStyle(size={BUTTON_TEXT_SIZE})",
+            f"text_style={self._text_style(size=BUTTON_TEXT_SIZE)}",
         ]
         if side:
             parts.append(f"side=ft.BorderSide(1, {side!r})")
@@ -1594,10 +1681,7 @@ class _Emitter:
             # while it is unchecked, as ttk draws it.
             return {
                 "check_color": repr(self.project.ink(slot) or muted),
-                "label_style": (
-                    f"ft.TextStyle(color={caption!r}, "
-                    f"size={DEFAULT_TEXT_SIZE})"
-                ),
+                "label_style": self._text_style(caption),
             }
         return {}
 
@@ -1619,11 +1703,7 @@ class _Emitter:
             muted = self.project.colour("fg")
             if not muted:
                 return {}
-            return {
-                "label_style": (
-                    f"ft.TextStyle(color={muted!r}, size={DEFAULT_TEXT_SIZE})"
-                ),
-            }
+            return {"label_style": self._text_style(muted)}
         if control in ("ft.TextField", "ft.Dropdown"):
             return {
                 "bgcolor": repr(self.project.colour("inputbg") or ""),
@@ -1643,10 +1723,7 @@ class _Emitter:
         ) or self.project.colour("fg")
         parts = []
         if caption:
-            parts.append(
-                f"label_style=ft.TextStyle(color={caption!r}, "
-                f"size={DEFAULT_TEXT_SIZE})"
-            )
+            parts.append(f"label_style={self._text_style(caption)}")
         return "".join(f", {part}" for part in parts)
 
     def _placement_arguments(self, name: str) -> dict[str, str]:
@@ -2144,6 +2221,8 @@ class _Emitter:
                 # background) is wrapped: ft.Text only paints behind its
                 # glyphs, so the fill has to come from the outer Container.
                 control = "ft.Container"
+        if widget_type in TEXT_WIDGET_TYPES:
+            control = "ft.Container"
         if widget_type == "ttk::treeview" and not parse_values(
             self.project.option(name, "columns")
         ):
@@ -2251,6 +2330,15 @@ class _Emitter:
         ``ft.Column`` when its Flet control has no ``scroll`` slot of its own.
         """
         placement = self._placement_arguments(name)
+        if control == "ft.TextField" and arguments.get("multiline") == "True":
+            natural = self._natural_size(name) or (0, 0)
+            target = _number(placement.get("height")) or natural[1]
+            lines = multiline_lines(target)
+            if lines:
+                arguments["min_lines"] = str(lines)
+                # A multiline field ignores an explicit height, and leaving one
+                # in would suggest it does something.
+                placement.pop("height", None)
         if control not in POSITIONABLE_CONTROLS:
             # Size arguments belong to the wrapper, not to a control that has
             # no width/height of its own (ft.RadioGroup, ft.Divider).  In Grid
