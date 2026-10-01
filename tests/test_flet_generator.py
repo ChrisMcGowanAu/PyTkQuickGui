@@ -1391,6 +1391,59 @@ class FletGeneratorTests(unittest.TestCase):
 
         self.assertEqual(len(page.controls), 1)
 
+    def test_font_chooser_dict_is_parsed(self):
+        """The designer stores fonts as a dict, not an X11 string."""
+        stored = (
+            "{'family': 'Liberation\\\\ Mono', 'size': 18, 'weight': 'bold', "
+            "'slant': 'italic', 'underline': 0, 'overstrike': 0}"
+        )
+
+        parsed = flet_generator.parse_font(stored)
+
+        self.assertEqual(parsed["font_family"], "'Liberation Mono'")
+        self.assertEqual(parsed["size"], "18")
+        self.assertEqual(parsed["weight"], "ft.FontWeight.BOLD")
+        self.assertEqual(parsed["italic"], "True")
+
+    def test_font_size_on_a_text_field_uses_text_size(self):
+        """ft.TextField has no size field; passing one is a TypeError."""
+        font = (
+            "{'family': 'Liberation\\\\ Mono', 'size': 18, 'weight': 'normal', "
+            "'slant': 'roman', 'underline': 0, 'overstrike': 0}"
+        )
+        data = project(
+            theme="dracula-dark",
+            widgets=(
+                widget(
+                    "Widget1",
+                    "ttk::entry",
+                    attributes=(
+                        ("textvariable", "calcvar"),
+                        ("font", font),
+                        ("style", "primary.TEntry"),
+                    ),
+                    place={"x": "0", "y": "0", "width": "320", "height": "32"},
+                ),
+                widget(
+                    "Widget2",
+                    "ttk::label",
+                    attributes=(("text", "Calculator"), ("font", font)),
+                    place={"x": "0", "y": "40", "width": "320", "height": "32"},
+                ),
+            ),
+        )
+
+        source = flet_generator.emit_program(data, [ROOT, "Widget1", "Widget2"], ROOT)
+
+        ast.parse(source)
+        entry_block = source[source.index("Widget1 = "):source.index("Widget2 = ")]
+        entry_lines = [line.strip() for line in entry_block.split("\n")]
+        self.assertIn("text_size=18,", entry_lines)
+        self.assertNotIn("size=18,", entry_lines)   # no bare size on a field
+        label = source[source.index("Widget2 = "):]
+        self.assertIn("size=18", label)
+        self.assertIn("font_family='Liberation Mono'", label)
+
     @unittest.skipUnless(FLET_AVAILABLE, "flet is not installed")
     def test_generated_program_builds_real_flet_controls(self):
         data = project(
