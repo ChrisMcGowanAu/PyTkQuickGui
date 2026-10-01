@@ -549,17 +549,28 @@ def load_theme_palette(path: str | None = None) -> dict[str, Any]:
 
 
 def theme_palette(theme: Any, palettes: Mapping[str, Any] | None = None) -> dict:
-    """Return the ``{"colors": …, "contrast": …}`` record for one theme."""
+    """Return one theme's exported palette, keeping all three of its sections.
+
+    ``colors`` holds the bootstyle slots, ``styles`` holds what ttkbootstrap
+    resolves for each bootstyle (button text colour, outline colours, frame
+    fill, the caption colour of a labelframe) and ``widgets`` holds the resolved
+    surfaces (entry background, progressbar trough).  Dropping any of them
+    silently falls back to the slot colours, losing ttk's own choices - such as
+    white rather than black text on a borderline fill.
+    """
     table = palettes if palettes is not None else load_theme_palette()
     record = table.get(_text(theme)) if isinstance(table, Mapping) else None
     if not isinstance(record, Mapping):
         return {}
-    colors = record.get("colors")
-    contrast = record.get("contrast")
-    return {
-        "colors": dict(colors) if isinstance(colors, Mapping) else {},
-        "contrast": dict(contrast) if isinstance(contrast, Mapping) else {},
-    }
+    palette: dict[str, Any] = {}
+    for section in ("colors", "styles", "widgets"):
+        values = record.get(section)
+        if isinstance(values, Mapping):
+            palette[section] = {
+                str(key): dict(value) if isinstance(value, Mapping) else value
+                for key, value in values.items()
+            }
+    return palette
 
 
 def parse_bootstyle(value: Any) -> tuple[str, frozenset[str]]:
@@ -2405,7 +2416,16 @@ class _Emitter:
         caption = self.project.option(name, "text")
         if not caption:
             return content
-        ink = self.project.widget_surface("labelframe_fg") or self.project.colour("fg")
+        # ttk paints the caption in the frame's bootstyle colour - the same
+        # colour as its border, measured on both the superhero and cyborg
+        # themes - so that is preferred over the theme's text colour.
+        bootstyle, _variants = self.project.style_of(name)
+        styles = self.project.bootstyle_styles(bootstyle) if bootstyle else {}
+        ink = (
+            styles.get("labelframe_border")
+            or self.project.widget_surface("labelframe_fg")
+            or self.project.colour("fg")
+        )
         style = f", color={ink!r}, size={DEFAULT_TEXT_SIZE}" if ink else ""
         row = _call(
             "ft.Row",

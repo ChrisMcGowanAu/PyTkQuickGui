@@ -1125,7 +1125,8 @@ class FletGeneratorTests(unittest.TestCase):
                 self.assertIn("widgets", record)
                 self.assertTrue(record["styles"]["primary"]["button_bg"])
 
-    def test_labelframe_caption_uses_the_theme_text_colour(self):
+    def test_labelframe_caption_matches_the_frame_border(self):
+        """Measured on the ttk output: the caption is the bootstyle colour."""
         data = project(
             theme="darkly",
             widgets=(
@@ -1141,8 +1142,35 @@ class FletGeneratorTests(unittest.TestCase):
         source = flet_generator.emit_program(data, [ROOT, "Widget1"], ROOT)
 
         ast.parse(source)
-        self.assertIn("ft.Text(value='Group', color='#ffffff'", source)
+        # darkly's primary, the same colour ttk paints the border with.
+        self.assertIn("ft.Text(value='Group', color='#375a7f'", source)
         self.assertIn("ft.BorderSide(1, '#375a7f')", source)
+
+    def test_palette_keeps_the_resolved_style_and_widget_sections(self):
+        """The resolved tables must survive loading, or ttk's own choices go."""
+        palette = flet_generator.theme_palette("darkly")
+
+        self.assertEqual(palette["styles"]["primary"]["button_bg"], "#375a7f")
+        self.assertEqual(palette["widgets"]["entry_bg"], "#282828")
+
+    def test_resolved_button_ink_beats_the_luminance_rule(self):
+        """bootstrap-dark's primary sits on the boundary; ttk chooses white."""
+        data = project(
+            theme="bootstrap-dark",
+            widgets=(
+                widget(
+                    "Widget1",
+                    "ttk::button",
+                    attributes=(("text", "Go"), ("style", "primary.TButton")),
+                    place={"x": "0", "y": "0", "width": "80", "height": "32"},
+                ),
+            ),
+        )
+
+        source = flet_generator.emit_program(data, [ROOT, "Widget1"], ROOT)
+
+        self.assertIn("bgcolor='#3d8bfd'", source)
+        self.assertIn("color='#ffffff'", source)   # not the rule's black
 
     def test_report_names_the_theme(self):
         data = project(theme="darkly")
