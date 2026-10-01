@@ -2065,6 +2065,57 @@ class FletGeneratorTests(unittest.TestCase):
         self.assertEqual(namespace["calcvar"], "4")     # the variable too
         self.assertIs(namespace["PAGE"], page)
 
+    def test_the_variable_section_explains_set_text(self):
+        """The tip belongs where someone looks for the variables."""
+        data = project(
+            theme="darkly",
+            widgets=(
+                widget(
+                    "Widget1",
+                    "ttk::checkbutton",
+                    attributes=(("text", "On"), ("variable", "flag")),
+                    place={"x": "0", "y": "0", "width": "120", "height": "32"},
+                ),
+            ),
+        )
+
+        source = flet_generator.emit_program(data, [ROOT, "Widget1"], ROOT)
+
+        ast.parse(source)
+        variables_at = source.index("####### Flet variables #######")
+        functions_at = source.index("####### Functions #######")
+        tip = source[variables_at:functions_at]
+        self.assertIn("set_text('flag', 'new value')", tip)
+        self.assertIn("the widgets showing it keep the value they were built with", tip)
+        # A variable with nothing bound yet still gets the helper.
+        self.assertIn("def set_text(", source)
+        self.assertIn("TEXT_BINDINGS = {}", source)
+
+    def test_spinbox_and_variable_helpers_coexist(self):
+        """Regression: the binding helpers once wiped the stepper helper."""
+        data = project(
+            theme="darkly",
+            widgets=(
+                widget(
+                    "Widget1",
+                    "ttk::spinbox",
+                    attributes=(
+                        ("from", "0"),
+                        ("to", "10"),
+                        ("increment", "1"),
+                        ("textvariable", "count"),
+                    ),
+                    place={"x": "0", "y": "0", "width": "140", "height": "32"},
+                ),
+            ),
+        )
+
+        source = flet_generator.emit_program(data, [ROOT, "Widget1"], ROOT)
+
+        ast.parse(source)
+        self.assertIn("def _step_value(", source)
+        self.assertIn("def set_text(", source)
+
     @unittest.skipUnless(FLET_AVAILABLE, "flet is not installed")
     def test_generated_program_builds_real_flet_controls(self):
         data = project(

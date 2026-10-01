@@ -413,7 +413,9 @@ Things worth knowing:
   a local name (Flet controls hold plain Python values, so unlike a
   `tk.StringVar` there is nothing to `.set()`). Use `set_text('calcvar', '4')`
   when you also want the widgets refreshed; `set_text` uses the page recorded
-  in `main()`, so no page argument is needed.
+  in `main()`, so no page argument is needed. The same tip is written into the
+  generated file's **Flet variables** section, next to the variables it is
+  about.
 - The window opens at a size worked out from the design rather than a fixed
   800x600: Grid and Pack from the widgets and their spans, Place from the
   furthest edge anything is placed at. It is clamped to 1280x900 and written to

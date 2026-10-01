@@ -2778,6 +2778,17 @@ def emit_program(
         lines.append(
             "# Flet controls hold plain Python values - adjust types as needed."
         )
+        if project.variables:
+            first = project.variables[0]
+            lines.extend(
+                (
+                    "# Assigning a variable here or in a handler changes it, but",
+                    "# the widgets showing it keep the value they were built with.",
+                    f"# Use set_text({first!r}, 'new value') to change the variable",
+                    "# and refresh its controls together - the handler stubs start",
+                    "# with `global` so a plain assignment reaches this variable.",
+                )
+            )
         declared = list(project.variables)
         for variable in sorted(project.list_variables):
             if variable not in declared:
@@ -2792,16 +2803,6 @@ def emit_program(
 
     lines.extend(("", SECTION_FUNCTIONS))
     if project.callbacks:
-        if project.variables:
-            lines.append(
-                "# Update a variable and refresh the widgets showing it with"
-            )
-            lines.append(
-                f"# set_text({project.variables[0]!r}, 'new value') - the global"
-            )
-            lines.append(
-                "# line keeps plain assignments pointing at the module variable."
-            )
         for callback in project.callbacks:
             lines.append("")
             lines.append(f"def {callback}(e=None):")
@@ -2814,10 +2815,9 @@ def emit_program(
     else:
         lines.append("# Add your event handlers here.")
 
-    if emitter.text_bindings:
+    if project.variables:
         lines.extend(("", "# ---- Text variables bound to controls ----", ""))
         lines.extend(_TEXT_BINDING_HELPERS)
-        emitter.helpers = []
 
     if emitter.helpers:
         lines.extend(("", "# ---- Generated helpers ----", ""))
