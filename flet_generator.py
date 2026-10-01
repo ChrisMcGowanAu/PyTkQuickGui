@@ -129,18 +129,24 @@ SECTION_VARIABLES = "####### Flet variables #######"
 #: Emitted when widgets take their caption from a textvariable.
 _TEXT_BINDING_HELPERS = (
     "TEXT_BINDINGS = {}",
+    "# The running page, set in main(), so handlers can refresh without it.",
+    "PAGE = None",
     "",
     "",
-    "def set_text(page, name, value):",
-    '    """Set a bound variable and refresh the control showing it.',
+    "def set_text(name, value, page=None):",
+    '    """Set a variable and refresh every control that shows it.',
     "",
-    "    ``name`` is the textvariable the designer recorded, for example",
-    "    ``set_text(page, 'buttonvar11', '7')``.",
+    "    ``name`` is the variable the designer recorded against a widget, for",
+    "    example ``set_text('calcvar', '4')`` from a button handler.  The module",
+    "    level variable is updated too, so the rest of the program sees the new",
+    "    value.",
     '    """',
     "    globals()[name] = value",
     "    for control, attribute in TEXT_BINDINGS.get(name, ()):",
     "        setattr(control, attribute, value)",
-    "    page.update()",
+    "    target = page or PAGE",
+    "    if target is not None:",
+    "        target.update()",
 )
 SECTION_FUNCTIONS = "####### Functions #######"
 SECTION_WIDGETS = "####### Widgets #######"
@@ -1250,6 +1256,9 @@ class _Emitter:
                 f"{self._radio_colours(name)})"
             )
         elif control == "ft.Dropdown":
+            if "value" in properties:
+                variable = properties["value"]
+                self.text_bindings.setdefault(variable, []).append((name, "value"))
             values = properties.pop("values", None)
             if values:
                 options = ", ".join(
@@ -1308,6 +1317,11 @@ class _Emitter:
         elif control == "ft.TextField":
             if widget_type in TEXT_MEASURED_TYPES:
                 arguments["multiline"] = "True"
+            if "value" in properties:
+                # The field shows the variable's value; record the binding so
+                # set_text() can put a new value into the control as well.
+                variable = properties["value"]
+                self.text_bindings.setdefault(variable, []).append((name, "value"))
         elif control == "ft.Divider":
             if properties.pop("orientation", "") == "vertical":
                 self.notes.append(
@@ -1388,9 +1402,13 @@ class _Emitter:
         field_arguments = ["multiline=True", "border_width=0"]
         if lines:
             field_arguments.append(f"min_lines={lines}")
-        value = self._caption(name, "value", properties, {})
-        if value and value != "''":
+        field_name = f"{name}_field"
+        value = properties.pop("value", None)
+        if value:
             field_arguments.append(f"value={value}")
+            # The Container is not the control holding the value, so the
+            # binding names the field inside it.
+            self.text_bindings.setdefault(value, []).append((field_name, "value"))
         for key in (
             "color",
             "text_size",
@@ -1403,7 +1421,13 @@ class _Emitter:
                 field_arguments.append(f"{key}={style[key]}")
         if background:
             field_arguments.append(f"bgcolor={background}")
-        arguments = {"content": _call("ft.TextField", field_arguments)}
+        # Emitted before the Container, so the field exists when it is used.
+        self.lines.extend(
+            _indent_lines(
+                _call(f"{field_name} = ft.TextField", field_arguments), 4
+            ).split("\n")
+        )
+        arguments = {"content": field_name}
         if background:
             arguments["bgcolor"] = background
         if border_colour:
@@ -2768,15 +2792,25 @@ def emit_program(
 
     lines.extend(("", SECTION_FUNCTIONS))
     if project.callbacks:
-        for callback in project.callbacks:
-            lines.extend(
-                (
-                    "",
-                    f"def {callback}(e=None):",
-                    f"    {STUB_SENTINEL}",
-                    f"    print({callback!r})",
-                )
+        if project.variables:
+            lines.append(
+                "# Update a variable and refresh the widgets showing it with"
             )
+            lines.append(
+                f"# set_text({project.variables[0]!r}, 'new value') - the global"
+            )
+            lines.append(
+                "# line keeps plain assignments pointing at the module variable."
+            )
+        for callback in project.callbacks:
+            lines.append("")
+            lines.append(f"def {callback}(e=None):")
+            if project.variables:
+                # Without this an assignment in a handler creates a local name
+                # and the widget keeps showing the old value.
+                lines.append(f"    global {', '.join(project.variables)}")
+            lines.append(f"    {STUB_SENTINEL}")
+            lines.append(f"    print({callback!r})")
     else:
         lines.append("# Add your event handlers here.")
 
@@ -2799,6 +2833,8 @@ def emit_program(
             SECTION_MAIN,
             "",
             "def main(page: ft.Page):",
+            "    global PAGE",
+            "    PAGE = page  # handlers use this through set_text()",
             "    page.title = PROJECT_NAME",
             "    page.theme_mode = ("
             "ft.ThemeMode.DARK if THEME_IS_DARK else ft.ThemeMode.LIGHT"
@@ -2836,9 +2872,9 @@ def emit_program(
             statement = f"TEXT_BINDINGS[{variable!r}] = {_list_expression(pairs)}"
             lines.extend(_indent_lines(statement, 4).split("\n"))
         lines.append(
-            f"    # {sum(len(v) for v in emitter.text_bindings.values())} captions "
-            f"follow {len(emitter.text_bindings)} textvariables; call "
-            "set_text(page, name, value) to change them"
+            f"    # {sum(len(v) for v in emitter.text_bindings.values())} controls "
+            f"follow {len(emitter.text_bindings)} variable(s); call "
+            "set_text(name, value) to change them"
         )
     lines.extend(
         (

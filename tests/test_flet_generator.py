@@ -1967,6 +1967,104 @@ class FletGeneratorTests(unittest.TestCase):
         self.assertIn("ft.Tab(label='First')", source)
         self.assertIn("ft.Tab(label='Second')", source)
 
+    def test_entry_value_is_bound_and_stubs_can_reach_the_variable(self):
+        """A handler assigning the variable must update the field, as in ttk."""
+        data = project(
+            theme="dracula-dark",
+            widgets=(
+                widget(
+                    "Widget1",
+                    "ttk::entry",
+                    attributes=(("textvariable", "calcvar"),),
+                    place={"x": "0", "y": "0", "width": "320", "height": "32"},
+                ),
+                widget(
+                    "Widget2",
+                    "ttk::button",
+                    attributes=(("text", "4"), ("command", "clicked_4")),
+                    place={"x": "0", "y": "40", "width": "80", "height": "32"},
+                ),
+            ),
+        )
+
+        source = flet_generator.emit_program(data, [ROOT, "Widget1", "Widget2"], ROOT)
+
+        ast.parse(source)
+        self.assertIn("value=calcvar", source)
+        # The field is bound, so set_text can put a value into it.
+        self.assertIn("TEXT_BINDINGS['calcvar'] = [(Widget1, 'value')]", source)
+        # And the stub can assign the module variable at all.
+        self.assertIn("    global calcvar", source)
+        self.assertIn("set_text('calcvar', 'new value')", source)
+        self.assertIn("PAGE = page", source)
+
+    def test_text_area_binds_the_field_inside_the_container(self):
+        data = project(
+            theme="darkly",
+            widgets=(
+                widget(
+                    "Widget1",
+                    "text",
+                    attributes=(("textvariable", "log_text"),),
+                    place={"x": "0", "y": "0", "width": "200", "height": "120"},
+                ),
+            ),
+        )
+
+        source = flet_generator.emit_program(data, [ROOT, "Widget1"], ROOT)
+
+        ast.parse(source)
+        # The Container is not the control holding the value; the field is.
+        self.assertIn("Widget1_field = ft.TextField(", source)
+        self.assertIn("content=Widget1_field", source)
+        self.assertIn("TEXT_BINDINGS['log_text'] = [(Widget1_field, 'value')]", source)
+
+    @unittest.skipUnless(FLET_AVAILABLE, "flet is not installed")
+    def test_set_text_updates_the_field_and_the_variable(self):
+        """The reported bug: a button handler could not change the display."""
+        data = project(
+            theme="dracula-dark",
+            widgets=(
+                widget(
+                    "Widget1",
+                    "ttk::entry",
+                    attributes=(("textvariable", "calcvar"),),
+                    place={"x": "0", "y": "0", "width": "320", "height": "32"},
+                ),
+                widget(
+                    "Widget2",
+                    "ttk::button",
+                    attributes=(("text", "4"), ("command", "clicked_4")),
+                    place={"x": "0", "y": "40", "width": "80", "height": "32"},
+                ),
+            ),
+        )
+        source = flet_generator.emit_program(data, [ROOT, "Widget1", "Widget2"], ROOT)
+        namespace, main = load_generated(source)
+        page = FakePage()
+        main(page)
+
+        found = []
+
+        def walk(control):
+            for child in getattr(control, "controls", []) or []:
+                walk(child)
+            content = getattr(control, "content", None)
+            if content is not None and not isinstance(content, str):
+                walk(content)
+            if isinstance(control, ft.TextField) and control.value == "0.0":
+                found.append(control)
+
+        for control in page.controls:
+            walk(control)
+        display = found[0]
+
+        namespace["set_text"]("calcvar", "4")
+
+        self.assertEqual(display.value, "4")            # the control refreshed
+        self.assertEqual(namespace["calcvar"], "4")     # the variable too
+        self.assertIs(namespace["PAGE"], page)
+
     @unittest.skipUnless(FLET_AVAILABLE, "flet is not installed")
     def test_generated_program_builds_real_flet_controls(self):
         data = project(

@@ -403,11 +403,17 @@ Things worth knowing:
   (`ft.Column(scroll=ft.Scrollbar())`) rather than exposing a free-standing
   widget, and `ft.RadioGroup`/`ft.Divider` are not positional controls, so
   they are wrapped in a `ft.Container` to keep the designer's coordinates.
-- A widget whose caption lives in a `textvariable` (a common designer
-  pattern - a sudoku cell, for example) keeps that binding: the generated
-  program declares the variable, points the control at it, and provides
-  `set_text(page, name, value)` to change it. One variable can caption many
-  controls, exactly as a Tk variable does.
+- A widget bound to a `textvariable` (a sudoku cell, a calculator display, a
+  text area) keeps that binding: the generated program declares the variable,
+  points the control at it, and provides `set_text(name, value)` to change it -
+  which updates the variable *and* every control showing it, the way a Tk
+  variable does. One variable can drive many controls.
+- Each generated handler stub starts with `global <variables>`, so a plain
+  assignment in your own code updates the module variable rather than creating
+  a local name (Flet controls hold plain Python values, so unlike a
+  `tk.StringVar` there is nothing to `.set()`). Use `set_text('calcvar', '4')`
+  when you also want the widgets refreshed; `set_text` uses the page recorded
+  in `main()`, so no page argument is needed.
 - The window opens at a size worked out from the design rather than a fixed
   800x600: Grid and Pack from the widgets and their spans, Place from the
   furthest edge anything is placed at. It is clamped to 1280x900 and written to
