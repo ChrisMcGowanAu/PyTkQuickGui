@@ -1507,6 +1507,11 @@ class _Emitter:
                 }
             if widget_type == "ttk::labelframe":
                 edge = value("labelframe_border", slot) or border
+                stored_width = _number(self.project.option(name, "borderwidth"))
+                if stored_width is not None and int(stored_width) <= 0:
+                    # ttk draws no box for borderwidth=0: the caption alone
+                    # marks the frame, as the Camera frame in Platypus shows.
+                    return {"bgcolor": repr(surface)}
                 relief = self._relief_border(name)
                 width = relief[0] if relief else 1
                 return {
@@ -2402,12 +2407,38 @@ class _Emitter:
             return content
         ink = self.project.widget_surface("labelframe_fg") or self.project.colour("fg")
         style = f", color={ink!r}, size={DEFAULT_TEXT_SIZE}" if ink else ""
-        children = [f"ft.Text(value={caption!r}{style})"]
-        if content:
-            children.append(content)
+        row = _call(
+            "ft.Row",
+            [
+                _list_argument("controls", [f"ft.Text(value={caption!r}{style})"]),
+                "spacing=0",
+                f"alignment={self._label_anchor_alignment(name)}",
+            ],
+        )
+        if self._label_anchor_below(name):
+            # labelanchor starting with "s" draws the caption under the frame.
+            children = [content, row] if content else [row]
+        else:
+            children = [row, content] if content else [row]
         return _call(
             "ft.Column", [_list_argument("controls", children), "spacing=2"]
         )
+
+    def _label_anchor(self, name: str) -> str:
+        """Return a labelframe's labelanchor, defaulting to ttk's "n"."""
+        return self.project.option(name, "labelanchor").strip().lower() or "n"
+
+    def _label_anchor_below(self, name: str) -> bool:
+        return self._label_anchor(name).startswith("s")
+
+    def _label_anchor_alignment(self, name: str) -> str:
+        """Map a labelframe labelanchor onto a Row alignment."""
+        anchor = self._label_anchor(name)
+        if anchor.endswith("w"):
+            return "ft.MainAxisAlignment.START"
+        if anchor.endswith("e"):
+            return "ft.MainAxisAlignment.END"
+        return "ft.MainAxisAlignment.CENTER"
 
     def _paned(self, parent_name: str, children: Sequence[str]) -> str:
         names = [name for name in map(self._define, children) if name]

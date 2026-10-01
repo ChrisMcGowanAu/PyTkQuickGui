@@ -363,7 +363,7 @@ project, so it can be tested without a display.
 | Grid (exact positions) | `ft.Stack` with `rowspan`/`columnspan` reproduced exactly; cells are sized from the widgets themselves (the designer's measurements, the tool default per type as a floor, minsize only as a floor like Tk) |
 | Pack | `ft.Row`/`ft.Column` groups by `side` |
 | Frame / Canvas | `ft.Container` (background preserved) holding an `ft.Stack` |
-| Labelframe | `ft.Container` with the caption as an `ft.Text` line |
+| Labelframe | `ft.Container` with the caption above the content (below for a south `labelanchor`), aligned as the designer's `labelanchor` says - centred for the default `n`. A `borderwidth` of 0 draws no box, as ttk does |
 | Notebook | `ft.Tabs` with `ft.TabBar` and `ft.TabBarView` |
 | Panedwindow | `ft.Row`/`ft.Column` (Flet has no draggable splitter) |
 | Label / Button / Entry / Combobox / Checkbutton / Radiobutton / Scale / Progressbar / Separator | `ft.Text` / `ft.Button` / `ft.TextField` / `ft.Dropdown` / `ft.Checkbox` / `ft.RadioGroup` / `ft.Slider` / `ft.ProgressBar` / `ft.Divider` |

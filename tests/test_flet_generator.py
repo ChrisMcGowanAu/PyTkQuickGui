@@ -1582,6 +1582,108 @@ class FletGeneratorTests(unittest.TestCase):
         self.assertIn("Widget1 = ft.Container(", source)
         self.assertIn("ft.BorderSide(2, '#2e2e2e')", source)
 
+    def test_labelframe_caption_follows_the_label_anchor(self):
+        for anchor, expected in (
+            ("n", "ft.MainAxisAlignment.CENTER"),
+            ("nw", "ft.MainAxisAlignment.START"),
+            ("ne", "ft.MainAxisAlignment.END"),
+        ):
+            with self.subTest(anchor=anchor):
+                data = project(
+                    theme="cyborg",
+                    widgets=(
+                        widget(
+                            "Widget1",
+                            "ttk::labelframe",
+                            attributes=(
+                                ("text", "Flash Card Path"),
+                                ("labelanchor", anchor),
+                                ("style", "primary.TLabelframe"),
+                            ),
+                            place={"x": "0", "y": "0", "width": "448", "height": "96"},
+                        ),
+                    ),
+                )
+
+                source = flet_generator.emit_program(data, [ROOT, "Widget1"], ROOT)
+
+                ast.parse(source)
+                self.assertIn(f"alignment={expected}", source)
+
+    def test_labelframe_caption_below_for_a_south_anchor(self):
+        data = project(
+            theme="cyborg",
+            widgets=(
+                widget(
+                    "Widget1",
+                    "ttk::labelframe",
+                    attributes=(
+                        ("text", "Progress"),
+                        ("labelanchor", "sw"),
+                        ("style", "primary.TLabelframe"),
+                    ),
+                    place={"x": "0", "y": "0", "width": "448", "height": "96"},
+                ),
+            ),
+        )
+
+        source = flet_generator.emit_program(data, [ROOT, "Widget1"], ROOT)
+
+        ast.parse(source)
+        column = source[source.index("ft.Column("):source.index("spacing=2")]
+        # The caption row comes after the content for a south anchor.
+        self.assertGreater(column.index("ft.Text(value='Progress'"), 0)
+        self.assertIn("ft.MainAxisAlignment.START", source)   # sw anchors west
+
+    def test_labelframe_borderwidth_zero_draws_no_box(self):
+        """Platypus' Camera frame: ttk draws the caption only."""
+        data = project(
+            theme="superhero",
+            widgets=(
+                widget(
+                    "Widget1",
+                    "ttk::labelframe",
+                    attributes=(
+                        ("text", "Camera"),
+                        ("labelanchor", "n"),
+                        ("relief", "solid"),
+                        ("borderwidth", "0"),
+                        ("style", "primary.TLabelframe"),
+                    ),
+                    place={"x": "32", "y": "16", "width": "160", "height": "80"},
+                ),
+            ),
+        )
+
+        source = flet_generator.emit_program(data, [ROOT, "Widget1"], ROOT)
+
+        ast.parse(source)
+        self.assertIn("value='Camera'", source)
+        self.assertNotIn("ft.Border(", source)
+
+    def test_labelframe_borderwidth_two_widens_the_box(self):
+        data = project(
+            theme="superhero",
+            widgets=(
+                widget(
+                    "Widget1",
+                    "ttk::labelframe",
+                    attributes=(
+                        ("text", "Flash Card Path"),
+                        ("relief", "solid"),
+                        ("borderwidth", "2"),
+                        ("style", "primary.TLabelframe"),
+                    ),
+                    place={"x": "0", "y": "0", "width": "448", "height": "96"},
+                ),
+            ),
+        )
+
+        source = flet_generator.emit_program(data, [ROOT, "Widget1"], ROOT)
+
+        ast.parse(source)
+        self.assertIn("ft.BorderSide(2,", source)
+
     @unittest.skipUnless(FLET_AVAILABLE, "flet is not installed")
     def test_generated_program_builds_real_flet_controls(self):
         data = project(
