@@ -1239,6 +1239,15 @@ class _Emitter:
                 )
         elif control == "ft.Container" and self._is_filled_label(name):
             arguments.update(self._filled_label(name, properties))
+        elif control == "ft.Container" and widget_type in (
+            "ttk::frame",
+            "ttk::canvas",
+            "canvas",
+            "frame",
+        ):
+            relief = self._relief_border(name)
+            if relief:
+                arguments["border"] = self._border(relief[1], relief[0])
         elif control == "ft.DataTable":
             columns = properties.pop("tree_columns", [])
             arguments["columns"] = (
@@ -1318,7 +1327,9 @@ class _Emitter:
         if self.project.policy_for(name) == "placeholder":
             return False
         _bootstyle, variants = self.project.style_of(name)
-        return "inverse" in variants or bool(self.project.option(name, "background"))
+        if "inverse" in variants or self.project.option(name, "background"):
+            return True
+        return self._relief_border(name) is not None
 
     def _filled_label(self, name: str, properties: dict[str, Any]) -> dict[str, str]:
         """Return the arguments for a label drawn inside a coloured box."""
@@ -1337,6 +1348,9 @@ class _Emitter:
         arguments = {"content": inner}
         if fill:
             arguments["bgcolor"] = fill
+        relief = self._relief_border(name)
+        if relief:
+            arguments["border"] = self._border(relief[1], relief[0])
         arguments["alignment"] = self._label_alignment(
             self.project.option(name, "anchor")
         )
@@ -1383,6 +1397,30 @@ class _Emitter:
         if side:
             parts.append(f"side=ft.BorderSide(1, {side!r})")
         return _call("ft.ButtonStyle", parts)
+
+    def _relief_border(self, name: str) -> tuple[int, str] | None:
+        """Return ``(width, colour)`` when the designer asked for a border.
+
+        ttk draws a border for a relief other than flat/none and a borderwidth
+        above zero - that pair is the designer's own signal, so it is honoured
+        here rather than guessed at.  The colour comes from the theme's border.
+        """
+        relief = self.project.option(name, "relief").strip().lower()
+        if relief in ("", "flat", "none"):
+            return None
+        width = _number(self.project.option(name, "borderwidth"))
+        if width is None:
+            width = _number(self.project.option(name, "bd"))
+        if not width or int(width) <= 0:
+            return None
+        colour = (
+            self.project.widget_surface("entry_border")
+            or self.project.colour("border")
+            or self.project.colour("fg")
+        )
+        if not colour:
+            return None
+        return int(width), colour
 
     @staticmethod
     def _border(colour: str, width: int = 1) -> str:
@@ -1469,9 +1507,11 @@ class _Emitter:
                 }
             if widget_type == "ttk::labelframe":
                 edge = value("labelframe_border", slot) or border
+                relief = self._relief_border(name)
+                width = relief[0] if relief else 1
                 return {
                     "bgcolor": repr(surface),
-                    "border": self._border(edge),
+                    "border": self._border(edge, width),
                 }
             return {"bgcolor": repr(value("frame_bg", slot) or surface)}
         if control in ("ft.TextField", "ft.Dropdown"):

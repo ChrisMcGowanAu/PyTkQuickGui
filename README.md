@@ -396,6 +396,9 @@ Things worth knowing:
 - Tk options with no Flet equivalent (`takefocus`, `cursor`, `style`, …) are left
   out and listed in a `Translation notes` comment per widget, so nothing
   disappears silently.
+- `relief` with a `borderwidth` above zero draws a border, as ttk does - the
+  designer's own signal, so a label or frame the designer gave `relief=solid,
+  borderwidth=1` comes out bordered rather than flat.
 - Flet attaches scrollbars to a scrollable control
   (`ft.Column(scroll=ft.Scrollbar())`) rather than exposing a free-standing
   widget, and `ft.RadioGroup`/`ft.Divider` are not positional controls, so

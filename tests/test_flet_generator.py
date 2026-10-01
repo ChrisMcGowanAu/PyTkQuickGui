@@ -1515,6 +1515,73 @@ class FletGeneratorTests(unittest.TestCase):
         self.assertIn("Widget1 = ft.Text(", source)
         self.assertIn("color='#77b300'", source)
 
+    def test_label_relief_gives_it_a_border(self):
+        """The designer's relief + borderwidth is the signal, as in ttk."""
+        data = project(
+            theme="cyborg",
+            widgets=(
+                widget(
+                    "Widget1",
+                    "ttk::label",
+                    attributes=(
+                        ("text", "Given Name"),
+                        ("style", "info.Inverse.TLabel"),
+                        ("relief", "solid"),
+                        ("borderwidth", "1"),
+                    ),
+                    place={"x": "0", "y": "0", "width": "112", "height": "32"},
+                ),
+            ),
+        )
+
+        source = flet_generator.emit_program(data, [ROOT, "Widget1"], ROOT)
+
+        ast.parse(source)
+        self.assertIn("Widget1 = ft.Container(", source)
+        self.assertIn("ft.BorderSide(1, '#2e2e2e')", source)   # cyborg's border
+
+    def test_label_without_a_border_stays_flat(self):
+        for attributes in (
+            (("text", "L"), ("relief", "flat"), ("borderwidth", "1")),
+            (("text", "L"), ("relief", "solid"), ("borderwidth", "0")),
+            (("text", "L"),),
+        ):
+            with self.subTest(attributes=attributes):
+                data = project(
+                    theme="cyborg",
+                    widgets=(
+                        widget(
+                            "Widget1",
+                            "ttk::label",
+                            attributes=attributes,
+                            place={"x": "0", "y": "0", "width": "80", "height": "24"},
+                        ),
+                    ),
+                )
+
+                source = flet_generator.emit_program(data, [ROOT, "Widget1"], ROOT)
+
+                self.assertNotIn("ft.BorderSide", source)
+
+    def test_frame_relief_gives_the_container_a_border(self):
+        data = project(
+            theme="cyborg",
+            widgets=(
+                widget(
+                    "Widget1",
+                    "ttk::frame",
+                    attributes=(("relief", "solid"), ("borderwidth", "2")),
+                    place={"x": "0", "y": "0", "width": "200", "height": "100"},
+                ),
+            ),
+        )
+
+        source = flet_generator.emit_program(data, [ROOT, "Widget1"], ROOT)
+
+        ast.parse(source)
+        self.assertIn("Widget1 = ft.Container(", source)
+        self.assertIn("ft.BorderSide(2, '#2e2e2e')", source)
+
     @unittest.skipUnless(FLET_AVAILABLE, "flet is not installed")
     def test_generated_program_builds_real_flet_controls(self):
         data = project(
