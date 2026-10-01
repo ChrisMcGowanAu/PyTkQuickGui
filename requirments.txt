@@ -9,6 +9,14 @@ Pillow
 # 1.0 API and warn when run on an older release.
 flet>=1.0
 
+# Development only: the lint and format tools run by tools/qa.sh and CI.  Not
+# needed to run PyTkQuickGui itself; installed here so a rebuilt venv has them.
+isort
+black
+flake8
+ruff
+pylint
+
 # Developer diagnostics (system packages, not pip): the gdb helpers that show
 # Python frames in a core dump, so `coredumpctl gdb <pid>` + `py-bt` works.
 #   sudo apt install python3.12-dbg

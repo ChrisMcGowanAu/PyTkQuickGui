@@ -25,11 +25,10 @@ import io
 import os
 import sys
 from contextlib import redirect_stderr
-from types import SimpleNamespace
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import flet_generator  # noqa: E402  (after the path fix)
+import flet_generator  # noqa: E402  # pylint: disable=wrong-import-position
 
 try:
     import flet as ft
@@ -111,17 +110,20 @@ def build_program(source):
     namespace: dict = {}
     captured: dict = {}
     original_run = ft.run
-    ft.run = lambda main, *args, **kwargs: captured.setdefault("main", main)
+    ft.run = lambda entry, *args, **kwargs: captured.setdefault("main", entry)
     try:
         with redirect_stderr(io.StringIO()):   # the version guard writes there
-            exec(compile(source, "<generated flet>", "exec"), namespace)  # noqa: S102
+            # Running the generated module is the whole point of the tool.
+            exec(  # noqa: S102  # pylint: disable=exec-used
+                compile(source, "<generated flet>", "exec"), namespace
+            )
     finally:
         ft.run = original_run
-    main = captured.get("main")
-    if main is None:
+    entry = captured.get("main")
+    if entry is None:
         raise AssertionError("the generated program never called ft.run()")
     page = FakePage()
-    main(page)
+    entry(page)
     return page
 
 

@@ -1320,7 +1320,8 @@ class createWidget:
 
         self.widget.place(x=self.x, y=self.y, width=width, height=height)
         log.debug(
-            "self.dragType %s x = %s y = %s self.x %s y=self.y %s width %s height %s self.startX %s self.startY %s",
+            "self.dragType %s x = %s y = %s self.x %s y=self.y %s "
+            "width %s height %s self.startX %s self.startY %s",
             self.dragType,
             x,
             y,

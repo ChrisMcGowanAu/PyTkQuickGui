@@ -1,0 +1,6 @@
+[flake8]
+# 88 is black's default, but this codebase has long URLs and log/format strings
+# that black cannot split; 100 keeps the check useful without a wall of noqa.
+max-line-length = 100
+extend-ignore = E203, W503
+exclude = .git, venv, __pycache__, build, dist

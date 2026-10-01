@@ -1,0 +1,14 @@
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+exclude = [".git", "venv", "__pycache__", "build", "dist"]
+
+[tool.ruff.lint]
+# Pin the selection explicitly.  ruff's *defaults* now run far beyond the
+# classic E/F core and this codebase predates them, so leaving it implicit
+# makes the check drift with every ruff release.  flake8 owns style (see
+# .flake8, which is clean); ruff's job here is the cheap, high-signal checks.
+# Widen this list deliberately, rule by rule.
+select = ["E4", "E7", "E9", "F"]
+# Kept for when the selection is widened: black formats slices E203-style.
+extend-ignore = ["E203"]
