@@ -1,10 +1,8 @@
-import ast
 import json
 import logging
 import os
 import os.path
 import pickle
-import re
 import shutil
 import subprocess
 import sys as _sys
@@ -486,6 +484,7 @@ def buildPython() -> str:
         else {}
     )
     log.info("nWidgets %s", nWidgets)
+    rootName = myVars.rootWidgetName
     configPath = getConfigPath()
     fileName = configPath + "/" + "test.py"
 
@@ -520,7 +519,6 @@ def buildPython() -> str:
             ("theme=themeName", "title=title"),
         )
     )
-    rootName = myVars.rootWidgetName
     print(
         project_format.format_python_call(
             rootName + " = ttk.Frame",
@@ -1753,7 +1751,6 @@ def _is_notebook_widget(widget) -> bool:
     )
 
 
-
 def _loadProjectData(fullFileName: str):
     """Return the project dict from *fullFileName*.
 
@@ -2586,8 +2583,8 @@ def welcome():
     about = """PyTkGui:
     Chris McGowan 2024.
     A tool to build a simple TkInter GUI.
-	This tool uses ttkbootstrap widgets.
-	A website - youtube - pdf TBD."""
+    This tool uses ttkbootstrap widgets.
+    A website - youtube - pdf TBD."""
 
     # remove leading whitespace from each line
     # this does not work on python 3.12

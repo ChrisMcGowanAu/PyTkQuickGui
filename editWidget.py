@@ -771,7 +771,7 @@ class widgetEditPopup:
                             if hsb_cwo:
                                 hsb_cwo.deleteWidget()
                         log.info("removed horizontal scrollbar from %s", self.widget)
-        if wName in ("notebook"):
+        if wName == "notebook":
             # ---- Notebook tab sync (works in Place and Grid mode) ---------
             # Goal: make the notebook have exactly n_tabs tabs with the
             # requested labels.  We must NOT blindly add every time Apply is
@@ -1701,7 +1701,7 @@ class widgetEditPopup:
                 self.addToStringDict(widgetKey, w)
                 w.grid(row=gridRow, column=controlCol, columnspan=3, sticky=tk.NSEW)
             gridRow += 1
-        if wName in ("notebook"):
+        if wName == "notebook":
             # ---- tab_count spinbox (works in both Place and Grid mode) ----
             gridRow += 1
             key = "tab_count"

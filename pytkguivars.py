@@ -28,7 +28,7 @@ KEY: int = 1
 FILENAME: int = 2
 PHOTOIMAGE: int = 3
 
-widgetImageFilenames: []
+widgetImageFilenames: list = []
 snapTo: int
 imageIndex: int
 backgroundColor: str
