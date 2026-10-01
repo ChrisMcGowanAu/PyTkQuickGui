@@ -1,0 +1,1919 @@
+{
+    "formatVersion": 2,
+    "ProjectName": "Calculator",
+    "ProjectPath": "",
+    "width": 0,
+    "height": 0,
+    "theme": "dracula-dark",
+    "geomManager": "Place",
+    "gridRows": 14,
+    "gridCols": 12,
+    "gridLineColor": "#0df228",
+    "gridRowMinsize": "2.5m",
+    "gridColMinsize": "5m",
+    "gridRowPad": "2.5m",
+    "gridColPad": "5m",
+    "generatedPyFile": "",
+    "widgetNameList": [
+        [
+            "Widget3",
+            "rootWidget",
+            "",
+            [
+                "Widget19",
+                "Widget21",
+                "Widget0",
+                "Widget1",
+                "Widget2"
+            ]
+        ],
+        [
+            "Widget6",
+            "rootWidget",
+            "",
+            [
+                "Widget7",
+                "Widget8",
+                "Widget9",
+                "Widget17",
+                "Widget20"
+            ]
+        ],
+        [
+            "Widget7",
+            "Widget6",
+            "",
+            []
+        ],
+        [
+            "Widget8",
+            "Widget6",
+            "",
+            []
+        ],
+        [
+            "Widget9",
+            "Widget6",
+            "",
+            []
+        ],
+        [
+            "Widget10",
+            "rootWidget",
+            "",
+            [
+                "Widget11",
+                "Widget12",
+                "Widget13",
+                "Widget22",
+                "Widget23",
+                "Widget24"
+            ]
+        ],
+        [
+            "Widget11",
+            "Widget10",
+            "",
+            []
+        ],
+        [
+            "Widget12",
+            "Widget10",
+            "",
+            []
+        ],
+        [
+            "Widget13",
+            "Widget10",
+            "",
+            []
+        ],
+        [
+            "Widget14",
+            "rootWidget",
+            "",
+            [
+                "Widget15",
+                "Widget16",
+                "Widget18",
+                "Widget4"
+            ]
+        ],
+        [
+            "Widget15",
+            "Widget14",
+            "",
+            []
+        ],
+        [
+            "Widget16",
+            "Widget14",
+            "",
+            []
+        ],
+        [
+            "Widget17",
+            "Widget6",
+            "",
+            []
+        ],
+        [
+            "Widget18",
+            "Widget14",
+            "",
+            []
+        ],
+        [
+            "Widget19",
+            "Widget3",
+            "",
+            []
+        ],
+        [
+            "Widget20",
+            "Widget6",
+            "",
+            []
+        ],
+        [
+            "Widget21",
+            "Widget3",
+            "",
+            []
+        ],
+        [
+            "Widget22",
+            "Widget10",
+            "",
+            []
+        ],
+        [
+            "Widget23",
+            "Widget10",
+            "",
+            []
+        ],
+        [
+            "Widget24",
+            "Widget10",
+            "",
+            []
+        ],
+        [
+            "Widget25",
+            "rootWidget",
+            "",
+            []
+        ],
+        [
+            "Widget0",
+            "Widget3",
+            "",
+            []
+        ],
+        [
+            "Widget1",
+            "Widget3",
+            "",
+            []
+        ],
+        [
+            "Widget2",
+            "Widget3",
+            "",
+            []
+        ],
+        [
+            "Widget4",
+            "Widget14",
+            "",
+            []
+        ]
+    ],
+    "backgroundColor": "skyBlue3",
+    "imageFileNames": [],
+    "groups": {},
+    "Widget3": {
+        "WidgetName": "ttk::frame",
+        "WidgetParent": "rootWidget",
+        "Place": {
+            "x": "16",
+            "relx": "0",
+            "y": "224",
+            "rely": "0",
+            "width": "320",
+            "relwidth": "",
+            "height": "80",
+            "relheight": "",
+            "anchor": "nw",
+            "bordermode": "inside"
+        },
+        "GeomData": {},
+        "Attribute0": {
+            "Key": "borderwidth",
+            "Value": ""
+        },
+        "Attribute1": {
+            "Key": "padding",
+            "Value": ""
+        },
+        "Attribute2": {
+            "Key": "relief",
+            "Value": ""
+        },
+        "Attribute3": {
+            "Key": "width",
+            "Value": "0"
+        },
+        "Attribute4": {
+            "Key": "height",
+            "Value": "0"
+        },
+        "Attribute5": {
+            "Key": "takefocus",
+            "Value": ""
+        },
+        "Attribute6": {
+            "Key": "cursor",
+            "Value": "arrow"
+        },
+        "Attribute7": {
+            "Key": "style",
+            "Value": "dark.TFrame"
+        },
+        "Attribute8": {
+            "Key": "class",
+            "Value": ""
+        },
+        "Widget3-KeyCount": 9
+    },
+    "Widget6": {
+        "WidgetName": "ttk::frame",
+        "WidgetParent": "rootWidget",
+        "Place": {
+            "x": "16",
+            "relx": "0",
+            "y": "160",
+            "rely": "0",
+            "width": "320",
+            "relwidth": "",
+            "height": "64",
+            "relheight": "",
+            "anchor": "nw",
+            "bordermode": "inside"
+        },
+        "GeomData": {},
+        "Attribute0": {
+            "Key": "borderwidth",
+            "Value": ""
+        },
+        "Attribute1": {
+            "Key": "padding",
+            "Value": ""
+        },
+        "Attribute2": {
+            "Key": "relief",
+            "Value": ""
+        },
+        "Attribute3": {
+            "Key": "width",
+            "Value": "0"
+        },
+        "Attribute4": {
+            "Key": "height",
+            "Value": "0"
+        },
+        "Attribute5": {
+            "Key": "takefocus",
+            "Value": ""
+        },
+        "Attribute6": {
+            "Key": "cursor",
+            "Value": "arrow"
+        },
+        "Attribute7": {
+            "Key": "style",
+            "Value": "dark.TFrame"
+        },
+        "Attribute8": {
+            "Key": "class",
+            "Value": ""
+        },
+        "Widget6-KeyCount": 9
+    },
+    "Widget7": {
+        "WidgetName": "ttk::button",
+        "WidgetParent": "Widget6",
+        "Place": {
+            "x": "0",
+            "relx": "0",
+            "y": "0",
+            "rely": "0",
+            "width": "48",
+            "relwidth": "",
+            "height": "48",
+            "relheight": "",
+            "anchor": "nw",
+            "bordermode": "inside"
+        },
+        "GeomData": {},
+        "Attribute0": {
+            "Key": "command",
+            "Value": "clicked_4"
+        },
+        "Attribute1": {
+            "Key": "default",
+            "Value": "normal"
+        },
+        "Attribute2": {
+            "Key": "takefocus",
+            "Value": "ttk::takefocus"
+        },
+        "Attribute3": {
+            "Key": "text",
+            "Value": "4"
+        },
+        "Attribute4": {
+            "Key": "underline",
+            "Value": "-1"
+        },
+        "Attribute5": {
+            "Key": "width",
+            "Value": ""
+        },
+        "Attribute6": {
+            "Key": "image",
+            "Value": ""
+        },
+        "Attribute7": {
+            "Key": "compound",
+            "Value": ""
+        },
+        "Attribute8": {
+            "Key": "padding",
+            "Value": "0"
+        },
+        "Attribute9": {
+            "Key": "state",
+            "Value": "normal"
+        },
+        "Attribute10": {
+            "Key": "cursor",
+            "Value": "arrow"
+        },
+        "Attribute11": {
+            "Key": "style",
+            "Value": "primary.Outline.TButton"
+        },
+        "Attribute12": {
+            "Key": "class",
+            "Value": ""
+        },
+        "Widget7-KeyCount": 13
+    },
+    "Widget8": {
+        "WidgetName": "ttk::button",
+        "WidgetParent": "Widget6",
+        "Place": {
+            "x": "128",
+            "relx": "0",
+            "y": "0",
+            "rely": "0",
+            "width": "48",
+            "relwidth": "",
+            "height": "48",
+            "relheight": "",
+            "anchor": "nw",
+            "bordermode": "inside"
+        },
+        "GeomData": {},
+        "Attribute0": {
+            "Key": "command",
+            "Value": "clicked_6"
+        },
+        "Attribute1": {
+            "Key": "default",
+            "Value": "normal"
+        },
+        "Attribute2": {
+            "Key": "takefocus",
+            "Value": "ttk::takefocus"
+        },
+        "Attribute3": {
+            "Key": "text",
+            "Value": "6"
+        },
+        "Attribute4": {
+            "Key": "underline",
+            "Value": "-1"
+        },
+        "Attribute5": {
+            "Key": "width",
+            "Value": ""
+        },
+        "Attribute6": {
+            "Key": "image",
+            "Value": ""
+        },
+        "Attribute7": {
+            "Key": "compound",
+            "Value": ""
+        },
+        "Attribute8": {
+            "Key": "padding",
+            "Value": ""
+        },
+        "Attribute9": {
+            "Key": "state",
+            "Value": "normal"
+        },
+        "Attribute10": {
+            "Key": "cursor",
+            "Value": "arrow"
+        },
+        "Attribute11": {
+            "Key": "style",
+            "Value": "primary.Outline.TButton"
+        },
+        "Attribute12": {
+            "Key": "class",
+            "Value": ""
+        },
+        "Widget8-KeyCount": 13
+    },
+    "Widget9": {
+        "WidgetName": "ttk::button",
+        "WidgetParent": "Widget6",
+        "Place": {
+            "x": "64",
+            "relx": "0",
+            "y": "0",
+            "rely": "0",
+            "width": "48",
+            "relwidth": "",
+            "height": "48",
+            "relheight": "",
+            "anchor": "nw",
+            "bordermode": "inside"
+        },
+        "GeomData": {},
+        "Attribute0": {
+            "Key": "command",
+            "Value": "clicked_5"
+        },
+        "Attribute1": {
+            "Key": "default",
+            "Value": "normal"
+        },
+        "Attribute2": {
+            "Key": "takefocus",
+            "Value": "ttk::takefocus"
+        },
+        "Attribute3": {
+            "Key": "text",
+            "Value": "5"
+        },
+        "Attribute4": {
+            "Key": "underline",
+            "Value": "-1"
+        },
+        "Attribute5": {
+            "Key": "width",
+            "Value": ""
+        },
+        "Attribute6": {
+            "Key": "image",
+            "Value": ""
+        },
+        "Attribute7": {
+            "Key": "compound",
+            "Value": ""
+        },
+        "Attribute8": {
+            "Key": "padding",
+            "Value": ""
+        },
+        "Attribute9": {
+            "Key": "state",
+            "Value": "normal"
+        },
+        "Attribute10": {
+            "Key": "cursor",
+            "Value": "arrow"
+        },
+        "Attribute11": {
+            "Key": "style",
+            "Value": "primary.Outline.TButton"
+        },
+        "Attribute12": {
+            "Key": "class",
+            "Value": ""
+        },
+        "Widget9-KeyCount": 13
+    },
+    "Widget10": {
+        "WidgetName": "ttk::frame",
+        "WidgetParent": "rootWidget",
+        "Place": {
+            "x": "16",
+            "relx": "0",
+            "y": "48",
+            "rely": "0",
+            "width": "320",
+            "relwidth": "",
+            "height": "112",
+            "relheight": "",
+            "anchor": "nw",
+            "bordermode": "inside"
+        },
+        "GeomData": {},
+        "Attribute0": {
+            "Key": "borderwidth",
+            "Value": ""
+        },
+        "Attribute1": {
+            "Key": "padding",
+            "Value": ""
+        },
+        "Attribute2": {
+            "Key": "relief",
+            "Value": ""
+        },
+        "Attribute3": {
+            "Key": "width",
+            "Value": "0"
+        },
+        "Attribute4": {
+            "Key": "height",
+            "Value": "0"
+        },
+        "Attribute5": {
+            "Key": "takefocus",
+            "Value": ""
+        },
+        "Attribute6": {
+            "Key": "cursor",
+            "Value": "arrow"
+        },
+        "Attribute7": {
+            "Key": "style",
+            "Value": "dark.TFrame"
+        },
+        "Attribute8": {
+            "Key": "class",
+            "Value": ""
+        },
+        "Widget10-KeyCount": 9
+    },
+    "Widget11": {
+        "WidgetName": "ttk::button",
+        "WidgetParent": "Widget10",
+        "Place": {
+            "x": "0",
+            "relx": "0",
+            "y": "48",
+            "rely": "0",
+            "width": "48",
+            "relwidth": "",
+            "height": "48",
+            "relheight": "",
+            "anchor": "nw",
+            "bordermode": "inside"
+        },
+        "GeomData": {},
+        "Attribute0": {
+            "Key": "command",
+            "Value": "clicked_7"
+        },
+        "Attribute1": {
+            "Key": "default",
+            "Value": "normal"
+        },
+        "Attribute2": {
+            "Key": "takefocus",
+            "Value": "ttk::takefocus"
+        },
+        "Attribute3": {
+            "Key": "text",
+            "Value": "7"
+        },
+        "Attribute4": {
+            "Key": "underline",
+            "Value": "-1"
+        },
+        "Attribute5": {
+            "Key": "width",
+            "Value": ""
+        },
+        "Attribute6": {
+            "Key": "image",
+            "Value": ""
+        },
+        "Attribute7": {
+            "Key": "compound",
+            "Value": ""
+        },
+        "Attribute8": {
+            "Key": "padding",
+            "Value": "0"
+        },
+        "Attribute9": {
+            "Key": "state",
+            "Value": "normal"
+        },
+        "Attribute10": {
+            "Key": "cursor",
+            "Value": "arrow"
+        },
+        "Attribute11": {
+            "Key": "style",
+            "Value": "primary.Outline.TButton"
+        },
+        "Attribute12": {
+            "Key": "class",
+            "Value": ""
+        },
+        "Widget11-KeyCount": 13
+    },
+    "Widget12": {
+        "WidgetName": "ttk::button",
+        "WidgetParent": "Widget10",
+        "Place": {
+            "x": "128",
+            "relx": "0",
+            "y": "48",
+            "rely": "0",
+            "width": "48",
+            "relwidth": "",
+            "height": "48",
+            "relheight": "",
+            "anchor": "nw",
+            "bordermode": "inside"
+        },
+        "GeomData": {},
+        "Attribute0": {
+            "Key": "command",
+            "Value": "clicked_9"
+        },
+        "Attribute1": {
+            "Key": "default",
+            "Value": "normal"
+        },
+        "Attribute2": {
+            "Key": "takefocus",
+            "Value": "ttk::takefocus"
+        },
+        "Attribute3": {
+            "Key": "text",
+            "Value": "9"
+        },
+        "Attribute4": {
+            "Key": "underline",
+            "Value": "-1"
+        },
+        "Attribute5": {
+            "Key": "width",
+            "Value": ""
+        },
+        "Attribute6": {
+            "Key": "image",
+            "Value": ""
+        },
+        "Attribute7": {
+            "Key": "compound",
+            "Value": ""
+        },
+        "Attribute8": {
+            "Key": "padding",
+            "Value": ""
+        },
+        "Attribute9": {
+            "Key": "state",
+            "Value": "normal"
+        },
+        "Attribute10": {
+            "Key": "cursor",
+            "Value": "arrow"
+        },
+        "Attribute11": {
+            "Key": "style",
+            "Value": "primary.Outline.TButton"
+        },
+        "Attribute12": {
+            "Key": "class",
+            "Value": ""
+        },
+        "Widget12-KeyCount": 13
+    },
+    "Widget13": {
+        "WidgetName": "ttk::button",
+        "WidgetParent": "Widget10",
+        "Place": {
+            "x": "64",
+            "relx": "0",
+            "y": "48",
+            "rely": "0",
+            "width": "48",
+            "relwidth": "",
+            "height": "48",
+            "relheight": "",
+            "anchor": "nw",
+            "bordermode": "inside"
+        },
+        "GeomData": {},
+        "Attribute0": {
+            "Key": "command",
+            "Value": "clicked_8"
+        },
+        "Attribute1": {
+            "Key": "default",
+            "Value": "normal"
+        },
+        "Attribute2": {
+            "Key": "takefocus",
+            "Value": "ttk::takefocus"
+        },
+        "Attribute3": {
+            "Key": "text",
+            "Value": "8"
+        },
+        "Attribute4": {
+            "Key": "underline",
+            "Value": "-1"
+        },
+        "Attribute5": {
+            "Key": "width",
+            "Value": ""
+        },
+        "Attribute6": {
+            "Key": "image",
+            "Value": ""
+        },
+        "Attribute7": {
+            "Key": "compound",
+            "Value": ""
+        },
+        "Attribute8": {
+            "Key": "padding",
+            "Value": ""
+        },
+        "Attribute9": {
+            "Key": "state",
+            "Value": "normal"
+        },
+        "Attribute10": {
+            "Key": "cursor",
+            "Value": "arrow"
+        },
+        "Attribute11": {
+            "Key": "style",
+            "Value": "primary.Outline.TButton"
+        },
+        "Attribute12": {
+            "Key": "class",
+            "Value": ""
+        },
+        "Widget13-KeyCount": 13
+    },
+    "Widget14": {
+        "WidgetName": "ttk::frame",
+        "WidgetParent": "rootWidget",
+        "Place": {
+            "x": "16",
+            "relx": "0",
+            "y": "288",
+            "rely": "0",
+            "width": "320",
+            "relwidth": "",
+            "height": "80",
+            "relheight": "",
+            "anchor": "nw",
+            "bordermode": "inside"
+        },
+        "GeomData": {},
+        "Attribute0": {
+            "Key": "borderwidth",
+            "Value": ""
+        },
+        "Attribute1": {
+            "Key": "padding",
+            "Value": ""
+        },
+        "Attribute2": {
+            "Key": "relief",
+            "Value": ""
+        },
+        "Attribute3": {
+            "Key": "width",
+            "Value": "0"
+        },
+        "Attribute4": {
+            "Key": "height",
+            "Value": "0"
+        },
+        "Attribute5": {
+            "Key": "takefocus",
+            "Value": ""
+        },
+        "Attribute6": {
+            "Key": "cursor",
+            "Value": "arrow"
+        },
+        "Attribute7": {
+            "Key": "style",
+            "Value": "dark.TFrame"
+        },
+        "Attribute8": {
+            "Key": "class",
+            "Value": ""
+        },
+        "Widget14-KeyCount": 9
+    },
+    "Widget15": {
+        "WidgetName": "ttk::button",
+        "WidgetParent": "Widget14",
+        "Place": {
+            "x": "32",
+            "relx": "0",
+            "y": "0",
+            "rely": "0",
+            "width": "112",
+            "relwidth": "",
+            "height": "48",
+            "relheight": "",
+            "anchor": "nw",
+            "bordermode": "inside"
+        },
+        "GeomData": {},
+        "Attribute0": {
+            "Key": "command",
+            "Value": "clicked_0"
+        },
+        "Attribute1": {
+            "Key": "default",
+            "Value": "normal"
+        },
+        "Attribute2": {
+            "Key": "takefocus",
+            "Value": "ttk::takefocus"
+        },
+        "Attribute3": {
+            "Key": "text",
+            "Value": "0"
+        },
+        "Attribute4": {
+            "Key": "underline",
+            "Value": "-1"
+        },
+        "Attribute5": {
+            "Key": "width",
+            "Value": ""
+        },
+        "Attribute6": {
+            "Key": "image",
+            "Value": ""
+        },
+        "Attribute7": {
+            "Key": "compound",
+            "Value": ""
+        },
+        "Attribute8": {
+            "Key": "padding",
+            "Value": "0"
+        },
+        "Attribute9": {
+            "Key": "state",
+            "Value": "normal"
+        },
+        "Attribute10": {
+            "Key": "cursor",
+            "Value": "arrow"
+        },
+        "Attribute11": {
+            "Key": "style",
+            "Value": "primary.Outline.TButton"
+        },
+        "Attribute12": {
+            "Key": "class",
+            "Value": ""
+        },
+        "Widget15-KeyCount": 13
+    },
+    "Widget16": {
+        "WidgetName": "ttk::button",
+        "WidgetParent": "Widget14",
+        "Place": {
+            "x": "192",
+            "relx": "0",
+            "y": "0",
+            "rely": "0",
+            "width": "48",
+            "relwidth": "",
+            "height": "48",
+            "relheight": "",
+            "anchor": "nw",
+            "bordermode": "inside"
+        },
+        "GeomData": {},
+        "Attribute0": {
+            "Key": "command",
+            "Value": "clicked_plus"
+        },
+        "Attribute1": {
+            "Key": "default",
+            "Value": "normal"
+        },
+        "Attribute2": {
+            "Key": "takefocus",
+            "Value": "ttk::takefocus"
+        },
+        "Attribute3": {
+            "Key": "text",
+            "Value": "+"
+        },
+        "Attribute4": {
+            "Key": "underline",
+            "Value": "-1"
+        },
+        "Attribute5": {
+            "Key": "width",
+            "Value": ""
+        },
+        "Attribute6": {
+            "Key": "image",
+            "Value": ""
+        },
+        "Attribute7": {
+            "Key": "compound",
+            "Value": ""
+        },
+        "Attribute8": {
+            "Key": "padding",
+            "Value": ""
+        },
+        "Attribute9": {
+            "Key": "state",
+            "Value": "normal"
+        },
+        "Attribute10": {
+            "Key": "cursor",
+            "Value": "arrow"
+        },
+        "Attribute11": {
+            "Key": "style",
+            "Value": "primary.Outline.TButton"
+        },
+        "Attribute12": {
+            "Key": "class",
+            "Value": ""
+        },
+        "Widget16-KeyCount": 13
+    },
+    "Widget17": {
+        "WidgetName": "ttk::button",
+        "WidgetParent": "Widget6",
+        "Place": {
+            "x": "256",
+            "relx": "0",
+            "y": "0",
+            "rely": "0",
+            "width": "64",
+            "relwidth": "",
+            "height": "48",
+            "relheight": "",
+            "anchor": "nw",
+            "bordermode": "inside"
+        },
+        "GeomData": {},
+        "Attribute0": {
+            "Key": "command",
+            "Value": "clicked_BS"
+        },
+        "Attribute1": {
+            "Key": "default",
+            "Value": "normal"
+        },
+        "Attribute2": {
+            "Key": "takefocus",
+            "Value": "ttk::takefocus"
+        },
+        "Attribute3": {
+            "Key": "text",
+            "Value": "Undo"
+        },
+        "Attribute4": {
+            "Key": "underline",
+            "Value": "-1"
+        },
+        "Attribute5": {
+            "Key": "width",
+            "Value": "0"
+        },
+        "Attribute6": {
+            "Key": "image",
+            "Value": ""
+        },
+        "Attribute7": {
+            "Key": "compound",
+            "Value": ""
+        },
+        "Attribute8": {
+            "Key": "padding",
+            "Value": ""
+        },
+        "Attribute9": {
+            "Key": "state",
+            "Value": "normal"
+        },
+        "Attribute10": {
+            "Key": "cursor",
+            "Value": "arrow"
+        },
+        "Attribute11": {
+            "Key": "style",
+            "Value": "warning.Outline.TButton"
+        },
+        "Attribute12": {
+            "Key": "class",
+            "Value": ""
+        },
+        "Widget17-KeyCount": 13
+    },
+    "Widget18": {
+        "WidgetName": "ttk::button",
+        "WidgetParent": "Widget14",
+        "Place": {
+            "x": "192",
+            "relx": "0",
+            "y": "0",
+            "rely": "0",
+            "width": "48",
+            "relwidth": "",
+            "height": "48",
+            "relheight": "",
+            "anchor": "nw",
+            "bordermode": "inside"
+        },
+        "GeomData": {},
+        "Attribute0": {
+            "Key": "command",
+            "Value": "clicked_plus"
+        },
+        "Attribute1": {
+            "Key": "default",
+            "Value": "normal"
+        },
+        "Attribute2": {
+            "Key": "takefocus",
+            "Value": "ttk::takefocus"
+        },
+        "Attribute3": {
+            "Key": "text",
+            "Value": "+"
+        },
+        "Attribute4": {
+            "Key": "underline",
+            "Value": "-1"
+        },
+        "Attribute5": {
+            "Key": "width",
+            "Value": ""
+        },
+        "Attribute6": {
+            "Key": "image",
+            "Value": ""
+        },
+        "Attribute7": {
+            "Key": "compound",
+            "Value": ""
+        },
+        "Attribute8": {
+            "Key": "padding",
+            "Value": ""
+        },
+        "Attribute9": {
+            "Key": "state",
+            "Value": "normal"
+        },
+        "Attribute10": {
+            "Key": "cursor",
+            "Value": "arrow"
+        },
+        "Attribute11": {
+            "Key": "style",
+            "Value": "primary.Outline.TButton"
+        },
+        "Attribute12": {
+            "Key": "class",
+            "Value": ""
+        },
+        "Widget18-KeyCount": 13
+    },
+    "Widget19": {
+        "WidgetName": "ttk::button",
+        "WidgetParent": "Widget3",
+        "Place": {
+            "x": "192",
+            "relx": "0",
+            "y": "0",
+            "rely": "0",
+            "width": "48",
+            "relwidth": "",
+            "height": "48",
+            "relheight": "",
+            "anchor": "nw",
+            "bordermode": "inside"
+        },
+        "GeomData": {},
+        "Attribute0": {
+            "Key": "command",
+            "Value": "clicked_minus"
+        },
+        "Attribute1": {
+            "Key": "default",
+            "Value": "normal"
+        },
+        "Attribute2": {
+            "Key": "takefocus",
+            "Value": "ttk::takefocus"
+        },
+        "Attribute3": {
+            "Key": "text",
+            "Value": "-"
+        },
+        "Attribute4": {
+            "Key": "underline",
+            "Value": "-1"
+        },
+        "Attribute5": {
+            "Key": "width",
+            "Value": ""
+        },
+        "Attribute6": {
+            "Key": "image",
+            "Value": ""
+        },
+        "Attribute7": {
+            "Key": "compound",
+            "Value": ""
+        },
+        "Attribute8": {
+            "Key": "padding",
+            "Value": ""
+        },
+        "Attribute9": {
+            "Key": "state",
+            "Value": "normal"
+        },
+        "Attribute10": {
+            "Key": "cursor",
+            "Value": "arrow"
+        },
+        "Attribute11": {
+            "Key": "style",
+            "Value": "primary.Outline.TButton"
+        },
+        "Attribute12": {
+            "Key": "class",
+            "Value": ""
+        },
+        "Widget19-KeyCount": 13
+    },
+    "Widget20": {
+        "WidgetName": "ttk::button",
+        "WidgetParent": "Widget6",
+        "Place": {
+            "x": "192",
+            "relx": "0",
+            "y": "0",
+            "rely": "0",
+            "width": "48",
+            "relwidth": "",
+            "height": "48",
+            "relheight": "",
+            "anchor": "nw",
+            "bordermode": "inside"
+        },
+        "GeomData": {},
+        "Attribute0": {
+            "Key": "command",
+            "Value": "clicked_mult"
+        },
+        "Attribute1": {
+            "Key": "default",
+            "Value": "normal"
+        },
+        "Attribute2": {
+            "Key": "takefocus",
+            "Value": "ttk::takefocus"
+        },
+        "Attribute3": {
+            "Key": "text",
+            "Value": "*"
+        },
+        "Attribute4": {
+            "Key": "underline",
+            "Value": "-1"
+        },
+        "Attribute5": {
+            "Key": "width",
+            "Value": ""
+        },
+        "Attribute6": {
+            "Key": "image",
+            "Value": ""
+        },
+        "Attribute7": {
+            "Key": "compound",
+            "Value": ""
+        },
+        "Attribute8": {
+            "Key": "padding",
+            "Value": ""
+        },
+        "Attribute9": {
+            "Key": "state",
+            "Value": "normal"
+        },
+        "Attribute10": {
+            "Key": "cursor",
+            "Value": "arrow"
+        },
+        "Attribute11": {
+            "Key": "style",
+            "Value": "primary.Outline.TButton"
+        },
+        "Attribute12": {
+            "Key": "class",
+            "Value": ""
+        },
+        "Widget20-KeyCount": 13
+    },
+    "Widget21": {
+        "WidgetName": "ttk::button",
+        "WidgetParent": "Widget3",
+        "Place": {
+            "x": "256",
+            "relx": "0",
+            "y": "0",
+            "rely": "0",
+            "width": "64",
+            "relwidth": "",
+            "height": "48",
+            "relheight": "",
+            "anchor": "nw",
+            "bordermode": "inside"
+        },
+        "GeomData": {},
+        "Attribute0": {
+            "Key": "command",
+            "Value": "clicked_equals"
+        },
+        "Attribute1": {
+            "Key": "default",
+            "Value": "normal"
+        },
+        "Attribute2": {
+            "Key": "takefocus",
+            "Value": "ttk::takefocus"
+        },
+        "Attribute3": {
+            "Key": "text",
+            "Value": "="
+        },
+        "Attribute4": {
+            "Key": "underline",
+            "Value": "-1"
+        },
+        "Attribute5": {
+            "Key": "width",
+            "Value": ""
+        },
+        "Attribute6": {
+            "Key": "image",
+            "Value": ""
+        },
+        "Attribute7": {
+            "Key": "compound",
+            "Value": ""
+        },
+        "Attribute8": {
+            "Key": "padding",
+            "Value": ""
+        },
+        "Attribute9": {
+            "Key": "state",
+            "Value": "normal"
+        },
+        "Attribute10": {
+            "Key": "cursor",
+            "Value": "arrow"
+        },
+        "Attribute11": {
+            "Key": "style",
+            "Value": "success.Outline.TButton"
+        },
+        "Attribute12": {
+            "Key": "class",
+            "Value": ""
+        },
+        "Widget21-KeyCount": 13
+    },
+    "Widget22": {
+        "WidgetName": "ttk::button",
+        "WidgetParent": "Widget10",
+        "Place": {
+            "x": "192",
+            "relx": "0",
+            "y": "48",
+            "rely": "0",
+            "width": "48",
+            "relwidth": "",
+            "height": "48",
+            "relheight": "",
+            "anchor": "nw",
+            "bordermode": "inside"
+        },
+        "GeomData": {},
+        "Attribute0": {
+            "Key": "command",
+            "Value": "clicked_div"
+        },
+        "Attribute1": {
+            "Key": "default",
+            "Value": "normal"
+        },
+        "Attribute2": {
+            "Key": "takefocus",
+            "Value": "ttk::takefocus"
+        },
+        "Attribute3": {
+            "Key": "text",
+            "Value": "/"
+        },
+        "Attribute4": {
+            "Key": "underline",
+            "Value": "-1"
+        },
+        "Attribute5": {
+            "Key": "width",
+            "Value": ""
+        },
+        "Attribute6": {
+            "Key": "image",
+            "Value": ""
+        },
+        "Attribute7": {
+            "Key": "compound",
+            "Value": ""
+        },
+        "Attribute8": {
+            "Key": "padding",
+            "Value": ""
+        },
+        "Attribute9": {
+            "Key": "state",
+            "Value": "normal"
+        },
+        "Attribute10": {
+            "Key": "cursor",
+            "Value": "arrow"
+        },
+        "Attribute11": {
+            "Key": "style",
+            "Value": "primary.Outline.TButton"
+        },
+        "Attribute12": {
+            "Key": "class",
+            "Value": ""
+        },
+        "Widget22-KeyCount": 13
+    },
+    "Widget23": {
+        "WidgetName": "ttk::button",
+        "WidgetParent": "Widget10",
+        "Place": {
+            "x": "256",
+            "relx": "0",
+            "y": "48",
+            "rely": "0",
+            "width": "64",
+            "relwidth": "",
+            "height": "48",
+            "relheight": "",
+            "anchor": "nw",
+            "bordermode": "inside"
+        },
+        "GeomData": {},
+        "Attribute0": {
+            "Key": "command",
+            "Value": "clicked_clear"
+        },
+        "Attribute1": {
+            "Key": "default",
+            "Value": "normal"
+        },
+        "Attribute2": {
+            "Key": "takefocus",
+            "Value": "ttk::takefocus"
+        },
+        "Attribute3": {
+            "Key": "text",
+            "Value": "Clear"
+        },
+        "Attribute4": {
+            "Key": "underline",
+            "Value": "-1"
+        },
+        "Attribute5": {
+            "Key": "width",
+            "Value": ""
+        },
+        "Attribute6": {
+            "Key": "image",
+            "Value": ""
+        },
+        "Attribute7": {
+            "Key": "compound",
+            "Value": ""
+        },
+        "Attribute8": {
+            "Key": "padding",
+            "Value": ""
+        },
+        "Attribute9": {
+            "Key": "state",
+            "Value": "normal"
+        },
+        "Attribute10": {
+            "Key": "cursor",
+            "Value": "arrow"
+        },
+        "Attribute11": {
+            "Key": "style",
+            "Value": "danger.Outline.TButton"
+        },
+        "Attribute12": {
+            "Key": "class",
+            "Value": ""
+        },
+        "Widget23-KeyCount": 13
+    },
+    "Widget24": {
+        "WidgetName": "ttk::entry",
+        "WidgetParent": "Widget10",
+        "Place": {
+            "x": "0",
+            "relx": "0",
+            "y": "0",
+            "rely": "0",
+            "width": "320",
+            "relwidth": "",
+            "height": "32",
+            "relheight": "",
+            "anchor": "nw",
+            "bordermode": "inside"
+        },
+        "GeomData": {},
+        "Attribute0": {
+            "Key": "textvariable",
+            "Value": "calcvar"
+        },
+        "Attribute1": {
+            "Key": "exportselection",
+            "Value": "1"
+        },
+        "Attribute2": {
+            "Key": "font",
+            "Value": "{'family': 'Liberation\\\\ Mono', 'size': 18, 'weight': 'normal', 'slant': 'roman', 'underline': 0, 'overstrike': 0}"
+        },
+        "Attribute3": {
+            "Key": "invalidcommand",
+            "Value": ""
+        },
+        "Attribute4": {
+            "Key": "justify",
+            "Value": "left"
+        },
+        "Attribute5": {
+            "Key": "show",
+            "Value": ""
+        },
+        "Attribute6": {
+            "Key": "state",
+            "Value": "normal"
+        },
+        "Attribute7": {
+            "Key": "validate",
+            "Value": "none"
+        },
+        "Attribute8": {
+            "Key": "validatecommand",
+            "Value": ""
+        },
+        "Attribute9": {
+            "Key": "width",
+            "Value": "20"
+        },
+        "Attribute10": {
+            "Key": "foreground",
+            "Value": "#ec133e"
+        },
+        "Attribute11": {
+            "Key": "background",
+            "Value": ""
+        },
+        "Attribute12": {
+            "Key": "takefocus",
+            "Value": "ttk::takefocus"
+        },
+        "Attribute13": {
+            "Key": "cursor",
+            "Value": "arrow"
+        },
+        "Attribute14": {
+            "Key": "style",
+            "Value": "primary.TEntry"
+        },
+        "Attribute15": {
+            "Key": "class",
+            "Value": ""
+        },
+        "Widget24-KeyCount": 16
+    },
+    "Widget25": {
+        "WidgetName": "ttk::label",
+        "WidgetParent": "rootWidget",
+        "Place": {
+            "x": "16",
+            "relx": "0",
+            "y": "16",
+            "rely": "0",
+            "width": "320",
+            "relwidth": "",
+            "height": "32",
+            "relheight": "",
+            "anchor": "nw",
+            "bordermode": "inside"
+        },
+        "GeomData": {},
+        "Attribute0": {
+            "Key": "background",
+            "Value": ""
+        },
+        "Attribute1": {
+            "Key": "foreground",
+            "Value": ""
+        },
+        "Attribute2": {
+            "Key": "font",
+            "Value": "{'family': 'Liberation\\\\ Mono', 'size': 18, 'weight': 'normal', 'slant': 'roman', 'underline': 0, 'overstrike': 0}"
+        },
+        "Attribute3": {
+            "Key": "borderwidth",
+            "Value": "0"
+        },
+        "Attribute4": {
+            "Key": "relief",
+            "Value": "groove"
+        },
+        "Attribute5": {
+            "Key": "anchor",
+            "Value": "center"
+        },
+        "Attribute6": {
+            "Key": "justify",
+            "Value": "center"
+        },
+        "Attribute7": {
+            "Key": "wraplength",
+            "Value": ""
+        },
+        "Attribute8": {
+            "Key": "takefocus",
+            "Value": ""
+        },
+        "Attribute9": {
+            "Key": "text",
+            "Value": "Simple Calculator"
+        },
+        "Attribute10": {
+            "Key": "underline",
+            "Value": "-1"
+        },
+        "Attribute11": {
+            "Key": "width",
+            "Value": "0"
+        },
+        "Attribute12": {
+            "Key": "image",
+            "Value": ""
+        },
+        "Attribute13": {
+            "Key": "compound",
+            "Value": ""
+        },
+        "Attribute14": {
+            "Key": "padding",
+            "Value": "2"
+        },
+        "Attribute15": {
+            "Key": "state",
+            "Value": "normal"
+        },
+        "Attribute16": {
+            "Key": "cursor",
+            "Value": "arrow"
+        },
+        "Attribute17": {
+            "Key": "style",
+            "Value": "success.TLabel"
+        },
+        "Attribute18": {
+            "Key": "class",
+            "Value": ""
+        },
+        "Widget25-KeyCount": 19
+    },
+    "Widget0": {
+        "WidgetName": "ttk::button",
+        "WidgetParent": "Widget3",
+        "Place": {
+            "x": "0",
+            "relx": "0",
+            "y": "0",
+            "rely": "0",
+            "width": "48",
+            "relwidth": "",
+            "height": "48",
+            "relheight": "",
+            "anchor": "nw",
+            "bordermode": "inside"
+        },
+        "GeomData": {},
+        "Attribute0": {
+            "Key": "command",
+            "Value": "clicked_1"
+        },
+        "Attribute1": {
+            "Key": "default",
+            "Value": "normal"
+        },
+        "Attribute2": {
+            "Key": "takefocus",
+            "Value": "ttk::takefocus"
+        },
+        "Attribute3": {
+            "Key": "text",
+            "Value": "1"
+        },
+        "Attribute4": {
+            "Key": "underline",
+            "Value": "-1"
+        },
+        "Attribute5": {
+            "Key": "width",
+            "Value": ""
+        },
+        "Attribute6": {
+            "Key": "image",
+            "Value": ""
+        },
+        "Attribute7": {
+            "Key": "compound",
+            "Value": ""
+        },
+        "Attribute8": {
+            "Key": "padding",
+            "Value": "0"
+        },
+        "Attribute9": {
+            "Key": "state",
+            "Value": "normal"
+        },
+        "Attribute10": {
+            "Key": "cursor",
+            "Value": "arrow"
+        },
+        "Attribute11": {
+            "Key": "style",
+            "Value": "primary.Outline.TButton"
+        },
+        "Attribute12": {
+            "Key": "class",
+            "Value": ""
+        },
+        "Widget0-KeyCount": 13
+    },
+    "Widget1": {
+        "WidgetName": "ttk::button",
+        "WidgetParent": "Widget3",
+        "Place": {
+            "x": "64",
+            "relx": "0",
+            "y": "0",
+            "rely": "0",
+            "width": "48",
+            "relwidth": "",
+            "height": "48",
+            "relheight": "",
+            "anchor": "nw",
+            "bordermode": "inside"
+        },
+        "GeomData": {},
+        "Attribute0": {
+            "Key": "command",
+            "Value": "clicked_2"
+        },
+        "Attribute1": {
+            "Key": "default",
+            "Value": "normal"
+        },
+        "Attribute2": {
+            "Key": "takefocus",
+            "Value": "ttk::takefocus"
+        },
+        "Attribute3": {
+            "Key": "text",
+            "Value": "2"
+        },
+        "Attribute4": {
+            "Key": "underline",
+            "Value": "-1"
+        },
+        "Attribute5": {
+            "Key": "width",
+            "Value": ""
+        },
+        "Attribute6": {
+            "Key": "image",
+            "Value": ""
+        },
+        "Attribute7": {
+            "Key": "compound",
+            "Value": ""
+        },
+        "Attribute8": {
+            "Key": "padding",
+            "Value": ""
+        },
+        "Attribute9": {
+            "Key": "state",
+            "Value": "normal"
+        },
+        "Attribute10": {
+            "Key": "cursor",
+            "Value": "arrow"
+        },
+        "Attribute11": {
+            "Key": "style",
+            "Value": "primary.Outline.TButton"
+        },
+        "Attribute12": {
+            "Key": "class",
+            "Value": ""
+        },
+        "Widget1-KeyCount": 13
+    },
+    "Widget2": {
+        "WidgetName": "ttk::button",
+        "WidgetParent": "Widget3",
+        "Place": {
+            "x": "128",
+            "relx": "0",
+            "y": "0",
+            "rely": "0",
+            "width": "48",
+            "relwidth": "",
+            "height": "48",
+            "relheight": "",
+            "anchor": "nw",
+            "bordermode": "inside"
+        },
+        "GeomData": {},
+        "Attribute0": {
+            "Key": "command",
+            "Value": "clicked_3"
+        },
+        "Attribute1": {
+            "Key": "default",
+            "Value": "normal"
+        },
+        "Attribute2": {
+            "Key": "takefocus",
+            "Value": "ttk::takefocus"
+        },
+        "Attribute3": {
+            "Key": "text",
+            "Value": "3"
+        },
+        "Attribute4": {
+            "Key": "underline",
+            "Value": "-1"
+        },
+        "Attribute5": {
+            "Key": "width",
+            "Value": ""
+        },
+        "Attribute6": {
+            "Key": "image",
+            "Value": ""
+        },
+        "Attribute7": {
+            "Key": "compound",
+            "Value": ""
+        },
+        "Attribute8": {
+            "Key": "padding",
+            "Value": ""
+        },
+        "Attribute9": {
+            "Key": "state",
+            "Value": "normal"
+        },
+        "Attribute10": {
+            "Key": "cursor",
+            "Value": "arrow"
+        },
+        "Attribute11": {
+            "Key": "style",
+            "Value": "primary.Outline.TButton"
+        },
+        "Attribute12": {
+            "Key": "class",
+            "Value": ""
+        },
+        "Widget2-KeyCount": 13
+    },
+    "Widget4": {
+        "WidgetName": "ttk::button",
+        "WidgetParent": "Widget14",
+        "Place": {
+            "x": "256",
+            "relx": "0",
+            "y": "0",
+            "rely": "0",
+            "width": "64",
+            "relwidth": "",
+            "height": "48",
+            "relheight": "",
+            "anchor": "nw",
+            "bordermode": "inside"
+        },
+        "GeomData": {},
+        "Attribute0": {
+            "Key": "command",
+            "Value": "clicked_period"
+        },
+        "Attribute1": {
+            "Key": "default",
+            "Value": "normal"
+        },
+        "Attribute2": {
+            "Key": "takefocus",
+            "Value": "ttk::takefocus"
+        },
+        "Attribute3": {
+            "Key": "text",
+            "Value": "."
+        },
+        "Attribute4": {
+            "Key": "underline",
+            "Value": "-1"
+        },
+        "Attribute5": {
+            "Key": "width",
+            "Value": ""
+        },
+        "Attribute6": {
+            "Key": "image",
+            "Value": ""
+        },
+        "Attribute7": {
+            "Key": "compound",
+            "Value": ""
+        },
+        "Attribute8": {
+            "Key": "padding",
+            "Value": ""
+        },
+        "Attribute9": {
+            "Key": "state",
+            "Value": "normal"
+        },
+        "Attribute10": {
+            "Key": "cursor",
+            "Value": "arrow"
+        },
+        "Attribute11": {
+            "Key": "style",
+            "Value": "info.Outline.TButton"
+        },
+        "Attribute12": {
+            "Key": "class",
+            "Value": ""
+        },
+        "Widget4-KeyCount": 13
+    },
+    "widgetCount": 25
+}

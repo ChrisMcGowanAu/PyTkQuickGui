@@ -1,0 +1,234 @@
+{
+    "formatVersion": 2,
+    "ProjectName": "tabs",
+    "ProjectPath": "",
+    "width": 0,
+    "height": 0,
+    "theme": "tokyo-night-dark",
+    "geomManager": "Place",
+    "gridRows": 15,
+    "gridCols": 21,
+    "gridLineColor": "",
+    "gridRowMinsize": "2.5m",
+    "gridColMinsize": "5m",
+    "gridRowPad": "0.5m",
+    "gridColPad": "1m",
+    "generatedPyFile": "",
+    "widgetNameList": [
+        [
+            "Widget0",
+            "rootWidget",
+            "",
+            [
+                "Widget1",
+                "Widget2",
+                "Widget3"
+            ]
+        ],
+        [
+            "Widget1",
+            "Widget0",
+            "",
+            []
+        ],
+        [
+            "Widget2",
+            "Widget0",
+            "",
+            []
+        ],
+        [
+            "Widget3",
+            "Widget0",
+            "",
+            []
+        ]
+    ],
+    "backgroundColor": "skyBlue3",
+    "imageFileNames": [],
+    "groups": {},
+    "Widget0": {
+        "WidgetName": "ttk::notebook",
+        "WidgetParent": "rootWidget",
+        "Place": {
+            "x": "64",
+            "relx": "0",
+            "y": "32",
+            "rely": "0",
+            "width": "192",
+            "relwidth": "",
+            "height": "160",
+            "relheight": "",
+            "anchor": "nw",
+            "bordermode": "inside"
+        },
+        "GeomData": {},
+        "Attribute0": {
+            "Key": "width",
+            "Value": "0"
+        },
+        "Attribute1": {
+            "Key": "height",
+            "Value": "0"
+        },
+        "Attribute2": {
+            "Key": "padding",
+            "Value": ""
+        },
+        "Attribute3": {
+            "Key": "takefocus",
+            "Value": "ttk::takefocus"
+        },
+        "Attribute4": {
+            "Key": "cursor",
+            "Value": ""
+        },
+        "Attribute5": {
+            "Key": "style",
+            "Value": "primary.TNotebook"
+        },
+        "Attribute6": {
+            "Key": "class",
+            "Value": ""
+        },
+        "Attribute7": {
+            "Key": "tab_labels",
+            "Value": "Home,Config,About"
+        },
+        "Attribute8": {
+            "Key": "tab_count",
+            "Value": "3"
+        },
+        "Widget0-KeyCount": 9
+    },
+    "Widget1": {
+        "WidgetName": "ttk::frame",
+        "WidgetParent": "Widget0",
+        "Place": {},
+        "GeomData": {},
+        "Attribute0": {
+            "Key": "borderwidth",
+            "Value": "1"
+        },
+        "Attribute1": {
+            "Key": "padding",
+            "Value": ""
+        },
+        "Attribute2": {
+            "Key": "relief",
+            "Value": ""
+        },
+        "Attribute3": {
+            "Key": "width",
+            "Value": "0"
+        },
+        "Attribute4": {
+            "Key": "height",
+            "Value": "0"
+        },
+        "Attribute5": {
+            "Key": "takefocus",
+            "Value": ""
+        },
+        "Attribute6": {
+            "Key": "cursor",
+            "Value": ""
+        },
+        "Attribute7": {
+            "Key": "style",
+            "Value": "dark.TFrame"
+        },
+        "Attribute8": {
+            "Key": "class",
+            "Value": ""
+        },
+        "Widget1-KeyCount": 9
+    },
+    "Widget2": {
+        "WidgetName": "ttk::frame",
+        "WidgetParent": "Widget0",
+        "Place": {},
+        "GeomData": {},
+        "Attribute0": {
+            "Key": "borderwidth",
+            "Value": "1"
+        },
+        "Attribute1": {
+            "Key": "padding",
+            "Value": ""
+        },
+        "Attribute2": {
+            "Key": "relief",
+            "Value": ""
+        },
+        "Attribute3": {
+            "Key": "width",
+            "Value": "0"
+        },
+        "Attribute4": {
+            "Key": "height",
+            "Value": "0"
+        },
+        "Attribute5": {
+            "Key": "takefocus",
+            "Value": ""
+        },
+        "Attribute6": {
+            "Key": "cursor",
+            "Value": ""
+        },
+        "Attribute7": {
+            "Key": "style",
+            "Value": "danger.TFrame"
+        },
+        "Attribute8": {
+            "Key": "class",
+            "Value": ""
+        },
+        "Widget2-KeyCount": 9
+    },
+    "Widget3": {
+        "WidgetName": "ttk::frame",
+        "WidgetParent": "Widget0",
+        "Place": {},
+        "GeomData": {},
+        "Attribute0": {
+            "Key": "borderwidth",
+            "Value": "1"
+        },
+        "Attribute1": {
+            "Key": "padding",
+            "Value": ""
+        },
+        "Attribute2": {
+            "Key": "relief",
+            "Value": ""
+        },
+        "Attribute3": {
+            "Key": "width",
+            "Value": "0"
+        },
+        "Attribute4": {
+            "Key": "height",
+            "Value": "0"
+        },
+        "Attribute5": {
+            "Key": "takefocus",
+            "Value": ""
+        },
+        "Attribute6": {
+            "Key": "cursor",
+            "Value": ""
+        },
+        "Attribute7": {
+            "Key": "style",
+            "Value": "success.TFrame"
+        },
+        "Attribute8": {
+            "Key": "class",
+            "Value": ""
+        },
+        "Widget3-KeyCount": 9
+    },
+    "widgetCount": 4
+}

@@ -92,6 +92,19 @@ On Windows, activate the environment with:
    write a program. **File → Generate Flet** writes the same layout as a
    [Flet](https://flet.dev) application.
 
+Several ready made projects ship in `examples/`. Copy them into the tool's
+directory and open one to see a finished project, or to compare the Python and
+Flet output:
+
+```bash
+mkdir -p "$HOME/.config/pytkgui/examples"
+cp -r examples/* "$HOME/.config/pytkgui/examples/"
+```
+
+Then **File → Open Project** and pick a folder such as
+`~/.config/pytkgui/examples/Calculator`. See INSTALL.TXT for the Windows
+equivalent and a list of what each example shows.
+
 ## Interface
 
 The top toolbar shows the active layout manager. Grid projects also expose:

@@ -13,6 +13,37 @@ short version is:
     venv/bin/python pytkquickgui.py
 
 
+Loading an example project
+--------------------------
+
+The repository ships a few ready made projects under "examples".  Copy them
+into the directory the tool looks in, then open one:
+
+    mkdir -p "$HOME/.config/pytkgui/examples"
+    cp -r examples/* "$HOME/.config/pytkgui/examples/"
+
+On Windows the tool's directory is %APPDATA%\pytkgui, so:
+
+    xcopy /E /I examples "%APPDATA%\pytkgui\examples"
+
+Then in the tool use File -> Open Project and select the project folder
+itself, for example $HOME/.config/pytkgui/examples/Calculator (the folder
+name and the .json inside it have to match, which they do as shipped).
+
+    SimplePlace     a small starter: label, labelframe, button, check,
+                    radio and a text area
+    Calculator      a working calculator, 19 buttons positioned by hand
+    FletAllWidgets  one of every widget type the tool can draw
+    tabs            a notebook with three tabs, showing the tab captions
+    UserForm        a form: entries, a combo box and a notebook
+    sudokupack      a small Grid project
+    sudoku3         a large Grid project, 91 widgets
+
+All of them use themes that ship with ttkbootstrap, and none of them refer
+to image files, so they work anywhere.  Open one, then use File -> Trial Run
+to see it, or File -> Generate Flet to see what the Flet output looks like.
+
+
 What you need
 -------------
 
@@ -173,20 +204,26 @@ Bugs and feature requests
 Working on the tool itself
 --------------------------
 
+    tools/qa.sh                                        # isort, black, ruff,
+                                                       # flake8, import check
     venv/bin/python -m unittest discover -s tests      # the test suite
     venv/bin/python tools/smoke_flet_generated.py      # every saved project,
                                                        # generated and built
-    venv/bin/flake8 *.py tests/*.py tools/*.py         # style (see .flake8)
-    venv/bin/ruff check .
-    pylint --disable=<the list in .github/workflows/pylint.yml> *.py
+    venv/bin/python tools/smoke_flet_generated.py "examples/*/*.json"
+    venv/bin/flake8 $(git ls-files '*.py')             # style (see .flake8)
+    venv/bin/ruff check $(git ls-files '*.py')
+    venv/bin/pylint --disable=<the list in .github/workflows/pylint.yml> \
+        $(git ls-files '*.py')
 
 The smoke tool is the one to run after upgrading Flet: it generates every
 saved project (including the exact-position Grid and skip-optional modes),
 parses the result and builds the controls with the installed Flet, then exits
-non-zero if anything is refused.
+non-zero if anything is refused.  Point it at "examples/*/*.json" to check the
+projects shipped with the repository.
 
 `tools/export_theme_colors.py` regenerates `flet_theme_colors.json`, the
 per-theme palette the Flet generator colours its output from.  Run it after
 upgrading ttkbootstrap, with an interpreter that has ttkbootstrap 2.x
-installed and a display available.  `tools/qa.sh` runs isort, black and
-ruff from `venv/`; flake8 and ruff are installed by `requirments.txt`.
+installed and a display available.  `tools/qa.sh` runs isort, black, ruff and
+flake8 from `venv/` (see `requirments.txt`) over the tracked files; the same
+flake8 and ruff run in CI.

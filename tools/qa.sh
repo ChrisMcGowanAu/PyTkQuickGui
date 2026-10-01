@@ -11,4 +11,6 @@ venv/bin/flake8 $FILES
 venv/bin/isort --check-only $FILES
 venv/bin/black --check $FILES
 tools/smoke_imports.sh
+# the projects we ship: generated and built, so they cannot rot silently
+venv/bin/python tools/smoke_flet_generated.py "examples/*/*.json"
 echo "QA OK"
