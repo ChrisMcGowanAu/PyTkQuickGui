@@ -1237,6 +1237,8 @@ class _Emitter:
                     f"# {name}: listbox items live in the module level list "
                     "of the same name - append to it and call page.update()"
                 )
+        elif control == "ft.Container" and self._is_filled_label(name):
+            arguments.update(self._filled_label(name, properties))
         elif control == "ft.DataTable":
             columns = properties.pop("tree_columns", [])
             arguments["columns"] = (
@@ -1288,6 +1290,57 @@ class _Emitter:
             arguments[self._event_keyword(control)] = command
 
         return arguments, unmapped
+
+    @staticmethod
+    def _label_alignment(anchor: str) -> str:
+        """Map a Tk label anchor onto an ft.Alignment."""
+        mapping = {
+            "w": "ft.Alignment.CENTER_LEFT",
+            "nw": "ft.Alignment.TOP_LEFT",
+            "sw": "ft.Alignment.BOTTOM_LEFT",
+            "e": "ft.Alignment.CENTER_RIGHT",
+            "ne": "ft.Alignment.TOP_RIGHT",
+            "se": "ft.Alignment.BOTTOM_RIGHT",
+            "n": "ft.Alignment.TOP_CENTER",
+            "s": "ft.Alignment.BOTTOM_CENTER",
+        }
+        return mapping.get(anchor.strip().lower(), "ft.Alignment.CENTER")
+
+    def _is_filled_label(self, name: str) -> bool:
+        """Whether a label is drawn as a coloured box rather than plain text.
+
+        ttk fills a label for the ``inverse`` style, and a designer can also set
+        an explicit background.  A label the tool default has turned into a
+        placeholder is not filled - it is a plain stand-in Container.
+        """
+        if self.project.widget_type(name) != "ttk::label":
+            return False
+        if self.project.policy_for(name) == "placeholder":
+            return False
+        _bootstyle, variants = self.project.style_of(name)
+        return "inverse" in variants or bool(self.project.option(name, "background"))
+
+    def _filled_label(self, name: str, properties: dict[str, Any]) -> dict[str, str]:
+        """Return the arguments for a label drawn inside a coloured box."""
+        style = dict(self._style_arguments(name, "ft.Text"))
+        fill = properties.pop("bgcolor", None) or style.pop("bgcolor", None)
+        style.pop("value", None)
+        # _label_alignment below handles the anchor; the generic anchor mapping
+        # is for plain containers and would lose the vertical centring.
+        properties.pop("alignment", None)
+        allowed = ("color", "size", "font_family", "weight", "italic", "text_align")
+        inner = _call(
+            "ft.Text",
+            [f"value={properties.pop('text', '')!r}"]
+            + [f"{key}={style[key]}" for key in allowed if key in style],
+        )
+        arguments = {"content": inner}
+        if fill:
+            arguments["bgcolor"] = fill
+        arguments["alignment"] = self._label_alignment(
+            self.project.option(name, "anchor")
+        )
+        return arguments
 
     def _caption(
         self,
@@ -2021,8 +2074,12 @@ class _Emitter:
         widget_type = self.project.widget_type(name)
         control = widget_control(widget_type)
         children = self.project.visible_children(name)
-        if widget_type == "ttk::label" and self.project.option(name, "image"):
-            control = "ft.Container"
+        if widget_type == "ttk::label":
+            if self._is_filled_label(name) or self.project.option(name, "image"):
+                # A filled label (ttk's inverse style, or an explicit
+                # background) is wrapped: ft.Text only paints behind its
+                # glyphs, so the fill has to come from the outer Container.
+                control = "ft.Container"
         if widget_type == "ttk::treeview" and not parse_values(
             self.project.option(name, "columns")
         ):

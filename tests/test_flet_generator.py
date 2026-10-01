@@ -1444,6 +1444,77 @@ class FletGeneratorTests(unittest.TestCase):
         self.assertIn("size=18", label)
         self.assertIn("font_family='Liberation Mono'", label)
 
+    def test_inverse_label_is_filled_by_a_container(self):
+        """ft.Text paints behind its glyphs only, so a filled label needs one."""
+        data = project(
+            theme="cyborg",
+            widgets=(
+                widget(
+                    "Widget1",
+                    "ttk::label",
+                    attributes=(
+                        ("text", "Given Name"),
+                        ("style", "info.Inverse.TLabel"),
+                        ("anchor", "w"),
+                    ),
+                    place={"x": "0", "y": "32", "width": "112", "height": "32"},
+                ),
+            ),
+        )
+
+        source = flet_generator.emit_program(data, [ROOT, "Widget1"], ROOT)
+
+        ast.parse(source)
+        self.assertIn("Widget1 = ft.Container(", source)
+        self.assertIn("bgcolor='#9933cc'", source)          # cyborg's info colour
+        self.assertIn("value='Given Name'", source)
+        self.assertIn("ft.Alignment.CENTER_LEFT", source)   # ttk anchor="w"
+        # The inner Text must not carry the fill, or it paints behind the text
+        # only and the label loses its bar.
+        inner = source[source.index("content=ft.Text("):source.index("ft.Alignment")]
+        self.assertNotIn("bgcolor=", inner)
+
+    def test_label_with_an_explicit_background_is_filled_too(self):
+        data = project(
+            theme="cyborg",
+            widgets=(
+                widget(
+                    "Widget1",
+                    "ttk::label",
+                    attributes=(
+                        ("text", "Add a New user"),
+                        ("background", "#2724db"),
+                        ("style", "info.Inverse.TLabel"),
+                    ),
+                    place={"x": "0", "y": "0", "width": "432", "height": "32"},
+                ),
+            ),
+        )
+
+        source = flet_generator.emit_program(data, [ROOT, "Widget1"], ROOT)
+
+        ast.parse(source)
+        self.assertIn("Widget1 = ft.Container(", source)
+        self.assertIn("bgcolor='#2724db'", source)   # the explicit colour wins
+
+    def test_plain_label_stays_a_text_control(self):
+        data = project(
+            theme="cyborg",
+            widgets=(
+                widget(
+                    "Widget1",
+                    "ttk::label",
+                    attributes=(("text", "Plain"), ("style", "success.TLabel")),
+                    place={"x": "0", "y": "0", "width": "120", "height": "32"},
+                ),
+            ),
+        )
+
+        source = flet_generator.emit_program(data, [ROOT, "Widget1"], ROOT)
+
+        self.assertIn("Widget1 = ft.Text(", source)
+        self.assertIn("color='#77b300'", source)
+
     @unittest.skipUnless(FLET_AVAILABLE, "flet is not installed")
     def test_generated_program_builds_real_flet_controls(self):
         data = project(
