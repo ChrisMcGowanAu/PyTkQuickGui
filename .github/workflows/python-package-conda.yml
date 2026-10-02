@@ -13,7 +13,7 @@ jobs:
       max-parallel: 5
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
     - name: Create the conda environment
       # A named environment, not the runner's base.  Updating base forces conda
       # to re-solve Anaconda's own packages (its conda-anaconda-tos plugin wants
