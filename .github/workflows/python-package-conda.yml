@@ -14,14 +14,16 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-    - name: Put conda's base environment on PATH
-      # The runner image ships Miniconda.  Installing into base and putting it
-      # first means every later step uses that interpreter - no separate
-      # setup-python, which used to shadow it with an unused 3.10.
-      run: echo "${CONDA:-/usr/share/miniconda}/bin" >> "$GITHUB_PATH"
-    - name: Install dependencies
-      run: |
-        conda env update --file environment.yml --name base
+    - name: Create the conda environment
+      # A named environment, not the runner's base.  Updating base forces conda
+      # to re-solve Anaconda's own packages (its conda-anaconda-tos plugin wants
+      # Python 3.14 and fails against the 3.12 this project asks for), and
+      # putting a job's tools in base is a bad habit anyway.
+      run: conda env create --file environment.yml
+    - name: Put the environment on PATH
+      # Every later step then uses that interpreter: no setup-python, which
+      # used to install an unused 3.10 that could shadow conda.
+      run: echo "${CONDA:-/usr/share/miniconda}/envs/pytkquickgui/bin" >> "$GITHUB_PATH"
     - name: Lint with flake8
       run: |
         # stop the build if there are Python syntax errors or undefined names
