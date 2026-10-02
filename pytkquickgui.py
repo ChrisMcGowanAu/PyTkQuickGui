@@ -50,7 +50,7 @@ def getConfigPath() -> str:
     elif "XDG_CONFIG_HOME" in os.environ:
         confighome = os.environ["XDG_CONFIG_HOME"]
     else:
-        confighome = os.path.join(os.environ["HOME"], ".config")
+        confighome = os.path.join(project_format.home_directory(), ".config")
     configPath = os.path.join(confighome, myVars.programName)
     if os.path.isdir(configPath):
         log.debug("Config Path %s %s %s", configPath, confighome, myVars.programName)
@@ -963,7 +963,7 @@ def generatePython():
         myVars.projectName,
         myVars.saveDirName,
         myVars.generatedPyFile,
-        os.environ["HOME"],
+        project_format.home_directory(),
         suffix="ttk",
     )
     try:
@@ -1090,7 +1090,7 @@ def generateFlet():
         myVars.projectName,
         myVars.saveDirName,
         myVars.generatedFletFile,
-        os.environ["HOME"],
+        project_format.home_directory(),
         suffix="flet",
     )
     try:

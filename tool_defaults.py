@@ -8,6 +8,8 @@ from collections.abc import Mapping
 from copy import deepcopy
 from typing import Any
 
+import project_format
+
 FILE_NAME = "tool_defaults.json"
 FORMAT_VERSION = 2
 
@@ -131,7 +133,7 @@ def default_path(program_name: str = "pytkgui") -> str:
     elif "XDG_CONFIG_HOME" in os.environ:
         config_home = os.environ["XDG_CONFIG_HOME"]
     else:
-        config_home = os.path.join(os.environ["HOME"], ".config")
+        config_home = os.path.join(project_format.home_directory(), ".config")
     return os.path.join(config_home, program_name, FILE_NAME)
 
 

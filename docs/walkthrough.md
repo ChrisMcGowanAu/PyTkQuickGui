@@ -64,4 +64,6 @@ tools/screenshots.sh tabs sudoku3   # just these
 
 The script opens each project in both backends off screen, screenshots the real
 window and writes `docs/example_<name>_tk.png` and `_flet.png`. It needs a
-desktop session, so it is a local tool rather than something CI can run.
+desktop session plus xwininfo, wmctrl and ImageMagick's `import`, which makes it
+a Linux tool - on Windows and macOS take the stills another way. It is a local
+tool, not something CI can run.

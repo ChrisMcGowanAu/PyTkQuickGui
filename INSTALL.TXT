@@ -221,6 +221,10 @@ parses the result and builds the controls with the installed Flet, then exits
 non-zero if anything is refused.  Point it at "examples/*/*.json" to check the
 projects shipped with the repository.
 
+`tools/qa.sh` and `tools/screenshots.sh` are bash scripts.  `screenshots.sh`
+also needs the X11 tools xwininfo, wmctrl and ImageMagick's `import`, so it is a
+Linux tool; on Windows and macOS take the stills another way.
+
 `tools/export_theme_colors.py` regenerates `flet_theme_colors.json`, the
 per-theme palette the Flet generator colours its output from.  Run it after
 upgrading ttkbootstrap, with an interpreter that has ttkbootstrap 2.x

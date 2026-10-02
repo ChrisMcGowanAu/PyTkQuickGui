@@ -102,6 +102,21 @@ PRESERVED_STRING_KEYS = CALLBACK_KEYS + VARIABLE_KEYS
 RUNTIME_CALLABLE_KEYS = ("yscrollcommand", "xscrollcommand")
 
 
+def home_directory() -> str:
+    """Return the user's home directory, on any platform.
+
+    ``HOME`` is a POSIX convention: a Windows interpreter started from cmd or
+    PowerShell usually has none at all, so asking for ``os.environ["HOME"]``
+    raised KeyError on the paths that generate a program.  ``USERPROFILE`` is
+    the Windows spelling; expanduser() is the last resort.
+    """
+    for variable in ("HOME", "USERPROFILE"):
+        value = os.environ.get(variable)
+        if value:
+            return value
+    return os.path.expanduser("~")
+
+
 def format_python_call(call_expression: str, arguments: Iterable[str]) -> str:
     """Format a generated Python call with one argument per line."""
     values = [str(value) for value in arguments if str(value)]

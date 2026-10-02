@@ -1,7 +1,9 @@
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import project_format
 
@@ -366,6 +368,36 @@ class OutputNameTests(unittest.TestCase):
 
     def test_empty_path_is_returned_unchanged(self):
         self.assertEqual(project_format.avoid_module_shadowing(""), "")
+
+
+class HomeDirectoryTests(unittest.TestCase):
+    """HOME is a POSIX convention and is usually absent on Windows."""
+
+    def test_home_is_used_when_set(self):
+        with mock.patch.dict(
+            os.environ,
+            {"HOME": "/home/tester", "USERPROFILE": "C:/Users/tester"},
+            clear=True,
+        ):
+            self.assertEqual(project_format.home_directory(), "/home/tester")
+
+    def test_the_windows_profile_is_used_when_home_is_absent(self):
+        with mock.patch.dict(
+            os.environ, {"USERPROFILE": "C:/Users/tester"}, clear=True
+        ):
+            self.assertEqual(project_format.home_directory(), "C:/Users/tester")
+
+    def test_an_empty_home_falls_through(self):
+        with mock.patch.dict(
+            os.environ, {"HOME": "", "USERPROFILE": "C:/Users/tester"}, clear=True
+        ):
+            self.assertEqual(project_format.home_directory(), "C:/Users/tester")
+
+    def test_expanduser_is_the_last_resort(self):
+        with mock.patch.dict(os.environ, {}, clear=True), mock.patch(
+            "os.path.expanduser", return_value="/fallback"
+        ):
+            self.assertEqual(project_format.home_directory(), "/fallback")
 
 
 if __name__ == "__main__":
