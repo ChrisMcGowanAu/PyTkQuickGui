@@ -257,5 +257,6 @@ Linux tool; on Windows and macOS take the stills another way.
 per-theme palette the Flet generator colours its output from.  Run it after
 upgrading ttkbootstrap, with an interpreter that has ttkbootstrap 2.x
 installed and a display available.  `tools/qa.sh` runs isort, black, ruff and
-flake8 from `venv/` (see `requirments.txt`) over the tracked files; the same
-flake8 and ruff run in CI.
+flake8, and pylint - with the same disable list the Pylint workflow uses, read
+from that workflow - from `venv/` (see `requirments.txt`) over the tracked
+files.  The same flake8 and ruff run in CI.

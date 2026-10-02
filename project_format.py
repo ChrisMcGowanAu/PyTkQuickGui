@@ -158,7 +158,7 @@ def generated_dialog_defaults(
     project_name: str,
     save_directory: str,
     generated_file: str,
-    home_directory: str,
+    home_dir: str,
     suffix: str = "",
 ) -> tuple[str, str]:
     """Return the output directory and filename offered when generating.
@@ -171,9 +171,7 @@ def generated_dialog_defaults(
     """
     name = str(project_name).strip() or "project"
     previous_directory = os.path.dirname(generated_file) if generated_file else ""
-    directory = (
-        previous_directory or save_directory or os.path.join(home_directory, name)
-    )
+    directory = previous_directory or save_directory or os.path.join(home_dir, name)
     filename = f"{name}_{suffix}.py" if suffix else f"{name}.py"
     return directory, filename
 
