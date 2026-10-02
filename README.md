@@ -11,12 +11,6 @@ The project is approaching beta. Grid and Place projects are usable and under
 active testing; Pack remains disabled while the other two geometry managers are
 stabilised.
 
-## Screenshots
-
-| Place layout | Instrument-style project |
-|---|---|
-| ![PyTkQuickGui Place project](docs/screenshot_place_platypus.png) | ![PyTkQuickGui instrument project](docs/screenshot_place_test_tool.png) |
-
 ### The examples, in both backends
 
 Seven ready made projects ship in [`examples/`](examples) - INSTALL.TXT has the
@@ -34,6 +28,12 @@ Calculator (nineteen hand placed buttons), UserForm (entries, a combo box and a
 notebook), sudoku3 (a 91 widget Grid project) and sudokupack (Grid, small).
 Screenshots of all of them, in both backends, are in
 [`docs/`](docs).
+
+## Screenshots
+
+| Place layout | Instrument-style project |
+|---|---|
+| ![PyTkQuickGui Place project](docs/screenshot_place_platypus.png) | ![PyTkQuickGui instrument project](docs/screenshot_place_test_tool.png) |
 
 ## What it does
 
@@ -80,20 +80,21 @@ sudo apt install python3-tk
 ## Installation
 
 ```bash
+sudo apt install python3.13-full
+
 git clone https://github.com/ChrisMcGowanAu/PyTkQuickGui.git
 cd PyTkQuickGui
 
-python -m venv .venv
-source .venv/bin/activate
+python -m venv venv
+source venv/bin/activate
 pip install -r requirments.txt
-
 python pytkquickgui.py
 ```
 
 On Windows, activate the environment with:
 
 ```powershell
-.venv\Scripts\activate
+venv\Scripts\activate
 ```
 
 ## Quick start
