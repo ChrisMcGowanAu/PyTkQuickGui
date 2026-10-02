@@ -15,6 +15,24 @@ stabilised.
 |---|---|
 | ![PyTkQuickGui Place project](docs/screenshot_place_platypus.png) | ![PyTkQuickGui instrument project](docs/screenshot_place_test_tool.png) |
 
+### The examples, in both backends
+
+Seven ready made projects ship in [`examples/`](examples) - INSTALL.TXT has the
+one line that copies them into the tool's directory. Each of these is the same
+project as rendered by the generated ttkbootstrap program and by the generated
+Flet program:
+
+| ttkbootstrap output | Flet output |
+|---|---|
+| ![FletAllWidgets, ttkbootstrap output](docs/example_FletAllWidgets_tk.png) | ![FletAllWidgets, Flet output](docs/example_FletAllWidgets_flet.png) |
+| ![tabs, ttkbootstrap output](docs/example_tabs_tk.png) | ![tabs, Flet output](docs/example_tabs_flet.png) |
+
+`examples/` also holds SimplePlace (a starter with one of each basic control),
+Calculator (nineteen hand placed buttons), UserForm (entries, a combo box and a
+notebook), sudoku3 (a 91 widget Grid project) and sudokupack (Grid, small).
+Screenshots of all of them, in both backends, are in
+[`docs/`](docs).
+
 ## What it does
 
 - Builds ttkbootstrap interfaces visually on a live design surface.
