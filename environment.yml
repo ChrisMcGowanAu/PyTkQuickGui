@@ -11,6 +11,9 @@
 name: pytkquickgui
 channels:
   - conda-forge
+  # nodefaults keeps Anaconda's defaults channel out of the solve: it is not
+  # needed here, and using it in CI accepts Anaconda's terms of service.
+  - nodefaults
 dependencies:
   - python=3.12
   - pip
