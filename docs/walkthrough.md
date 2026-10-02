@@ -29,7 +29,7 @@ take.
 | 0:00 | Cold open. Say what the finished thing is: a notebook, a form, a couple of buttons, in Flet and in Tk from one layout. | Show `docs/example_tabs_flet.png` as the target. |
 | 0:15 | Launch the tool (`./run.sh`). | The designer with an empty canvas. Point out the menus: File, Edit, Theme, Tools, Help. |
 | 0:30 | **File > Open Project**, then double-click `examples`, then `Calculator`. Drag a button with the mouse, then undo with Ctrl+Z and redo with Ctrl+Y. | A finished project appears; undo/redo works on the live canvas. |
-| 1:00 | **File > New Project**, name it `Demo`, choose Place. Right-click the canvas, pick **Button**. Drag it to move, drag an edge to resize. Right-click it, choose **Edit**, change the text and the bootstyle, press Apply. | Placing, moving and editing by hand. |
+| 1:00 | **File > New Project**, name it `Demo`, choose Place. Right-click the canvas, pick **Button**. Drag it to move, drag an edge to resize. Right-click it, choose **Edit**, change the text and the bootstyle, press Apply. If the widget has a `textvariable`, the text you type becomes that variable's value. | Placing, moving and editing by hand. |
 | 1:45 | **File > Open Project > examples > tabs**. Click the body of a tab, right-click, choose **Edit**, and change the tab captions. | A notebook where every tab is an ordinary Frame you can fill. |
 | 2:30 | **File > Trial Run**. | The real ttkbootstrap program, running. This is the first payoff. |
 | 3:00 | **File > Generate Python**, save it as `demo.py`, open the file in an editor. Point out the readable widget calls, and that a callback you edited in a previous version is carried over rather than overwritten. | The generated Python at `demo.py`. |

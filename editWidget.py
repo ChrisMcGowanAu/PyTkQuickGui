@@ -522,6 +522,38 @@ class widgetEditPopup:
             message=f"Saved {widget_type} {manager} defaults to {path}",
         )
 
+    def storeTextInVariable(self) -> None:
+        """Give the widget's textvariable the text typed in the editor.
+
+        Tk ignores 'text' once a textvariable is set, so a caption typed in the
+        attribute editor used to be dropped: the design kept showing whatever
+        the variable already held, and the generated program fell back to its
+        own default.  Writing the text into the variable keeps the design, the
+        saved project and the generated program in agreement.
+        """
+        entry = self.stringDict.get("textWidget")
+        text = ""
+        if entry is not None:
+            try:
+                text = entry.get()
+            except (tk.TclError, AttributeError):
+                text = ""
+        else:
+            text = str(self.stringDict.get("text") or "")
+        if not text:
+            return
+        try:
+            variable = str(self.widget.cget("textvariable") or "")
+        except tk.TclError:
+            return
+        if not variable:
+            return
+        try:
+            self.widget.setvar(variable, text)
+            log.info("storeTextInVariable: %r -> %s", text, variable)
+        except tk.TclError as e:
+            log.warning("storeTextInVariable: cannot set %s: %s", variable, e)
+
     def applyEditSettings(self) -> None:
         """
         Apply any changes settings for the Widget
@@ -608,6 +640,7 @@ class widgetEditPopup:
                         except tk.TclError as e:
                             log.error(e)
                             log.warning("k %s val %s", str(k), str(newVal))
+        self.storeTextInVariable()
         wName = myVars.fixWidgetName(self.widget.widgetName)
         # Scrollbar wiring works in both Grid and Place geometry manager modes.
         if wName in ("canvas", "listbox", "treeview", "text"):

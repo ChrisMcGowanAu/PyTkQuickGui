@@ -197,6 +197,14 @@ fields such as `textvariable` as Python names, rather than trusting Tk's
 internal Tcl command strings. Use valid top-level Python identifiers for these
 values, for example `save_record` or `customer_name`.
 
+If a widget has both a `text` and a `textvariable`, the text you type is also
+written into the variable. Tk ignores `text` once `textvariable` is set, so
+without that the caption would be dropped - the design would keep showing
+whatever the variable held, and the generated program would fall back to its own
+default. Writing it to the variable keeps the design, the saved project and the
+generated program in agreement. A widget that keeps its *state* in a `variable`
+(a checkbutton or radiobutton) is left alone: its caption stays in `text`.
+
 ## Geometry managers
 
 ### Grid

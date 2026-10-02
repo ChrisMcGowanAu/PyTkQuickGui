@@ -13,6 +13,7 @@ covered, with the save dialog and the message box stubbed out.
 These tests start the real designer, so they need a display and are skipped
 where there is not one (CI runs headless).
 """
+
 import contextlib
 import io
 import os
@@ -43,17 +44,24 @@ def setUpModule():
         return
     WORK = tempfile.mkdtemp(prefix="designer-exports-")
     ORIGINAL_STDOUT = sys.stdout
-    app.rootWin.withdraw()
-    app.myVars.initVars()
-    app.getConfigPath = lambda: WORK
-    app.buildMainGui()
+    start_designer()
 
 
 def tearDownModule():
+    # The Tk root is deliberately left alive: other designer test modules share
+    # it, and destroying it here made the next module's setUpModule fail.
     if ORIGINAL_STDOUT is not None:
         sys.stdout = ORIGINAL_STDOUT
-    if app is not None:
-        app.rootWin.destroy()
+
+
+def start_designer():
+    """Create the designer's window once, however many modules need it."""
+    if getattr(app, "_test_gui_ready", False):
+        return
+    app.rootWin.withdraw()
+    app.myVars.initVars()
+    app.buildMainGui()
+    app._test_gui_ready = True
 
 
 def quiet(function, *args, **kwargs):
@@ -136,9 +144,7 @@ class OutputNameTests(unittest.TestCase):
         chosen = self._export(app.generateFlet, "flet.py")
         self.assertFalse(os.path.exists(chosen), "a program named flet.py cannot run")
         self.assertTrue(os.path.isfile(os.path.join(WORK, "flet1.py")))
-        self.assertEqual(
-            app.myVars.generatedFletFile, os.path.join(WORK, "flet1.py")
-        )
+        self.assertEqual(app.myVars.generatedFletFile, os.path.join(WORK, "flet1.py"))
         self.assertTrue(self.messages, "the user was not told the name changed")
 
     def test_ttk_export_named_tkinter_py_is_written_as_tkinter1_py(self):
