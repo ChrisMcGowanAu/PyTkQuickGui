@@ -469,6 +469,12 @@ def saveWidgetAsDict(widgetName) -> dict:
             keyCount += 1
             log.debug("saveWidgetAsDict: %s = %r", _var_name, _shown)
 
+    if not widgetDetails:
+        # Nothing to save: without this the notebook block below would raise on
+        # the unbound widget instead of returning an empty record.
+        log.warning("saveWidgetAsDict: no widget named %r", widgetName)
+        return {}
+
     # A notebook keeps its tab captions on the tab ids rather than as widget
     # options, so w.keys() never reports them.  Record them explicitly or a
     # label typed in the attribute editor is lost on the next save.
