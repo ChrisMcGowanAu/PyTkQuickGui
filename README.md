@@ -20,6 +20,7 @@ Flet program:
 
 | ttkbootstrap output | Flet output |
 |---|---|
+| ![UserForm, ttkbootstrap output](docs/example_tabs_tk.png) | ![UserForm, Flet output](docs/example_UserForm_flet.png) |
 | ![FletAllWidgets, ttkbootstrap output](docs/example_FletAllWidgets_tk.png) | ![FletAllWidgets, Flet output](docs/example_FletAllWidgets_flet.png) |
 | ![tabs, ttkbootstrap output](docs/example_tabs_tk.png) | ![tabs, Flet output](docs/example_tabs_flet.png) |
 
