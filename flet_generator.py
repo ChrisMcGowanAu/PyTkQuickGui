@@ -26,6 +26,7 @@ Translation notes
 
 from __future__ import annotations
 
+import ast
 import json
 import os
 import re
@@ -37,7 +38,8 @@ import layout_model
 import project_format
 import tool_defaults
 
-STUB_SENTINEL = "# AUTO-GENERATED STUB"
+#: Shared with the Python backend so the two cannot drift.
+STUB_SENTINEL = project_format.STUB_SENTINEL
 
 #: Flet API level the generated programs are written against.  They still run
 #: on the older 0.8x releases, so the emitted guard warns by default; flip
@@ -74,6 +76,14 @@ BUTTON_TEXT_SIZE = 12
 BUTTON_PADDING_X = 6
 BUTTON_PADDING_Y = 2
 BUTTON_RADIUS = 4
+
+#: A multiline ft.TextField takes its height from min_lines: Flet ignores an
+#: explicit height on a multiline field (measured on 0.86.5 and 1.0.3, where
+#: height=120 rendered 46px tall).  A line measures about 1.43 x the text size
+#: and the field adds about 5px of padding and border, so the designer's height
+#: is turned into a line count instead.
+MULTILINE_LINE_RATIO = 1.43
+MULTILINE_CHROME = 5
 
 #: Flet's default field padding is tall enough to clip the text inside a ttk
 #: sized row (32px), so fields are given explicit tight padding.
@@ -120,18 +130,24 @@ SECTION_VARIABLES = "####### Flet variables #######"
 #: Emitted when widgets take their caption from a textvariable.
 _TEXT_BINDING_HELPERS = (
     "TEXT_BINDINGS = {}",
+    "# The running page, set in main(), so handlers can refresh without it.",
+    "PAGE = None",
     "",
     "",
-    "def set_text(page, name, value):",
-    '    """Set a bound variable and refresh the control showing it.',
+    "def set_text(name, value, page=None):",
+    '    """Set a variable and refresh every control that shows it.',
     "",
-    "    ``name`` is the textvariable the designer recorded, for example",
-    "    ``set_text(page, 'buttonvar11', '7')``.",
+    "    ``name`` is the variable the designer recorded against a widget, for",
+    "    example ``set_text('calcvar', '4')`` from a button handler.  The module",
+    "    level variable is updated too, so the rest of the program sees the new",
+    "    value.",
     '    """',
     "    globals()[name] = value",
     "    for control, attribute in TEXT_BINDINGS.get(name, ()):",
     "        setattr(control, attribute, value)",
-    "    page.update()",
+    "    target = page or PAGE",
+    "    if target is not None:",
+    "        target.update()",
 )
 SECTION_FUNCTIONS = "####### Functions #######"
 SECTION_WIDGETS = "####### Widgets #######"
@@ -149,6 +165,9 @@ CONTAINER_WIDGET_TYPES = (
     "canvas",
 )
 TEXT_MEASURED_TYPES = ("listbox", "ttk::listbox", "text", "ttk::text")
+#: A Tk text widget becomes a multiline field inside a Container, because a
+#: multiline ft.TextField takes its height from min_lines and ignores a height.
+TEXT_WIDGET_TYPES = ("text", "ttk::text")
 
 #: Tk widget type (as stored in ``WidgetName``) -> Flet control constructor.
 CONTROL_TYPES: dict[str, str] = {
@@ -239,7 +258,7 @@ CONTROL_OPTIONS: dict[str, frozenset[str]] = {
             "label",
             "bgcolor",
             "color",
-            "size",
+            "text_size",
         }
     ),
     "ft.Dropdown": frozenset({"value", "label", "options", "disabled", "bgcolor"}),
@@ -439,12 +458,18 @@ def tk_color(value: Any) -> str | None:
 def parse_font(value: Any) -> dict[str, str]:
     """Translate a Tk font description into Flet text properties.
 
-    Only the X11 ``"family size style…"`` form carries usable detail; symbolic
-    fonts such as ``TkDefaultFont`` return an empty mapping.
+    Two forms turn up in saved projects: the font chooser writes a dict such as
+    ``{'family': 'Liberation Mono', 'size': 18, 'weight': 'normal', …}``, and
+    hand written or older files use the X11 ``"family size style…"`` string.
+    Symbolic fonts such as ``TkDefaultFont`` return an empty mapping.
     """
     raw = _text(value).strip().replace("\\", "")
     if not raw or raw.startswith("Tk"):
         return {}
+    if raw.startswith("{"):
+        chosen = _parse_font_dict(raw)
+        if chosen:
+            return chosen
     match = _FONT.match(raw)
     if not match:
         return {}
@@ -457,6 +482,28 @@ def parse_font(value: Any) -> dict[str, str]:
     if "bold" in rest:
         properties["weight"] = "ft.FontWeight.BOLD"
     if "italic" in rest or "oblique" in rest:
+        properties["italic"] = "True"
+    return properties
+
+
+def _parse_font_dict(raw: str) -> dict[str, str]:
+    """Return Flet text properties from a font chooser dict, or ``{}``."""
+    try:
+        chosen = ast.literal_eval(raw)
+    except (SyntaxError, ValueError):
+        return {}
+    if not isinstance(chosen, Mapping):
+        return {}
+    properties: dict[str, str] = {}
+    family = _text(chosen.get("family")).strip()
+    if family:
+        properties["font_family"] = repr(family)
+    size = _number(chosen.get("size"))
+    if isinstance(size, (int, float)) and size:
+        properties["size"] = repr(abs(int(size)))
+    if _text(chosen.get("weight")).strip().lower() in ("bold", "heavy"):
+        properties["weight"] = "ft.FontWeight.BOLD"
+    if _text(chosen.get("slant")).strip().lower() in ("italic", "oblique"):
         properties["italic"] = "True"
     return properties
 
@@ -520,17 +567,28 @@ def load_theme_palette(path: str | None = None) -> dict[str, Any]:
 
 
 def theme_palette(theme: Any, palettes: Mapping[str, Any] | None = None) -> dict:
-    """Return the ``{"colors": …, "contrast": …}`` record for one theme."""
+    """Return one theme's exported palette, keeping all three of its sections.
+
+    ``colors`` holds the bootstyle slots, ``styles`` holds what ttkbootstrap
+    resolves for each bootstyle (button text colour, outline colours, frame
+    fill, the caption colour of a labelframe) and ``widgets`` holds the resolved
+    surfaces (entry background, progressbar trough).  Dropping any of them
+    silently falls back to the slot colours, losing ttk's own choices - such as
+    white rather than black text on a borderline fill.
+    """
     table = palettes if palettes is not None else load_theme_palette()
     record = table.get(_text(theme)) if isinstance(table, Mapping) else None
     if not isinstance(record, Mapping):
         return {}
-    colors = record.get("colors")
-    contrast = record.get("contrast")
-    return {
-        "colors": dict(colors) if isinstance(colors, Mapping) else {},
-        "contrast": dict(contrast) if isinstance(contrast, Mapping) else {},
-    }
+    palette: dict[str, Any] = {}
+    for section in ("colors", "styles", "widgets"):
+        values = record.get(section)
+        if isinstance(values, Mapping):
+            palette[section] = {
+                str(key): dict(value) if isinstance(value, Mapping) else value
+                for key, value in values.items()
+            }
+    return palette
 
 
 def parse_bootstyle(value: Any) -> tuple[str, frozenset[str]]:
@@ -551,7 +609,8 @@ def parse_bootstyle(value: Any) -> tuple[str, frozenset[str]]:
     variants = {
         part.lower()
         for part in parts[1:]
-        if part.lower() in STYLE_VARIANTS and part.lower() != "horizontal"
+        if part.lower() in STYLE_VARIANTS
+        and part.lower() != "horizontal"
         and part.lower() != "vertical"
     }
     orientations = {
@@ -568,9 +627,7 @@ def hex_luminance(colour: Any) -> float:
     if len(raw) < 6:
         return 0.5
     try:
-        red, green, blue = (
-            int(raw[start:start + 2], 16) for start in (0, 2, 4)
-        )
+        red, green, blue = (int(raw[start : start + 2], 16) for start in (0, 2, 4))
     except ValueError:
         return 0.5
     return (0.299 * red + 0.587 * green + 0.114 * blue) / 255
@@ -600,6 +657,15 @@ def _grow_axis(axis: list[int], start: int, span: int, needed: int) -> None:
     current = sum(axis[index] for index in range(start, start + span))
     if needed > current:
         axis[start + span - 1] += needed - current
+
+
+def multiline_lines(height: Any, text_size: int = DEFAULT_TEXT_SIZE) -> int:
+    """Return the ``min_lines`` that makes a multiline field as tall as *height*."""
+    pixels = _number(height)
+    if not pixels:
+        return 0
+    line = max(1.0, text_size * MULTILINE_LINE_RATIO)
+    return max(1, int(round((float(pixels) - MULTILINE_CHROME) / line)))
 
 
 def _widget_key(widget_type: Any) -> str:
@@ -675,6 +741,10 @@ def translate_attributes(
         elif key in ("style", "bootstyle"):
             # Consumed by _style_arguments(), which needs the bootstyle.
             properties["style"] = raw
+        elif project_format.is_design_only(key):
+            # tab_count / tab_labels are read explicitly where they matter and
+            # are not widget options, so they are not "unmapped" either.
+            continue
         elif key in project_format.CALLBACK_KEYS:
             if raw in callbacks:
                 properties["command"] = raw
@@ -965,8 +1035,7 @@ class _Project:
         candidates = [
             child
             for child in self.children.get(parent, [])
-            if child != scrollbar
-            and self.widget_type(child) in SCROLLABLE_WIDGET_TYPES
+            if child != scrollbar and self.widget_type(child) in SCROLLABLE_WIDGET_TYPES
         ]
         return candidates[0] if len(candidates) == 1 else ""
 
@@ -1155,27 +1224,38 @@ class _Emitter:
         if control == "ft.Text":
             arguments["value"] = self._caption(name, "value", properties, arguments)
         elif control == "ft.Button":
-            arguments["content"] = self._caption(
-                name, "content", properties, arguments
-            )
+            arguments["content"] = self._caption(name, "content", properties, arguments)
         elif control == "ft.Checkbox":
             arguments["label"] = repr(properties.pop("text", name))
             if "value" in properties:
-                arguments["value"] = f"bool({properties.pop('value')})"
+                # Tk selects a checkbutton when its variable equals onvalue
+                # (default "1"), not when the value is merely non-empty - a
+                # variable holding the tool's usual '0.0' is *off*, and
+                # bool('0.0') would have drawn it ticked.
+                variable = properties.pop("value")
+                onvalue = self.project.option(name, "onvalue") or "1"
+                arguments["value"] = f"str({variable}) == {onvalue!r}"
         elif control == "ft.RadioGroup":
-            current = properties.pop("current", None)
+            # Tk: the widget is selected when the *variable* equals the
+            # widget's own value.  So the group follows the variable and the
+            # inner radio carries the widget's value - using the widget value
+            # for both would make every radio look selected.
+            widget_value = properties.pop("current", None)
             variable = properties.pop("value", None)
-            if current is not None:
-                arguments["value"] = repr(current)
-            elif variable is not None:
-                arguments["value"] = variable
-            radio_value = repr(_text(current) if current is not None else "0")
+            radio_value = repr(_text(widget_value) if widget_value is not None else "0")
+            if variable is not None:
+                arguments["value"] = f"str({variable})"
+            else:
+                arguments["value"] = radio_value
             label = repr(properties.pop("text", name))
             arguments["content"] = (
                 f"ft.Radio(value={radio_value}, label={label}"
                 f"{self._radio_colours(name)})"
             )
         elif control == "ft.Dropdown":
+            if "value" in properties:
+                variable = properties["value"]
+                self.text_bindings.setdefault(variable, []).append((name, "value"))
             values = properties.pop("values", None)
             if values:
                 options = ", ".join(
@@ -1197,17 +1277,22 @@ class _Emitter:
                 )
             arguments.update(self._progress_arguments(properties))
             properties = {}
-        elif control == "ft.ListView":
-            values = properties.pop("values", None)
-            if values:
-                arguments["controls"] = _list_expression(
-                    [f"ft.Text({value!r})" for value in values]
-                )
-            if properties.pop("list_variable", None):
-                self.notes.append(
-                    f"# {name}: listbox items live in the module level list "
-                    "of the same name - append to it and call page.update()"
-                )
+
+        elif control == "ft.Container" and self._is_filled_label(name):
+            arguments.update(self._filled_label(name, properties))
+        elif control == "ft.Container" and widget_type in TEXT_WIDGET_TYPES:
+            arguments.update(self._text_area(name, properties))
+        elif control == "ft.Container" and widget_type in ("listbox", "ttk::listbox"):
+            arguments.update(self._list_box(name, properties))
+        elif control == "ft.Container" and widget_type in (
+            "ttk::frame",
+            "ttk::canvas",
+            "canvas",
+            "frame",
+        ):
+            relief = self._relief_border(name)
+            if relief:
+                arguments["border"] = self._border(relief[1], relief[0])
         elif control == "ft.DataTable":
             columns = properties.pop("tree_columns", [])
             arguments["columns"] = (
@@ -1221,6 +1306,11 @@ class _Emitter:
         elif control == "ft.TextField":
             if widget_type in TEXT_MEASURED_TYPES:
                 arguments["multiline"] = "True"
+            if "value" in properties:
+                # The field shows the variable's value; record the binding so
+                # set_text() can put a new value into the control as well.
+                variable = properties["value"]
+                self.text_bindings.setdefault(variable, []).append((name, "value"))
         elif control == "ft.Divider":
             if properties.pop("orientation", "") == "vertical":
                 self.notes.append(
@@ -1237,6 +1327,10 @@ class _Emitter:
                 "list_variable",
             ):
                 continue
+            if keyword == "size" and control in ("ft.TextField", "ft.Dropdown"):
+                # A font size on an entry/combobox is ft text_size; neither
+                # control has a "size" field, and passing one is a TypeError.
+                keyword = "text_size"
             if keyword in arguments and keyword in STRUCTURAL_ARGUMENTS:
                 continue
             if keyword not in CONTROL_OPTIONS.get(control, UNIVERSAL_OPTIONS):
@@ -1255,6 +1349,152 @@ class _Emitter:
             arguments[self._event_keyword(control)] = command
 
         return arguments, unmapped
+
+    @staticmethod
+    def _label_alignment(anchor: str) -> str:
+        """Map a Tk label anchor onto an ft.Alignment."""
+        mapping = {
+            "w": "ft.Alignment.CENTER_LEFT",
+            "nw": "ft.Alignment.TOP_LEFT",
+            "sw": "ft.Alignment.BOTTOM_LEFT",
+            "e": "ft.Alignment.CENTER_RIGHT",
+            "ne": "ft.Alignment.TOP_RIGHT",
+            "se": "ft.Alignment.BOTTOM_RIGHT",
+            "n": "ft.Alignment.TOP_CENTER",
+            "s": "ft.Alignment.BOTTOM_CENTER",
+        }
+        return mapping.get(anchor.strip().lower(), "ft.Alignment.CENTER")
+
+    def _list_box(self, name: str, properties: dict[str, Any]) -> dict[str, str]:
+        """Return a Container holding a listbox's ListView.
+
+        The Container carries the designer's background and border, because
+        neither ft.ListView nor an empty list paints anything.
+        """
+        background = str(
+            properties.pop("bgcolor", None) or self.project.colour("inputbg") or ""
+        ).strip("'\"")
+        values = properties.pop("values", None)
+        items = [f"ft.Text({value!r})" for value in values] if values else []
+        list_arguments = [_list_argument("controls", items)]
+        attachment = self.project.attachment(name)
+        if attachment is not None and attachment.mode == "native":
+            # The scroll belongs on the list: a Container takes no scroll.
+            list_arguments.append(f"scroll={attachment.scrollbar_call()}")
+        arguments = {"content": _call("ft.ListView", list_arguments)}
+        if background:
+            arguments["bgcolor"] = repr(background)
+        border = self.project.colour("border")
+        if border:
+            arguments["border"] = self._border(border)
+        if properties.pop("list_variable", None):
+            self.notes.append(
+                f"# {name}: listbox items live in the module level list "
+                "of the same name - append to it and call page.update()"
+            )
+        return arguments
+
+    def _text_height(self, name: str) -> int:
+        """Return the height the designer gave a widget, in pixels."""
+        height = _number(self._placement_arguments(name).get("height"))
+        if not height:
+            natural = self._natural_size(name)
+            height = natural[1] if natural else 0
+        return int(height or 0)
+
+    def _text_area(self, name: str, properties: dict[str, Any]) -> dict[str, str]:
+        """Return a Container holding a multiline field sized to the design.
+
+        Flet ignores an explicit height on a multiline field (measured: 120px
+        rendered 46px) and sizes it from ``min_lines`` instead, which lands
+        within about 10px.  The Container supplies the exact design box and
+        clips, and both it and the field carry the widget's background so the
+        fill is continuous.
+        """
+        style = dict(self._style_arguments(name, "ft.TextField"))
+        background = properties.pop("bgcolor", None) or style.pop("bgcolor", None)
+        # The style values are quoted literals; _border() wants the raw colour.
+        border_colour = str(style.pop("border_color", "")).strip("'\"") or None
+        border_width = style.pop("border_width", None)
+        # The Container carries the border, so the field inside has none.
+        style.pop("border", None)
+        lines = multiline_lines(self._text_height(name))
+        field_arguments = ["multiline=True", "border=None"]
+        if lines:
+            field_arguments.append(f"min_lines={lines}")
+        field_name = f"{name}_field"
+        value = properties.pop("value", None)
+        if value:
+            field_arguments.append(f"value={value}")
+            # The Container is not the control holding the value, so the
+            # binding names the field inside it.
+            self.text_bindings.setdefault(value, []).append((field_name, "value"))
+        for key in (
+            "color",
+            "text_size",
+            "content_padding",
+            "text_vertical_align",
+            "disabled",
+            "read_only",
+        ):
+            if key in style:
+                field_arguments.append(f"{key}={style[key]}")
+        if background:
+            field_arguments.append(f"bgcolor={background}")
+        # Emitted before the Container, so the field exists when it is used.
+        self.lines.extend(
+            _indent_lines(
+                _call(f"{field_name} = ft.TextField", field_arguments), 4
+            ).split("\n")
+        )
+        arguments = {"content": field_name}
+        if background:
+            arguments["bgcolor"] = background
+        if border_colour:
+            arguments["border"] = self._border(border_colour, int(border_width or 1))
+        arguments["clip_behavior"] = "ft.ClipBehavior.HARD_EDGE"
+        return arguments
+
+    def _is_filled_label(self, name: str) -> bool:
+        """Whether a label is drawn as a coloured box rather than plain text.
+
+        ttk fills a label for the ``inverse`` style, and a designer can also set
+        an explicit background.  A label the tool default has turned into a
+        placeholder is not filled - it is a plain stand-in Container.
+        """
+        if self.project.widget_type(name) != "ttk::label":
+            return False
+        if self.project.policy_for(name) == "placeholder":
+            return False
+        _bootstyle, variants = self.project.style_of(name)
+        if "inverse" in variants or self.project.option(name, "background"):
+            return True
+        return self._relief_border(name) is not None
+
+    def _filled_label(self, name: str, properties: dict[str, Any]) -> dict[str, str]:
+        """Return the arguments for a label drawn inside a coloured box."""
+        style = dict(self._style_arguments(name, "ft.Text"))
+        fill = properties.pop("bgcolor", None) or style.pop("bgcolor", None)
+        style.pop("value", None)
+        # _label_alignment below handles the anchor; the generic anchor mapping
+        # is for plain containers and would lose the vertical centring.
+        properties.pop("alignment", None)
+        allowed = ("color", "size", "font_family", "weight", "italic", "text_align")
+        inner = _call(
+            "ft.Text",
+            [f"value={properties.pop('text', '')!r}"]
+            + [f"{key}={style[key]}" for key in allowed if key in style],
+        )
+        arguments = {"content": inner}
+        if fill:
+            arguments["bgcolor"] = fill
+        relief = self._relief_border(name)
+        if relief:
+            arguments["border"] = self._border(relief[1], relief[0])
+        arguments["alignment"] = self._label_alignment(
+            self.project.option(name, "anchor")
+        )
+        return arguments
 
     def _caption(
         self,
@@ -1281,6 +1521,22 @@ class _Emitter:
             return variable
         return repr("")
 
+    @staticmethod
+    def _text_style(colour: str | None = None, size: int = DEFAULT_TEXT_SIZE) -> str:
+        """Return an ``ft.TextStyle`` matching ttk's plain text.
+
+        Flet renders a TextStyle that leaves the weight unset in *bold* (the
+        field's default is None, and the Material label styles resolve that to
+        a heavy face), which made button captions and check/radio labels look
+        bolder than the ttk originals.  Both the weight and the letter spacing
+        are therefore pinned.
+        """
+        parts = [f"size={size}", "weight=ft.FontWeight.NORMAL", "letter_spacing=0"]
+        if colour:
+            # Callers pass the raw colour, not a Python literal.
+            parts.insert(0, f"color={str(colour).strip(chr(39) + chr(34))!r}")
+        return _call("ft.TextStyle", parts)
+
     def _button_style(self, side: str | None = None) -> str:
         """Return the ``ft.ButtonStyle`` that matches a ttk button closely.
 
@@ -1292,11 +1548,35 @@ class _Emitter:
             f"padding=ft.Padding(left={BUTTON_PADDING_X}, right={BUTTON_PADDING_X}"
             f", top={BUTTON_PADDING_Y}, bottom={BUTTON_PADDING_Y})",
             f"shape=ft.RoundedRectangleBorder(radius={BUTTON_RADIUS})",
-            f"text_style=ft.TextStyle(size={BUTTON_TEXT_SIZE})",
+            f"text_style={self._text_style(size=BUTTON_TEXT_SIZE)}",
         ]
         if side:
             parts.append(f"side=ft.BorderSide(1, {side!r})")
         return _call("ft.ButtonStyle", parts)
+
+    def _relief_border(self, name: str) -> tuple[int, str] | None:
+        """Return ``(width, colour)`` when the designer asked for a border.
+
+        ttk draws a border for a relief other than flat/none and a borderwidth
+        above zero - that pair is the designer's own signal, so it is honoured
+        here rather than guessed at.  The colour comes from the theme's border.
+        """
+        relief = self.project.option(name, "relief").strip().lower()
+        if relief in ("", "flat", "none"):
+            return None
+        width = _number(self.project.option(name, "borderwidth"))
+        if width is None:
+            width = _number(self.project.option(name, "bd"))
+        if not width or int(width) <= 0:
+            return None
+        colour = (
+            self.project.widget_surface("entry_border")
+            or self.project.colour("border")
+            or self.project.colour("fg")
+        )
+        if not colour:
+            return None
+        return int(width), colour
 
     @staticmethod
     def _border(colour: str, width: int = 1) -> str:
@@ -1326,9 +1606,11 @@ class _Emitter:
         resolved = self.project.bootstyle_styles(bootstyle) if bootstyle else {}
         slot = self.project.colour(bootstyle) if bootstyle else None
         surface = self.project.colour("bg") or "#ffffff"
-        border = self.project.widget_surface("entry_border") or self.project.colour(
-            "border"
-        ) or surface
+        border = (
+            self.project.widget_surface("entry_border")
+            or self.project.colour("border")
+            or surface
+        )
         muted = self.project.colour("fg") or "#ffffff"
         widget_type = self.project.widget_type(name)
 
@@ -1358,9 +1640,7 @@ class _Emitter:
             if "inverse" in variants:
                 return {
                     "bgcolor": repr(value("inverse_bg", slot) or surface),
-                    "color": repr(
-                        value("inverse_fg", self.project.ink(slot)) or muted
-                    ),
+                    "color": repr(value("inverse_fg", self.project.ink(slot)) or muted),
                     "size": str(DEFAULT_TEXT_SIZE),
                 }
             # ttk paints a label with the theme's surface, which is what keeps
@@ -1383,9 +1663,16 @@ class _Emitter:
                 }
             if widget_type == "ttk::labelframe":
                 edge = value("labelframe_border", slot) or border
+                stored_width = _number(self.project.option(name, "borderwidth"))
+                if stored_width is not None and int(stored_width) <= 0:
+                    # ttk draws no box for borderwidth=0: the caption alone
+                    # marks the frame, as the Camera frame in Platypus shows.
+                    return {"bgcolor": repr(surface)}
+                relief = self._relief_border(name)
+                width = relief[0] if relief else 1
                 return {
                     "bgcolor": repr(surface),
-                    "border": self._border(edge),
+                    "border": self._border(edge, width),
                 }
             return {"bgcolor": repr(value("frame_bg", slot) or surface)}
         if control in ("ft.TextField", "ft.Dropdown"):
@@ -1400,8 +1687,11 @@ class _Emitter:
                     or self.project.colour("inputfg")
                     or muted
                 ),
-                "border_color": repr(border),
-                "border_width": "1",
+                # Flet 1.0 deprecates border_color/border_width on both
+                # ft.TextField and ft.Dropdown - with a warning on every run -
+                # so the border is spelled out as a side.
+                "border": f"ft.OutlineInputBorder("
+                f"side=ft.BorderSide(1, {border!r}))",
                 "text_size": str(DEFAULT_TEXT_SIZE),
                 "content_padding": _call(
                     "ft.Padding",
@@ -1414,7 +1704,6 @@ class _Emitter:
                 ),
             }
             if control == "ft.TextField":
-                # ft.Dropdown has no text_vertical_align.
                 arguments["text_vertical_align"] = "ft.VerticalAlignment.CENTER"
             return arguments
         if control == "ft.ProgressBar":
@@ -1436,14 +1725,13 @@ class _Emitter:
             return {"color": repr(slot or border)}
         if control == "ft.Checkbox":
             caption = value("checkbutton_fg", muted) or muted
+            # Only the tick colour is set here.  A fill colour would be painted
+            # in both states, so the checked fill comes from the page's theme
+            # seed - the project's primary colour - which keeps the box empty
+            # while it is unchecked, as ttk draws it.
             return {
-                "active_color": repr(slot or surface),
-                "fill_color": repr(slot or surface),
                 "check_color": repr(self.project.ink(slot) or muted),
-                "label_style": (
-                    f"ft.TextStyle(color={caption!r}, "
-                    f"size={DEFAULT_TEXT_SIZE})"
-                ),
+                "label_style": self._text_style(caption),
             }
         return {}
 
@@ -1465,11 +1753,7 @@ class _Emitter:
             muted = self.project.colour("fg")
             if not muted:
                 return {}
-            return {
-                "label_style": (
-                    f"ft.TextStyle(color={muted!r}, size={DEFAULT_TEXT_SIZE})"
-                ),
-            }
+            return {"label_style": self._text_style(muted)}
         if control in ("ft.TextField", "ft.Dropdown"):
             return {
                 "bgcolor": repr(self.project.colour("inputbg") or ""),
@@ -1484,19 +1768,12 @@ class _Emitter:
         leaves the caption in the theme's text colour.
         """
         bootstyle, _variants = self.project.style_of(name)
-        colour = self.project.colour(bootstyle) if bootstyle else None
         caption = self.project.bootstyle_styles(bootstyle).get(
             "checkbutton_fg"
         ) or self.project.colour("fg")
         parts = []
-        if colour:
-            parts.append(f"active_color={colour!r}")
-            parts.append(f"fill_color={colour!r}")
         if caption:
-            parts.append(
-                f"label_style=ft.TextStyle(color={caption!r}, "
-                f"size={DEFAULT_TEXT_SIZE})"
-            )
+            parts.append(f"label_style={self._text_style(caption)}")
         return "".join(f", {part}" for part in parts)
 
     def _placement_arguments(self, name: str) -> dict[str, str]:
@@ -1794,9 +2071,7 @@ class _Emitter:
             if fills_vertical:
                 # ttk's sticky=nsew stretches the widget to its cell, which is
                 # what makes a sudoku board grow with the window.
-                arguments.append(
-                    "vertical_alignment=ft.CrossAxisAlignment.STRETCH"
-                )
+                arguments.append("vertical_alignment=ft.CrossAxisAlignment.STRETCH")
             rows.append(_call("ft.Row", arguments))
         return _call(
             "ft.Column",
@@ -1880,8 +2155,10 @@ class _Emitter:
             else:
                 start, span = state.column, max(1, state.columnspan)
                 size = natural[0] + 2 * max(0, state.padx)
-            share = max(1, int(round(size / span))) if axis == "column" else max(
-                1, int(size)
+            share = (
+                max(1, int(round(size / span)))
+                if axis == "column"
+                else max(1, int(size))
             )
             for index in range(start, start + span):
                 weights[index] = max(weights.get(index, 0), share)
@@ -1959,21 +2236,62 @@ class _Emitter:
             [_list_argument("controls", sections), "spacing=0", "expand=True"],
         )
 
-    def _notebook(self, children: Sequence[str]) -> str:
-        """Return the ``ft.Column`` holding the tab bar and its pages."""
+    def _notebook(self, name: str, children: Sequence[str]) -> str:
+        """Return the ``ft.Tabs`` for a notebook, with a ttk-like tab bar.
+
+        ttk tabs are compact and left aligned, with the selected one picked out
+        in the bootstyle colour.  Material's defaults are roomier, which
+        overflowed small notebooks, so the padding, alignment, text style and
+        colours are all pinned.
+        """
+        labels = self._tab_labels(name, len(children))
         tabs: list[str] = []
         panes: list[str] = []
-        for index, child in enumerate(children, start=1):
-            tabs.append(f"ft.Tab(label={'Tab ' + str(index)!r})")
-            panes.append(self._define(child) or child)
-        tab_bar = _call("ft.TabBar", [_list_argument("tabs", tabs)])
+        for index, child in enumerate(children):
+            label = labels[index] if index < len(labels) else "Tab"
+            tabs.append(f"ft.Tab(label={label!r})")
+            panes.append(self._define(child))
+        bootstyle, _variants = self.project.style_of(name)
+        accent = (
+            self.project.bootstyle_styles(bootstyle).get("labelframe_border")
+            if bootstyle
+            else None
+        ) or self.project.colour("primary")
+        ink = self.project.colour("fg")
+        bar_arguments = [
+            _list_argument("tabs", tabs),
+            "tab_alignment=ft.TabAlignment.START",
+            "label_padding=ft.Padding(left=10, right=10, top=6, bottom=6)",
+            f"label_text_style={self._text_style()}",
+            f"unselected_label_text_style={self._text_style()}",
+        ]
+        if accent:
+            bar_arguments.append(f"indicator_color={accent!r}")
+            bar_arguments.append(f"label_color={accent!r}")
+        if ink:
+            bar_arguments.append(f"unselected_label_color={ink!r}")
+        tab_bar = _call("ft.TabBar", bar_arguments)
         view = _call(
             "ft.TabBarView", [_list_argument("controls", panes), "expand=True"]
         )
-        return _call(
+        body = _call(
             "ft.Column",
             [_list_argument("controls", [tab_bar, view]), "expand=True", "spacing=0"],
         )
+        return _call("ft.Tabs", [f"length={len(panes)}", f"content={body}"])
+
+    def _tab_labels(self, name: str, count: int) -> list[str]:
+        """Return the tab captions the designer stored, or ttk's default.
+
+        The designer's attribute editor offers tab_labels, but they are not
+        saved with the project, so this falls back to the same "Tab" the Python
+        backend writes for every tab.  A hand written file may set them.
+        """
+        raw = self.project.option(name, "tab_labels")
+        labels = [part.strip() for part in raw.split(",") if part.strip()]
+        while len(labels) < count:
+            labels.append("Tab")
+        return labels
 
     # -- tree walking ----------------------------------------------------
     def _define(self, name: str) -> str:
@@ -1988,7 +2306,27 @@ class _Emitter:
         widget_type = self.project.widget_type(name)
         control = widget_control(widget_type)
         children = self.project.visible_children(name)
-        if widget_type == "ttk::label" and self.project.option(name, "image"):
+        if widget_type == "ttk::label":
+            if self._is_filled_label(name) or self.project.option(name, "image"):
+                # A filled label (ttk's inverse style, or an explicit
+                # background) is wrapped: ft.Text only paints behind its
+                # glyphs, so the fill has to come from the outer Container.
+                control = "ft.Container"
+        if widget_type in TEXT_WIDGET_TYPES:
+            control = "ft.Container"
+        if widget_type in ("listbox", "ttk::listbox"):
+            # An ft.ListView paints nothing on its own (and takes no background),
+            # so an empty listbox would be invisible.
+            control = "ft.Container"
+        if widget_type == "ttk::panedwindow":
+            # ttk paints a panedwindow with the bootstyle colour; a bare
+            # ft.Row with no panes shows nothing at all.
+            control = "ft.Container"
+        if widget_type == NOTEBOOK_WIDGET_TYPE and any(
+            self.project.is_tab(child) for child in children
+        ):
+            # A panel of its own, so the tabs sit inside the notebook rather
+            # than floating on the page.
             control = "ft.Container"
         if widget_type == "ttk::treeview" and not parse_values(
             self.project.option(name, "columns")
@@ -2013,10 +2351,7 @@ class _Emitter:
             self._define_spinbox(name)
             return name
         arguments, unmapped = self._arguments(name, control)
-        if (
-            self.project.geom_manager == "Grid"
-            and not self.project.absolute_grid
-        ):
+        if self.project.geom_manager == "Grid" and not self.project.absolute_grid:
             # ttk semantics: sticky decides which axes the widget fills. The
             # other axis keeps the widget's own size, which is also what stops
             # Flet's taller default controls (48px fields, 40px buttons) from
@@ -2029,7 +2364,14 @@ class _Emitter:
                 arguments["width"] = str(int(natural[0]))
         attachment = self.project.attachment(name)
         if attachment is not None and attachment.mode == "native":
-            arguments["scroll"] = attachment.scrollbar_call()
+            if control == "ft.ListView":
+                arguments["scroll"] = attachment.scrollbar_call()
+            else:
+                # Wrapped (a bare ListView paints nothing), so the scroll goes
+                # on the list inside the Container instead.
+                self.notes.append(
+                    f"# {name}: scrollbar attached to the list inside the Container"
+                )
 
         if widget_type == NOTEBOOK_WIDGET_TYPE:
             tabs = [child for child in children if self.project.is_tab(child)]
@@ -2037,8 +2379,7 @@ class _Emitter:
             for child in others:
                 self._define(child)
             if tabs:
-                arguments["length"] = str(len(tabs))
-                arguments["content"] = self._notebook(tabs)
+                arguments["content"] = self._notebook(name, tabs)
             else:
                 self.notes.append(
                     f"# {name}: Notebook has no tab frames - emitted as its frame"
@@ -2097,6 +2438,15 @@ class _Emitter:
         ``ft.Column`` when its Flet control has no ``scroll`` slot of its own.
         """
         placement = self._placement_arguments(name)
+        if control == "ft.TextField" and arguments.get("multiline") == "True":
+            natural = self._natural_size(name) or (0, 0)
+            target = _number(placement.get("height")) or natural[1]
+            lines = multiline_lines(target)
+            if lines:
+                arguments["min_lines"] = str(lines)
+                # A multiline field ignores an explicit height, and leaving one
+                # in would suggest it does something.
+                placement.pop("height", None)
         if control not in POSITIONABLE_CONTROLS:
             # Size arguments belong to the wrapper, not to a control that has
             # no width/height of its own (ft.RadioGroup, ft.Divider).  In Grid
@@ -2125,18 +2475,14 @@ class _Emitter:
                     "controls", [f"ft.Container(content={inner_call})"]
                 ),
             }
-            rendered.update(
-                {key: f"{key}={value}" for key, value in placement.items()}
-            )
+            rendered.update({key: f"{key}={value}" for key, value in placement.items()})
             return rendered
         if control in POSITIONABLE_CONTROLS:
             rendered = {"__control__": control}
             rendered.update({key: f"{key}={value}" for key, value in arguments.items()})
             rendered.update({key: f"{key}={value}" for key, value in placement.items()})
             return rendered
-        inner = _call(
-            control, [f"{key}={value}" for key, value in arguments.items()]
-        )
+        inner = _call(control, [f"{key}={value}" for key, value in arguments.items()])
         rendered = {"__control__": "ft.Container", "content": f"content={inner}"}
         rendered.update({key: f"{key}={value}" for key, value in placement.items()})
         return rendered
@@ -2235,9 +2581,7 @@ class _Emitter:
                 f"# {name}: spinbox value list is not reproduced - "
                 "numeric stepping only"
             )
-        call = _call(
-            f"{name} = {rendered.pop('__control__')}", list(rendered.values())
-        )
+        call = _call(f"{name} = {rendered.pop('__control__')}", list(rendered.values()))
         self.lines.extend(_indent_lines(call, 4).split("\n"))
 
     def _register_spin_helper(self) -> None:
@@ -2270,14 +2614,47 @@ class _Emitter:
         caption = self.project.option(name, "text")
         if not caption:
             return content
-        ink = self.project.widget_surface("labelframe_fg") or self.project.colour("fg")
-        style = f", color={ink!r}, size={DEFAULT_TEXT_SIZE}" if ink else ""
-        children = [f"ft.Text(value={caption!r}{style})"]
-        if content:
-            children.append(content)
-        return _call(
-            "ft.Column", [_list_argument("controls", children), "spacing=2"]
+        # ttk paints the caption in the frame's bootstyle colour - the same
+        # colour as its border, measured on both the superhero and cyborg
+        # themes - so that is preferred over the theme's text colour.
+        bootstyle, _variants = self.project.style_of(name)
+        styles = self.project.bootstyle_styles(bootstyle) if bootstyle else {}
+        ink = (
+            styles.get("labelframe_border")
+            or self.project.widget_surface("labelframe_fg")
+            or self.project.colour("fg")
         )
+        style = f", color={ink!r}, size={DEFAULT_TEXT_SIZE}" if ink else ""
+        row = _call(
+            "ft.Row",
+            [
+                _list_argument("controls", [f"ft.Text(value={caption!r}{style})"]),
+                "spacing=0",
+                f"alignment={self._label_anchor_alignment(name)}",
+            ],
+        )
+        if self._label_anchor_below(name):
+            # labelanchor starting with "s" draws the caption under the frame.
+            children = [content, row] if content else [row]
+        else:
+            children = [row, content] if content else [row]
+        return _call("ft.Column", [_list_argument("controls", children), "spacing=2"])
+
+    def _label_anchor(self, name: str) -> str:
+        """Return a labelframe's labelanchor, defaulting to ttk's "n"."""
+        return self.project.option(name, "labelanchor").strip().lower() or "n"
+
+    def _label_anchor_below(self, name: str) -> bool:
+        return self._label_anchor(name).startswith("s")
+
+    def _label_anchor_alignment(self, name: str) -> str:
+        """Map a labelframe labelanchor onto a Row alignment."""
+        anchor = self._label_anchor(name)
+        if anchor.endswith("w"):
+            return "ft.MainAxisAlignment.START"
+        if anchor.endswith("e"):
+            return "ft.MainAxisAlignment.END"
+        return "ft.MainAxisAlignment.CENTER"
 
     def _paned(self, parent_name: str, children: Sequence[str]) -> str:
         names = [name for name in map(self._define, children) if name]
@@ -2322,6 +2699,7 @@ def emit_program(
     minimum_flet_version: str = DEFAULT_MINIMUM_FLET_VERSION,
     strict_flet_version: bool = DEFAULT_STRICT_FLET_VERSION,
     natural_sizes: Mapping[str, Sequence[int]] | None = None,
+    preserve_from: str = "",
 ) -> str:
     """Return a complete, runnable Flet program for *project_data*.
 
@@ -2341,6 +2719,10 @@ def emit_program(
     them (``winfo_reqwidth``/``winfo_reqheight``).  Exact-position Grid output
     uses them to size cells the way Tk does; without them the tool defaults are
     used instead.
+
+    ``preserve_from`` names an earlier generated file: functions whose
+    ``# AUTO-GENERATED STUB`` marker has been removed, and variable lines the
+    user changed, are carried over instead of being regenerated.
     """
     project = _Project(
         project_data,
@@ -2358,6 +2740,12 @@ def emit_program(
         if project.skipped(scrollbar):
             continue
         emitter.notes.append(f"# {scrollbar} (scrollbar): {attachment.summary()}")
+    preserved_functions: dict[str, str] = {}
+    preserved_variables: dict[str, str] = {}
+    if preserve_from:
+        preserved_functions, preserved_variables = _read_preserved(
+            preserve_from, project
+        )
     root_expression = emitter.root()
     width, height = emitter.window_size()
     theme = _text(project_data.get("theme"))
@@ -2427,36 +2815,64 @@ def emit_program(
         lines.append(
             "# Flet controls hold plain Python values - adjust types as needed."
         )
+        if project.variables:
+            first = project.variables[0]
+            lines.extend(
+                (
+                    "# Assigning a variable here or in a handler changes it, but",
+                    "# the widgets showing it keep the value they were built with.",
+                    f"# Use set_text({first!r}, 'new value') to change the variable",
+                    "# and refresh its controls together - the handler stubs start",
+                    "# with `global` so a plain assignment reaches this variable.",
+                )
+            )
         declared = list(project.variables)
         for variable in sorted(project.list_variables):
             if variable not in declared:
                 declared.append(variable)
+        defaults = project_format.variable_defaults(
+            project.data, project.order, project.root_name
+        )
         for variable in declared:
-            if variable in project.list_variables:
-                lines.append(f"{variable} = []   # listbox items")
+            if variable in preserved_variables:
+                # The user's own line; keep it exactly.
+                lines.extend(preserved_variables[variable].split("\n"))
+            elif variable in project.list_variables:
+                lines.append(
+                    f"{variable} = []   {project_format.VARIABLE_MARKER}"
+                    " - listbox items"
+                )
+            elif variable in defaults:
+                # The value the designer showed for this variable.
+                lines.append(
+                    f"{variable} = {defaults[variable]!r}"
+                    f"   {project_format.VARIABLE_MARKER}"
+                )
             else:
-                lines.append(f"{variable} = '0.0'")
+                lines.append(f"{variable} = '0.0'   {project_format.VARIABLE_MARKER}")
     else:
         lines.append("# No widget variables are referenced by this project.")
 
     lines.extend(("", SECTION_FUNCTIONS))
     if project.callbacks:
         for callback in project.callbacks:
-            lines.extend(
-                (
-                    "",
-                    f"def {callback}(e=None):",
-                    f"    {STUB_SENTINEL}",
-                    f"    print({callback!r})",
-                )
-            )
+            lines.append("")
+            if callback in preserved_functions:
+                lines.extend(preserved_functions[callback].split("\n"))
+                continue
+            lines.append(f"def {callback}(e=None):")
+            if project.variables:
+                # Without this an assignment in a handler creates a local name
+                # and the widget keeps showing the old value.
+                lines.append(f"    global {', '.join(project.variables)}")
+            lines.append(f"    {STUB_SENTINEL}")
+            lines.append(f"    print({callback!r})")
     else:
         lines.append("# Add your event handlers here.")
 
-    if emitter.text_bindings:
+    if project.variables:
         lines.extend(("", "# ---- Text variables bound to controls ----", ""))
         lines.extend(_TEXT_BINDING_HELPERS)
-        emitter.helpers = []
 
     if emitter.helpers:
         lines.extend(("", "# ---- Generated helpers ----", ""))
@@ -2472,6 +2888,8 @@ def emit_program(
             SECTION_MAIN,
             "",
             "def main(page: ft.Page):",
+            "    global PAGE",
+            "    PAGE = page  # handlers use this through set_text()",
             "    page.title = PROJECT_NAME",
             "    page.theme_mode = ("
             "ft.ThemeMode.DARK if THEME_IS_DARK else ft.ThemeMode.LIGHT"
@@ -2483,6 +2901,17 @@ def emit_program(
     )
     if background:
         lines.append("    page.bgcolor = BACKGROUND_COLOR")
+    seed = project.colour("primary")
+    if seed:
+        lines.extend(
+            (
+                "    # Seed Flet's Material theme with the project's primary",
+                "    # colour so state-dependent controls fill with the theme",
+                "    # colour: a ticked checkbox or a selected radio is painted,",
+                "    # an untouched one stays empty, as ttk draws them.",
+                f"    page.theme = ft.Theme(color_scheme_seed={seed!r})",
+            )
+        )
     if project.images:
         lines.extend(("", "    # ---- Images ----"))
         for widget_name, filename in project.images.items():
@@ -2492,15 +2921,13 @@ def emit_program(
     if emitter.text_bindings:
         lines.append("")
         for variable, controls in sorted(emitter.text_bindings.items()):
-            pairs = [
-                f"({control}, {attribute!r})" for control, attribute in controls
-            ]
+            pairs = [f"({control}, {attribute!r})" for control, attribute in controls]
             statement = f"TEXT_BINDINGS[{variable!r}] = {_list_expression(pairs)}"
             lines.extend(_indent_lines(statement, 4).split("\n"))
         lines.append(
-            f"    # {sum(len(v) for v in emitter.text_bindings.values())} captions "
-            f"follow {len(emitter.text_bindings)} textvariables; call "
-            "set_text(page, name, value) to change them"
+            f"    # {sum(len(v) for v in emitter.text_bindings.values())} controls "
+            f"follow {len(emitter.text_bindings)} variable(s); call "
+            "set_text(name, value) to change them"
         )
     lines.extend(
         (
@@ -2544,6 +2971,26 @@ def _mapping_description(project: _Project, name: str) -> tuple[str, str]:
     if widget_type == "ttk::panedwindow":
         return "mapped", "ft.Row/ft.Column (no draggable splitter)"
     return "mapped", widget_control(widget_type)
+
+
+def _read_preserved(
+    path: str, project: "_Project"
+) -> tuple[dict[str, str], dict[str, str]]:
+    """Return the parts of an earlier generated file the user has taken over.
+
+    The comparison lines are the ones this run would write, so a variable the
+    user edited is kept while a value that is merely stale - the designer has
+    changed it since - is refreshed.  Rules live in project_format, shared with
+    the Python backend.
+    """
+    try:
+        with open(path, encoding="utf-8") as handle:
+            existing = handle.read()
+    except OSError:
+        return {}, {}
+    return project_format.preserved_pieces(
+        existing, project.callbacks, project.variables
+    )
 
 
 def window_size_for(
@@ -2610,9 +3057,11 @@ def compatibility_report(
         + (
             " (absolute positions)"
             if project.absolute_grid
-            else " (responsive rows and columns)"
-            if project.geom_manager == "Grid"
-            else ""
+            else (
+                " (responsive rows and columns)"
+                if project.geom_manager == "Grid"
+                else ""
+            )
         ),
         "",
     ]

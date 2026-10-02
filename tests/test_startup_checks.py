@@ -1,3 +1,4 @@
+import faulthandler
 import unittest
 from types import SimpleNamespace
 
@@ -40,9 +41,7 @@ class StartupChecksTests(unittest.TestCase):
         for version in ("2.0.1", "2.5", "3.0.0"):
             with self.subTest(version=version):
                 self.assertIsNone(
-                    startup_checks.check_ttkbootstrap(
-                        None, lookup_for(version)
-                    )
+                    startup_checks.check_ttkbootstrap(None, lookup_for(version))
                 )
 
     def test_check_explains_how_to_upgrade_for_old_releases(self):
@@ -53,9 +52,7 @@ class StartupChecksTests(unittest.TestCase):
         self.assertIn(startup_checks.UPGRADE_COMMAND, message)
 
     def test_check_fails_closed_when_the_version_is_unknown(self):
-        message = startup_checks.check_ttkbootstrap(
-            SimpleNamespace(), failing_lookup
-        )
+        message = startup_checks.check_ttkbootstrap(SimpleNamespace(), failing_lookup)
         self.assertIsNotNone(message)
         self.assertIn("Installed version: 0.0", message)
 
@@ -63,6 +60,24 @@ class StartupChecksTests(unittest.TestCase):
         """The guard has to work before any Tk window exists."""
         self.assertNotIn("tkinter", str(startup_checks.__dict__.keys()))
         self.assertNotIn("tkinter", startup_checks.__doc__ or "")
+
+    def test_crash_diagnostics_are_enabled(self):
+        """A segfault should print the Python frame, and SIGUSR1 a traceback."""
+        self.assertTrue(startup_checks.enable_crash_diagnostics())
+        self.assertTrue(faulthandler.is_enabled())
+
+    def test_crash_diagnostics_never_raise(self):
+        """Diagnostics must not be able to stop the application."""
+        original = startup_checks.faulthandler.enable
+        startup_checks.faulthandler.enable = _raise_oserror
+        try:
+            self.assertFalse(startup_checks.enable_crash_diagnostics())
+        finally:
+            startup_checks.faulthandler.enable = original
+
+
+def _raise_oserror():
+    raise OSError("no stderr")
 
 
 if __name__ == "__main__":

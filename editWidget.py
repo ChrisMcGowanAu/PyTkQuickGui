@@ -140,6 +140,47 @@ class widgetEditPopup:
         # This is needed to keep the validatecommand going
         return True
 
+    def closePopup(self, popupFrame) -> None:
+        """Close the attribute popup without destroying widgets mid-event.
+
+        The Close button used to call ``popupFrame.destroy`` directly, so the
+        popup was torn down inside its own button binding.  Destroying the
+        focused spinbox makes Tk fire ``focusout``, and its ``validatecommand``
+        then runs while the widget is being destroyed - that re-enters Tk's
+        config code and frees a 3D border twice, which is the segfault this
+        project's core dumps show (``Tk_Get3DBorderFromObj`` under
+        ``Tk_FreeConfigOptions``, reached from ``Tk_BindEvent``).
+
+        Validation is switched off first, and the destroy is deferred out of
+        the binding with ``after_idle``.  Closing twice is harmless.
+        """
+        self._disable_validation(popupFrame)
+
+        def _destroy() -> None:
+            try:
+                popupFrame.destroy()
+            except tk.TclError:
+                pass  # already gone
+
+        try:
+            popupFrame.winfo_toplevel().after_idle(_destroy)
+        except tk.TclError:
+            pass
+
+    @classmethod
+    def _disable_validation(cls, widget) -> None:
+        """Turn off ``validate`` on *widget* and its children, best effort."""
+        try:
+            widget.configure(validate="none")
+        except tk.TclError:
+            pass  # not every widget has a validate option
+        try:
+            children = widget.winfo_children()
+        except tk.TclError:
+            return
+        for child in children:
+            cls._disable_validation(child)
+
     def changeColour(self, key, swatch_btn=None):
         """
         Choose a Colour and immediately apply it to the live widget.
@@ -481,6 +522,38 @@ class widgetEditPopup:
             message=f"Saved {widget_type} {manager} defaults to {path}",
         )
 
+    def storeTextInVariable(self) -> None:
+        """Give the widget's textvariable the text typed in the editor.
+
+        Tk ignores 'text' once a textvariable is set, so a caption typed in the
+        attribute editor used to be dropped: the design kept showing whatever
+        the variable already held, and the generated program fell back to its
+        own default.  Writing the text into the variable keeps the design, the
+        saved project and the generated program in agreement.
+        """
+        entry = self.stringDict.get("textWidget")
+        text = ""
+        if entry is not None:
+            try:
+                text = entry.get()
+            except (tk.TclError, AttributeError):
+                text = ""
+        else:
+            text = str(self.stringDict.get("text") or "")
+        if not text:
+            return
+        try:
+            variable = str(self.widget.cget("textvariable") or "")
+        except tk.TclError:
+            return
+        if not variable:
+            return
+        try:
+            self.widget.setvar(variable, text)
+            log.info("storeTextInVariable: %r -> %s", text, variable)
+        except tk.TclError as e:
+            log.warning("storeTextInVariable: cannot set %s: %s", variable, e)
+
     def applyEditSettings(self) -> None:
         """
         Apply any changes settings for the Widget
@@ -567,6 +640,7 @@ class widgetEditPopup:
                         except tk.TclError as e:
                             log.error(e)
                             log.warning("k %s val %s", str(k), str(newVal))
+        self.storeTextInVariable()
         wName = myVars.fixWidgetName(self.widget.widgetName)
         # Scrollbar wiring works in both Grid and Place geometry manager modes.
         if wName in ("canvas", "listbox", "treeview", "text"):
@@ -730,7 +804,7 @@ class widgetEditPopup:
                             if hsb_cwo:
                                 hsb_cwo.deleteWidget()
                         log.info("removed horizontal scrollbar from %s", self.widget)
-        if wName in ("notebook"):
+        if wName == "notebook":
             # ---- Notebook tab sync (works in Place and Grid mode) ---------
             # Goal: make the notebook have exactly n_tabs tabs with the
             # requested labels.  We must NOT blindly add every time Apply is
@@ -1221,7 +1295,7 @@ class widgetEditPopup:
                 buttonBar,
                 style="warning",
                 text="Close",
-                command=editPopupFrame.destroy,
+                command=lambda frame=editPopupFrame: self.closePopup(frame),
             ).pack(side=tk.LEFT, expand=True, fill=tk.X, padx=2)
             ttk.Button(
                 buttonBar,
@@ -1313,7 +1387,7 @@ class widgetEditPopup:
         gridRow += 1
         keys = self.widget.keys()
         if keys == {}:
-            editPopupFrame.destroy()
+            self.closePopup(editPopupFrame)
             return
         log.debug("Keys %s", str(keys))
         self.keys = keys
@@ -1322,8 +1396,8 @@ class widgetEditPopup:
         val: str = ""
         # Some widgets will need extra 'keys'
         if wName == "notebook":
-            # self.specialKeys("Tabs")
-            log.warning("TBD -- Adding Tabs for notebook")
+            # The tab count and labels get their own fields further down.
+            log.debug("notebook popup: tab_count / tab_labels fields follow")
         for key in self.keys:
             row += 1
             gridRow += 1
@@ -1660,7 +1734,7 @@ class widgetEditPopup:
                 self.addToStringDict(widgetKey, w)
                 w.grid(row=gridRow, column=controlCol, columnspan=3, sticky=tk.NSEW)
             gridRow += 1
-        if wName in ("notebook"):
+        if wName == "notebook":
             # ---- tab_count spinbox (works in both Place and Grid mode) ----
             gridRow += 1
             key = "tab_count"

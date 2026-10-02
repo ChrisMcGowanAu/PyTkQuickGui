@@ -17,6 +17,24 @@ stabilised.
 |---|---|
 | ![PyTkQuickGui Place project](docs/screenshot_place_platypus.png) | ![PyTkQuickGui instrument project](docs/screenshot_place_test_tool.png) |
 
+### The examples, in both backends
+
+Seven ready made projects ship in [`examples/`](examples) - INSTALL.TXT has the
+one line that copies them into the tool's directory. Each of these is the same
+project as rendered by the generated ttkbootstrap program and by the generated
+Flet program:
+
+| ttkbootstrap output | Flet output |
+|---|---|
+| ![FletAllWidgets, ttkbootstrap output](docs/example_FletAllWidgets_tk.png) | ![FletAllWidgets, Flet output](docs/example_FletAllWidgets_flet.png) |
+| ![tabs, ttkbootstrap output](docs/example_tabs_tk.png) | ![tabs, Flet output](docs/example_tabs_flet.png) |
+
+`examples/` also holds SimplePlace (a starter with one of each basic control),
+Calculator (nineteen hand placed buttons), UserForm (entries, a combo box and a
+notebook), sudoku3 (a 91 widget Grid project) and sudokupack (Grid, small).
+Screenshots of all of them, in both backends, are in
+[`docs/`](docs).
+
 ## What it does
 
 - Builds ttkbootstrap interfaces visually on a live design surface.
@@ -94,6 +112,19 @@ On Windows, activate the environment with:
    write a program. **File → Generate Flet** writes the same layout as a
    [Flet](https://flet.dev) application.
 
+Several ready made projects ship in `examples/`. Copy them into the tool's
+directory and open one to see a finished project, or to compare the Python and
+Flet output:
+
+```bash
+mkdir -p "$HOME/.config/pytkgui/examples"
+cp -r examples/* "$HOME/.config/pytkgui/examples/"
+```
+
+Then **File → Open Project** and pick a folder such as
+`~/.config/pytkgui/examples/Calculator`. See INSTALL.TXT for the Windows
+equivalent and a list of what each example shows.
+
 ## Interface
 
 The top toolbar shows the active layout manager. Grid projects also expose:
@@ -167,6 +198,14 @@ The attribute editor stores callback fields such as `command` and variable
 fields such as `textvariable` as Python names, rather than trusting Tk's
 internal Tcl command strings. Use valid top-level Python identifiers for these
 values, for example `save_record` or `customer_name`.
+
+If a widget has both a `text` and a `textvariable`, the text you type is also
+written into the variable. Tk ignores `text` once `textvariable` is set, so
+without that the caption would be dropped - the design would keep showing
+whatever the variable held, and the generated program would fall back to its own
+default. Writing it to the variable keeps the design, the saved project and the
+generated program in agreement. A widget that keeps its *state* in a `variable`
+(a checkbutton or radiobutton) is left alone: its caption stays in `text`.
 
 ## Geometry managers
 
@@ -358,6 +397,17 @@ layout testing and does not replace the explicitly saved Python file.
 data. The translation lives in `flet_generator.py` and is a pure function of the
 project, so it can be tested without a display.
 
+Run one in a browser to test it without a desktop build, and to open it from
+another machine:
+
+```bash
+venv/bin/flet run --web ~/Calculator/Calculator_flet.py       # add --port 8550
+```
+
+The generated program is unchanged either way - `flet run --web` serves the same
+file, and `python <program>.py` still runs it as a desktop application.
+INSTALL.TXT has the details, including `--host 0.0.0.0`.
+
 | Designer | Flet output |
 |---|---|
 | Place | `ft.Stack` with absolute `left`/`top`/`width`/`height` |
@@ -365,15 +415,15 @@ project, so it can be tested without a display.
 | Grid (exact positions) | `ft.Stack` with `rowspan`/`columnspan` reproduced exactly; cells are sized from the widgets themselves (the designer's measurements, the tool default per type as a floor, minsize only as a floor like Tk) |
 | Pack | `ft.Row`/`ft.Column` groups by `side` |
 | Frame / Canvas | `ft.Container` (background preserved) holding an `ft.Stack` |
-| Labelframe | `ft.Container` with the caption as an `ft.Text` line |
-| Notebook | `ft.Tabs` with `ft.TabBar` and `ft.TabBarView` |
+| Labelframe | `ft.Container` with the caption above the content (below for a south `labelanchor`), aligned as the designer's `labelanchor` says - centred for the default `n`. A `borderwidth` of 0 draws no box, as ttk does |
+| Notebook | a panel `ft.Container` holding `ft.Tabs` with `ft.TabBar` and `ft.TabBarView`; the tab bar is pinned to ttk's manner (compact padding, left aligned, bootstyle accent on the selected tab) because Material's defaults are roomier and overflowed small notebooks |
 | Panedwindow | `ft.Row`/`ft.Column` (Flet has no draggable splitter) |
 | Label / Button / Entry / Combobox / Checkbutton / Radiobutton / Scale / Progressbar / Separator | `ft.Text` / `ft.Button` / `ft.TextField` / `ft.Dropdown` / `ft.Checkbox` / `ft.RadioGroup` / `ft.Slider` / `ft.ProgressBar` / `ft.Divider` |
 | Spinbox | `ft.Row` of a numeric `ft.TextField` and ↑/↓ `ft.IconButton`s, stepping by the saved `from`/`to`/`increment` through a generated `_step_value` helper |
 | Treeview | `ft.DataTable` with the saved column headings (rows are never stored in the project) |
 | Listbox | `ft.ListView` |
 | Scrollbar | folded into the widget it scrolls: `scroll=ft.Scrollbar(...)` on a `ft.ListView`, or a scrolling `ft.Column` wrapped around a canvas/table |
-| Text | multiline `ft.TextField` (its own scrollbar is dropped) |
+| Text | a multiline `ft.TextField` inside a `ft.Container` that gives it the designer's exact box (Flet sizes a multiline field from its line count, not from a height); its own scrollbar is dropped |
 | `command`, `textvariable`, `variable` | `on_click`/`on_change`, plain Python values, `bool(...)` for check buttons |
 | Tk colours | CSS hex (named Tk colours are mapped, unknown names are dropped) |
 
@@ -398,15 +448,31 @@ Things worth knowing:
 - Tk options with no Flet equivalent (`takefocus`, `cursor`, `style`, …) are left
   out and listed in a `Translation notes` comment per widget, so nothing
   disappears silently.
+- `relief` with a `borderwidth` above zero draws a border, as ttk does - the
+  designer's own signal, so a label or frame the designer gave `relief=solid,
+  borderwidth=1` comes out bordered rather than flat.
 - Flet attaches scrollbars to a scrollable control
   (`ft.Column(scroll=ft.Scrollbar())`) rather than exposing a free-standing
   widget, and `ft.RadioGroup`/`ft.Divider` are not positional controls, so
   they are wrapped in a `ft.Container` to keep the designer's coordinates.
-- A widget whose caption lives in a `textvariable` (a common designer
-  pattern - a sudoku cell, for example) keeps that binding: the generated
-  program declares the variable, points the control at it, and provides
-  `set_text(page, name, value)` to change it. One variable can caption many
-  controls, exactly as a Tk variable does.
+- A variable starts at **the value its widget showed in the designer** rather
+  than a fixed `'0.0'`: type the value into the widget on the canvas (or tick a
+  checkbutton), save or generate, and that is what the generated program
+  initialises. A variable with nothing captured still starts at `'0.0'`, and
+  the Python backend emits it as `tk.StringVar(rootWin, '123')`.
+- A widget bound to a `textvariable` (a sudoku cell, a calculator display, a
+  text area) keeps that binding: the generated program declares the variable,
+  points the control at it, and provides `set_text(name, value)` to change it -
+  which updates the variable *and* every control showing it, the way a Tk
+  variable does. One variable can drive many controls.
+- Each generated handler stub starts with `global <variables>`, so a plain
+  assignment in your own code updates the module variable rather than creating
+  a local name (Flet controls hold plain Python values, so unlike a
+  `tk.StringVar` there is nothing to `.set()`). Use `set_text('calcvar', '4')`
+  when you also want the widgets refreshed; `set_text` uses the page recorded
+  in `main()`, so no page argument is needed. The same tip is written into the
+  generated file's **Flet variables** section, next to the variables it is
+  about.
 - The window opens at a size worked out from the design rather than a fixed
   800x600: Grid and Pack from the widgets and their spans, Place from the
   furthest edge anything is placed at. It is clamped to 1280x900 and written to
@@ -414,10 +480,19 @@ Things worth knowing:
   adjusting it is a one line edit. Grid and Pack layouts reflow as the window
   is resized; Place positions are absolute, so they stay where the designer put
   them (a widget using relative width/height still stretches).
+- Text style is pinned to a normal weight: Flet renders a `ft.TextStyle` whose
+  weight is left unset in bold, which made button captions and check/radio
+  labels heavier than the ttk originals.
+- Notebook tab captions are stored as `tab_labels` metadata ("Home,Config")
+  next to the widget, because they live on the tab ids rather than in the
+  notebook's options — a label typed in the attribute editor now survives a
+  save and reload, and both backends write it (`notebook.add(frame, text=…)`
+  and `ft.Tab(label=…)`). A tab with no label is called "Tab".
 - **Trial Run (Flet)** launches the generated program with `python3`.
-- Regeneration overwrites the whole file: unlike the Python backend there is no
-  edit-preserving pass for Flet output yet, so keep hand-written changes in a
-  module that imports the generated one.
+- Regeneration keeps your work: a handler you have taken over - the
+  `# AUTO-GENERATED STUB` line removed - and a variable line you have changed
+  are carried over from the file you last generated to, exactly as the Python
+  backend does. Untouched stubs are regenerated.
 - ttkbootstrap themes are not Flet themes; the project theme is emitted as a
   `THEME` constant for reference only.
 
@@ -603,6 +678,35 @@ those differences; check a Trial Run when exact Place dimensions matter.
 - Runtime detail is written through Python logging. Benign Tk lookups on a
   widget already destroyed during cleanup are logged at debug level.
 
+### Debugging a crash
+
+Tk and Flet both carry C code, so a fault can end the process with a segfault
+rather than a traceback. Three things make that diagnosable:
+
+- **A Python traceback on a fatal signal.** `faulthandler` is enabled at
+  startup, so a crash prints the Python frame that was running to stderr.
+  `kill -USR1 <pid>` prints a traceback of every thread on demand, which is the
+  quickest way to see where a hung window is stuck.
+- **Core dumps are kept by systemd.** No `ulimit` needed - the kernel pipes
+  cores to `systemd-coredump`:
+
+  ```bash
+  coredumpctl list                 # every crash, with pid and time
+  coredumpctl info <pid>           # summary and stack trace
+  coredumpctl gdb <pid>            # load it in gdb: bt, py-bt
+  coredumpctl dump <pid> --output=core   # then: gdb -batch -ex bt /usr/bin/python3.12 core
+  ```
+
+- **Python frames in gdb** need `sudo apt install python3.12-dbg`; without it a
+  core shows only C frames (`_PyEval_EvalFrameDefault` and friends), with it
+  `py-bt` names the Python function.
+
+A crash seen here in the wild, for reference: `Tk_Get3DBorderFromObj` inside
+`Tk_Free3DBorderFromObj` inside `Tk_FreeConfigOptions`, reached from
+`Tk_BindEvent` - Tk freeing a widget's border while a binding was still running,
+i.e. a widget destroyed from inside a binding or a `validate=` callback. If you
+hit it, the traceback from the steps above points at the Python line.
+
 ## Current limitations
 
 - Pack cannot be selected for a new project.
@@ -610,8 +714,11 @@ those differences; check a Trial Run when exact Place dimensions matter.
   are stabilised.
 - Some complex widgets require application-specific setup that a visual builder
   cannot infer, such as connecting scrollbars to targets.
-- Flet output is regenerated whole: edits to a generated Flet file are not
-  preserved (the Python backend does preserve them).
+- **Place is the default** for a new project, and the recommended target for
+  Flet output: it translates one to one, where Grid has to be interpreted.
+- Generated files are suggested as `<home>/<project>/<project>_ttk.py` and
+  `<project>_flet.py`, so both outputs of a project sit together; the path you
+  choose is remembered with the project and used for edit preservation.
 - Flet has no draggable splitter, and a Tk scrollbar with no scrollable target
   (or a horizontal one) stays a placeholder Container.
 - **Exact Grid positions** sizes a cell from the widgets in it, not from the
@@ -649,6 +756,23 @@ When contributing:
 
 Bug reports are most useful when they include the project JSON, the selected
 geometry manager, the sequence of editing actions, and the complete traceback.
+
+### Checking generated Flet code after an upgrade
+
+Several Flet mappings rest on *measured* behaviour - a multiline field takes its
+height from `min_lines`, a `ft.TextStyle` with no weight is drawn bold, Material
+paints a check/radio fill in every state, `ft.Tabs` takes a
+`TabBar`/`TabBarView` content - and a Flet upgrade can change any of them
+without changing the major version. `tools/smoke_flet_generated.py` is the
+answer: it generates every saved project (default, exact-position Grid and
+skip-optional modes), parses the result, builds the controls with the installed
+Flet and exits non-zero on failure.
+
+```bash
+venv/bin/python tools/smoke_flet_generated.py          # the saved projects
+venv/bin/python tools/smoke_flet_generated.py --all    # including backups
+venv/bin/python tools/smoke_flet_generated.py ~/elsewhere/*.json
+```
 
 ## License
 

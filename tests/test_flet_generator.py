@@ -1,7 +1,9 @@
 import ast
 import contextlib
-import re
 import io
+import os
+import re
+import tempfile
 import unittest
 
 try:
@@ -107,6 +109,12 @@ def run_generated(source):
 
 
 class FletGeneratorTests(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+
+    def tearDown(self):
+        self.temp_dir.cleanup()
+
     def test_generated_program_is_valid_python(self):
         data = project(
             widgets=(
@@ -267,7 +275,9 @@ class FletGeneratorTests(unittest.TestCase):
         self.assertIn("length=2", source)
         self.assertIn("ft.TabBar(", source)
         self.assertIn("ft.TabBarView(", source)
-        self.assertIn("ft.Tab(label='Tab 1')", source)
+        # ttk's default: every tab is called "Tab" (the Python backend too).
+        self.assertIn("ft.Tab(label='Tab')", source)
+        self.assertNotIn("Tab 1", source)
 
     def test_tk_colours_are_translated_or_dropped(self):
         self.assertEqual(flet_generator.tk_color("skyBlue3"), "#6ca6cd")
@@ -499,7 +509,10 @@ class FletGeneratorTests(unittest.TestCase):
         )
 
         ast.parse(source)
-        self.assertIn("Widget1 = ft.ListView(", source)
+        # The list sits in a Container so the listbox paints its background,
+        # and the scroll belongs on the list rather than the Container.
+        self.assertIn("Widget1 = ft.Container(", source)
+        self.assertIn("content=ft.ListView(", source)
         self.assertIn("scroll=ft.Scrollbar(thickness=20)", source)
         self.assertNotIn("Widget2 =", source)
         self.assertIn("attached to Widget1", source)
@@ -680,16 +693,16 @@ class FletGeneratorTests(unittest.TestCase):
 
         ast.parse(source)
         self.assertIn("rootWidget = ft.Stack(", source)
-        widget1 = source[source.index("Widget1 = "):source.index("Widget2 = ")]
-        self.assertIn("width=200", widget1)         # the label's measured 200px
+        widget1 = source[source.index("Widget1 = ") : source.index("Widget2 = ")]
+        self.assertIn("width=200", widget1)  # the label's measured 200px
         self.assertIn("height=60", widget1)
-        widget2 = source[source.index("Widget2 = "):source.index("Widget3 = ")]
-        self.assertIn("left=200", widget2)          # after column 0
-        self.assertIn("top=60", widget2)            # after row 0
-        self.assertIn("width=120", widget2)         # its own 120px
-        widget3 = source[source.index("Widget3 = "):]
-        self.assertIn("top=92", widget3)            # rows 0 and 1 are 60 + 32
-        self.assertIn("height=32", widget3)         # rowspan of two 16px rows
+        widget2 = source[source.index("Widget2 = ") : source.index("Widget3 = ")]
+        self.assertIn("left=200", widget2)  # after column 0
+        self.assertIn("top=60", widget2)  # after row 0
+        self.assertIn("width=120", widget2)  # its own 120px
+        widget3 = source[source.index("Widget3 = ") :]
+        self.assertIn("top=92", widget3)  # rows 0 and 1 are 60 + 32
+        self.assertIn("height=32", widget3)  # rowspan of two 16px rows
 
     def test_grid_absolute_mode_keeps_the_tool_default_as_a_floor(self):
         """An empty textvariable makes a widget measure small; do not shrink."""
@@ -716,11 +729,11 @@ class FletGeneratorTests(unittest.TestCase):
             [ROOT, "Widget1"],
             ROOT,
             grid_mode="absolute",
-            natural_sizes={"Widget1": (8, 27)},   # an empty caption measures 8px
+            natural_sizes={"Widget1": (8, 27)},  # an empty caption measures 8px
         )
 
-        widget1 = source[source.index("Widget1 = "):]
-        self.assertIn("width=100", widget1)   # the tool default for a button
+        widget1 = source[source.index("Widget1 = ") :]
+        self.assertIn("width=100", widget1)  # the tool default for a button
         self.assertIn("height=32", widget1)
 
     def test_grid_absolute_mode_keeps_minsize_as_a_floor(self):
@@ -750,7 +763,7 @@ class FletGeneratorTests(unittest.TestCase):
             natural_sizes={"Widget1": (12, 10)},
         )
 
-        widget1 = source[source.index("Widget1 = "):]
+        widget1 = source[source.index("Widget1 = ") :]
         # The label's own design size (120x32) is larger than the 40x30
         # minsize, so the minsize is not what decides the cell here.
         self.assertIn("width=120", widget1)
@@ -800,7 +813,7 @@ class FletGeneratorTests(unittest.TestCase):
 
         ast.parse(source)
         # The frame is emitted after its children (child-first ordering).
-        frame = source[source.index("Widget1 = "):]
+        frame = source[source.index("Widget1 = ") :]
         # Container grids use the 40x24 minsize the Python backend emits, and
         # the buttons themselves default to 100x32, so the frame is two 100px
         # cells wide and 32px tall.
@@ -1047,12 +1060,13 @@ class FletGeneratorTests(unittest.TestCase):
 
         ast.parse(source)
         self.assertIn("bgcolor='#95b5f9'", source)
-        self.assertIn("color='#000000'", source)          # ink on a light fill
-        self.assertIn("bgcolor='#1a1b26'", source)        # outline keeps the surface
+        self.assertIn("color='#000000'", source)  # ink on a light fill
+        self.assertIn("bgcolor='#1a1b26'", source)  # outline keeps the surface
         self.assertIn("ft.BorderSide(1, '#c9aef9')", source)
-        self.assertIn("bgcolor='#1f202d'", source)        # entry surface
-        self.assertIn("border_color='#3f3f49'", source)   # theme border, not bootstyle
-        self.assertIn("color='#c0caf5'", source)          # entry text
+        self.assertIn("bgcolor='#1f202d'", source)  # entry surface
+        # Theme border, not the bootstyle colour, spelled as Flet 1.0 wants.
+        self.assertIn("ft.OutlineInputBorder(side=ft.BorderSide(1, '#3f3f49'))", source)
+        self.assertIn("color='#c0caf5'", source)  # entry text
 
     def test_styles_are_translated_not_dropped(self):
         data = project(
@@ -1109,9 +1123,9 @@ class FletGeneratorTests(unittest.TestCase):
         data = project(theme="tokyo-night-dark")
         project_view = flet_generator._Project(data, [ROOT], ROOT)
         ink = project_view.ink
-        self.assertEqual(ink("#b1d888"), "#000000")   # light fill -> black
-        self.assertEqual(ink("#375a7f"), "#ffffff")   # dark fill -> white
-        self.assertEqual(ink(""), "#c0caf5")          # falls back to theme fg
+        self.assertEqual(ink("#b1d888"), "#000000")  # light fill -> black
+        self.assertEqual(ink("#375a7f"), "#ffffff")  # dark fill -> white
+        self.assertEqual(ink(""), "#c0caf5")  # falls back to theme fg
 
     def test_palette_covers_the_themes_the_projects_use(self):
         palette = flet_generator.load_theme_palette()
@@ -1125,7 +1139,8 @@ class FletGeneratorTests(unittest.TestCase):
                 self.assertIn("widgets", record)
                 self.assertTrue(record["styles"]["primary"]["button_bg"])
 
-    def test_labelframe_caption_uses_the_theme_text_colour(self):
+    def test_labelframe_caption_matches_the_frame_border(self):
+        """Measured on the ttk output: the caption is the bootstyle colour."""
         data = project(
             theme="darkly",
             widgets=(
@@ -1141,8 +1156,35 @@ class FletGeneratorTests(unittest.TestCase):
         source = flet_generator.emit_program(data, [ROOT, "Widget1"], ROOT)
 
         ast.parse(source)
-        self.assertIn("ft.Text(value='Group', color='#ffffff'", source)
+        # darkly's primary, the same colour ttk paints the border with.
+        self.assertIn("ft.Text(value='Group', color='#375a7f'", source)
         self.assertIn("ft.BorderSide(1, '#375a7f')", source)
+
+    def test_palette_keeps_the_resolved_style_and_widget_sections(self):
+        """The resolved tables must survive loading, or ttk's own choices go."""
+        palette = flet_generator.theme_palette("darkly")
+
+        self.assertEqual(palette["styles"]["primary"]["button_bg"], "#375a7f")
+        self.assertEqual(palette["widgets"]["entry_bg"], "#282828")
+
+    def test_resolved_button_ink_beats_the_luminance_rule(self):
+        """bootstrap-dark's primary sits on the boundary; ttk chooses white."""
+        data = project(
+            theme="bootstrap-dark",
+            widgets=(
+                widget(
+                    "Widget1",
+                    "ttk::button",
+                    attributes=(("text", "Go"), ("style", "primary.TButton")),
+                    place={"x": "0", "y": "0", "width": "80", "height": "32"},
+                ),
+            ),
+        )
+
+        source = flet_generator.emit_program(data, [ROOT, "Widget1"], ROOT)
+
+        self.assertIn("bgcolor='#3d8bfd'", source)
+        self.assertIn("color='#ffffff'", source)  # not the rule's black
 
     def test_report_names_the_theme(self):
         data = project(theme="darkly")
@@ -1171,7 +1213,7 @@ class FletGeneratorTests(unittest.TestCase):
         source = flet_generator.emit_program(data, [ROOT, "Widget1"], ROOT)
 
         ast.parse(source)
-        self.assertIn("listvar = []   # listbox items", source)
+        self.assertIn("listvar = []   # AUTO-GENERATED default", source)
         self.assertIn("listbox items live in the module level list", source)
         self.assertNotIn("listvariable", source)
 
@@ -1239,8 +1281,8 @@ class FletGeneratorTests(unittest.TestCase):
         )
 
         ast.parse(source)
-        widgets = source[source.index("Widget1 = "):source.index("rootWidget = ")]
-        rows = source[source.index("rootWidget = "):]
+        widgets = source[source.index("Widget1 = ") : source.index("rootWidget = ")]
+        rows = source[source.index("rootWidget = ") :]
         # The controls are wrapped, never given sizes they cannot take ...
         self.assertNotIn("= ft.RadioGroup(", widgets)
         self.assertNotIn("= ft.Divider(", widgets)
@@ -1276,11 +1318,11 @@ class FletGeneratorTests(unittest.TestCase):
         )
 
         ast.parse(source)
-        entry = source[source.index("Widget1 = "):source.index("Widget2 = ")]
+        entry = source[source.index("Widget1 = ") : source.index("Widget2 = ")]
         # sticky=ew: fills across, keeps its designed height (set on the cell).
         self.assertIn("expand=True", entry)
         self.assertNotIn("height=", entry)
-        rows = source[source.index("rootWidget = "):]
+        rows = source[source.index("rootWidget = ") :]
         self.assertIn("height=32", rows)
         # sticky=nsew: fills the cell in both directions, no pinned height.
         self.assertIn("vertical_alignment=ft.CrossAxisAlignment.STRETCH", rows)
@@ -1322,7 +1364,7 @@ class FletGeneratorTests(unittest.TestCase):
         ]
 
         self.assertEqual(len(weights), 2)
-        self.assertGreater(weights[0], weights[1])   # tall row vs one line row
+        self.assertGreater(weights[0], weights[1])  # tall row vs one line row
         # The weights follow the content (plus each cell's padding), so they
         # are proportional rather than equal.
         self.assertEqual(weights[1], 36)
@@ -1390,6 +1432,812 @@ class FletGeneratorTests(unittest.TestCase):
         )
 
         self.assertEqual(len(page.controls), 1)
+
+    def test_font_chooser_dict_is_parsed(self):
+        """The designer stores fonts as a dict, not an X11 string."""
+        stored = (
+            "{'family': 'Liberation\\\\ Mono', 'size': 18, 'weight': 'bold', "
+            "'slant': 'italic', 'underline': 0, 'overstrike': 0}"
+        )
+
+        parsed = flet_generator.parse_font(stored)
+
+        self.assertEqual(parsed["font_family"], "'Liberation Mono'")
+        self.assertEqual(parsed["size"], "18")
+        self.assertEqual(parsed["weight"], "ft.FontWeight.BOLD")
+        self.assertEqual(parsed["italic"], "True")
+
+    def test_font_size_on_a_text_field_uses_text_size(self):
+        """ft.TextField has no size field; passing one is a TypeError."""
+        font = (
+            "{'family': 'Liberation\\\\ Mono', 'size': 18, 'weight': 'normal', "
+            "'slant': 'roman', 'underline': 0, 'overstrike': 0}"
+        )
+        data = project(
+            theme="dracula-dark",
+            widgets=(
+                widget(
+                    "Widget1",
+                    "ttk::entry",
+                    attributes=(
+                        ("textvariable", "calcvar"),
+                        ("font", font),
+                        ("style", "primary.TEntry"),
+                    ),
+                    place={"x": "0", "y": "0", "width": "320", "height": "32"},
+                ),
+                widget(
+                    "Widget2",
+                    "ttk::label",
+                    attributes=(("text", "Calculator"), ("font", font)),
+                    place={"x": "0", "y": "40", "width": "320", "height": "32"},
+                ),
+            ),
+        )
+
+        source = flet_generator.emit_program(data, [ROOT, "Widget1", "Widget2"], ROOT)
+
+        ast.parse(source)
+        entry_block = source[source.index("Widget1 = ") : source.index("Widget2 = ")]
+        entry_lines = [line.strip() for line in entry_block.split("\n")]
+        self.assertIn("text_size=18,", entry_lines)
+        self.assertNotIn("size=18,", entry_lines)  # no bare size on a field
+        label = source[source.index("Widget2 = ") :]
+        self.assertIn("size=18", label)
+        self.assertIn("font_family='Liberation Mono'", label)
+
+    def test_inverse_label_is_filled_by_a_container(self):
+        """ft.Text paints behind its glyphs only, so a filled label needs one."""
+        data = project(
+            theme="cyborg",
+            widgets=(
+                widget(
+                    "Widget1",
+                    "ttk::label",
+                    attributes=(
+                        ("text", "Given Name"),
+                        ("style", "info.Inverse.TLabel"),
+                        ("anchor", "w"),
+                    ),
+                    place={"x": "0", "y": "32", "width": "112", "height": "32"},
+                ),
+            ),
+        )
+
+        source = flet_generator.emit_program(data, [ROOT, "Widget1"], ROOT)
+
+        ast.parse(source)
+        self.assertIn("Widget1 = ft.Container(", source)
+        self.assertIn("bgcolor='#9933cc'", source)  # cyborg's info colour
+        self.assertIn("value='Given Name'", source)
+        self.assertIn("ft.Alignment.CENTER_LEFT", source)  # ttk anchor="w"
+        # The inner Text must not carry the fill, or it paints behind the text
+        # only and the label loses its bar.
+        inner = source[source.index("content=ft.Text(") : source.index("ft.Alignment")]
+        self.assertNotIn("bgcolor=", inner)
+
+    def test_label_with_an_explicit_background_is_filled_too(self):
+        data = project(
+            theme="cyborg",
+            widgets=(
+                widget(
+                    "Widget1",
+                    "ttk::label",
+                    attributes=(
+                        ("text", "Add a New user"),
+                        ("background", "#2724db"),
+                        ("style", "info.Inverse.TLabel"),
+                    ),
+                    place={"x": "0", "y": "0", "width": "432", "height": "32"},
+                ),
+            ),
+        )
+
+        source = flet_generator.emit_program(data, [ROOT, "Widget1"], ROOT)
+
+        ast.parse(source)
+        self.assertIn("Widget1 = ft.Container(", source)
+        self.assertIn("bgcolor='#2724db'", source)  # the explicit colour wins
+
+    def test_plain_label_stays_a_text_control(self):
+        data = project(
+            theme="cyborg",
+            widgets=(
+                widget(
+                    "Widget1",
+                    "ttk::label",
+                    attributes=(("text", "Plain"), ("style", "success.TLabel")),
+                    place={"x": "0", "y": "0", "width": "120", "height": "32"},
+                ),
+            ),
+        )
+
+        source = flet_generator.emit_program(data, [ROOT, "Widget1"], ROOT)
+
+        self.assertIn("Widget1 = ft.Text(", source)
+        self.assertIn("color='#77b300'", source)
+
+    def test_label_relief_gives_it_a_border(self):
+        """The designer's relief + borderwidth is the signal, as in ttk."""
+        data = project(
+            theme="cyborg",
+            widgets=(
+                widget(
+                    "Widget1",
+                    "ttk::label",
+                    attributes=(
+                        ("text", "Given Name"),
+                        ("style", "info.Inverse.TLabel"),
+                        ("relief", "solid"),
+                        ("borderwidth", "1"),
+                    ),
+                    place={"x": "0", "y": "0", "width": "112", "height": "32"},
+                ),
+            ),
+        )
+
+        source = flet_generator.emit_program(data, [ROOT, "Widget1"], ROOT)
+
+        ast.parse(source)
+        self.assertIn("Widget1 = ft.Container(", source)
+        self.assertIn("ft.BorderSide(1, '#2e2e2e')", source)  # cyborg's border
+
+    def test_label_without_a_border_stays_flat(self):
+        for attributes in (
+            (("text", "L"), ("relief", "flat"), ("borderwidth", "1")),
+            (("text", "L"), ("relief", "solid"), ("borderwidth", "0")),
+            (("text", "L"),),
+        ):
+            with self.subTest(attributes=attributes):
+                data = project(
+                    theme="cyborg",
+                    widgets=(
+                        widget(
+                            "Widget1",
+                            "ttk::label",
+                            attributes=attributes,
+                            place={"x": "0", "y": "0", "width": "80", "height": "24"},
+                        ),
+                    ),
+                )
+
+                source = flet_generator.emit_program(data, [ROOT, "Widget1"], ROOT)
+
+                self.assertNotIn("ft.BorderSide", source)
+
+    def test_frame_relief_gives_the_container_a_border(self):
+        data = project(
+            theme="cyborg",
+            widgets=(
+                widget(
+                    "Widget1",
+                    "ttk::frame",
+                    attributes=(("relief", "solid"), ("borderwidth", "2")),
+                    place={"x": "0", "y": "0", "width": "200", "height": "100"},
+                ),
+            ),
+        )
+
+        source = flet_generator.emit_program(data, [ROOT, "Widget1"], ROOT)
+
+        ast.parse(source)
+        self.assertIn("Widget1 = ft.Container(", source)
+        self.assertIn("ft.BorderSide(2, '#2e2e2e')", source)
+
+    def test_labelframe_caption_follows_the_label_anchor(self):
+        for anchor, expected in (
+            ("n", "ft.MainAxisAlignment.CENTER"),
+            ("nw", "ft.MainAxisAlignment.START"),
+            ("ne", "ft.MainAxisAlignment.END"),
+        ):
+            with self.subTest(anchor=anchor):
+                data = project(
+                    theme="cyborg",
+                    widgets=(
+                        widget(
+                            "Widget1",
+                            "ttk::labelframe",
+                            attributes=(
+                                ("text", "Flash Card Path"),
+                                ("labelanchor", anchor),
+                                ("style", "primary.TLabelframe"),
+                            ),
+                            place={"x": "0", "y": "0", "width": "448", "height": "96"},
+                        ),
+                    ),
+                )
+
+                source = flet_generator.emit_program(data, [ROOT, "Widget1"], ROOT)
+
+                ast.parse(source)
+                self.assertIn(f"alignment={expected}", source)
+
+    def test_labelframe_caption_below_for_a_south_anchor(self):
+        data = project(
+            theme="cyborg",
+            widgets=(
+                widget(
+                    "Widget1",
+                    "ttk::labelframe",
+                    attributes=(
+                        ("text", "Progress"),
+                        ("labelanchor", "sw"),
+                        ("style", "primary.TLabelframe"),
+                    ),
+                    place={"x": "0", "y": "0", "width": "448", "height": "96"},
+                ),
+            ),
+        )
+
+        source = flet_generator.emit_program(data, [ROOT, "Widget1"], ROOT)
+
+        ast.parse(source)
+        column = source[source.index("ft.Column(") : source.index("spacing=2")]
+        # The caption row comes after the content for a south anchor.
+        self.assertGreater(column.index("ft.Text(value='Progress'"), 0)
+        self.assertIn("ft.MainAxisAlignment.START", source)  # sw anchors west
+
+    def test_labelframe_borderwidth_zero_draws_no_box(self):
+        """Platypus' Camera frame: ttk draws the caption only."""
+        data = project(
+            theme="superhero",
+            widgets=(
+                widget(
+                    "Widget1",
+                    "ttk::labelframe",
+                    attributes=(
+                        ("text", "Camera"),
+                        ("labelanchor", "n"),
+                        ("relief", "solid"),
+                        ("borderwidth", "0"),
+                        ("style", "primary.TLabelframe"),
+                    ),
+                    place={"x": "32", "y": "16", "width": "160", "height": "80"},
+                ),
+            ),
+        )
+
+        source = flet_generator.emit_program(data, [ROOT, "Widget1"], ROOT)
+
+        ast.parse(source)
+        self.assertIn("value='Camera'", source)
+        self.assertNotIn("ft.Border(", source)
+
+    def test_labelframe_borderwidth_two_widens_the_box(self):
+        data = project(
+            theme="superhero",
+            widgets=(
+                widget(
+                    "Widget1",
+                    "ttk::labelframe",
+                    attributes=(
+                        ("text", "Flash Card Path"),
+                        ("relief", "solid"),
+                        ("borderwidth", "2"),
+                        ("style", "primary.TLabelframe"),
+                    ),
+                    place={"x": "0", "y": "0", "width": "448", "height": "96"},
+                ),
+            ),
+        )
+
+        source = flet_generator.emit_program(data, [ROOT, "Widget1"], ROOT)
+
+        ast.parse(source)
+        self.assertIn("ft.BorderSide(2,", source)
+
+    def test_checkbox_state_follows_onvalue_not_truthiness(self):
+        """Tk selects a checkbutton when its variable equals onvalue."""
+        data = project(
+            theme="darkly",
+            widgets=(
+                widget(
+                    "Widget1",
+                    "ttk::checkbutton",
+                    attributes=(
+                        ("text", "Checkbutton"),
+                        ("variable", "flag"),
+                        ("onvalue", "1"),
+                        ("offvalue", "0"),
+                        ("style", "warning.TCheckbutton"),
+                    ),
+                    place={"x": "0", "y": "0", "width": "144", "height": "32"},
+                ),
+            ),
+        )
+
+        source = flet_generator.emit_program(data, [ROOT, "Widget1"], ROOT)
+
+        ast.parse(source)
+        self.assertIn("value=str(flag) == '1'", source)
+        self.assertNotIn("bool(flag)", source)
+        # A fill colour would be painted while unchecked too.
+        self.assertNotIn("fill_color=", source)
+
+    def test_radio_group_follows_the_variable_not_the_widget_value(self):
+        """A Tk radio is selected when the variable equals its own value."""
+        data = project(
+            theme="darkly",
+            widgets=(
+                widget(
+                    "Widget1",
+                    "ttk::radiobutton",
+                    attributes=(
+                        ("text", "Radiobutton"),
+                        ("variable", "choice"),
+                        ("value", "0"),
+                        ("style", "success.TRadiobutton"),
+                    ),
+                    place={"x": "0", "y": "0", "width": "144", "height": "32"},
+                ),
+            ),
+        )
+
+        source = flet_generator.emit_program(data, [ROOT, "Widget1"], ROOT)
+
+        ast.parse(source)
+        group = source[source.index("ft.RadioGroup(") : source.index("ft.Radio(")]
+        self.assertIn("value=str(choice)", group)  # follows the variable
+        self.assertNotIn("value='0',", group)  # not its own identity
+        self.assertIn("ft.Radio(value='0'", source)  # identity on the radio
+
+    def test_page_theme_is_seeded_from_the_project_primary(self):
+        data = project(theme="darkly")
+
+        source = flet_generator.emit_program(data, [ROOT], ROOT)
+
+        ast.parse(source)
+        self.assertIn("page.theme = ft.Theme(color_scheme_seed='#375a7f')", source)
+
+    @unittest.skipUnless(FLET_AVAILABLE, "flet is not installed")
+    def test_unchecked_checkbox_and_unselected_radio_build_unset(self):
+        """Regression: a variable holding '0.0' must not look selected."""
+        data = project(
+            theme="darkly",
+            widgets=(
+                widget(
+                    "Widget1",
+                    "ttk::checkbutton",
+                    attributes=(("text", "C"), ("variable", "flag"), ("onvalue", "1")),
+                    place={"x": "0", "y": "0", "width": "144", "height": "32"},
+                ),
+                widget(
+                    "Widget2",
+                    "ttk::radiobutton",
+                    attributes=(("text", "R"), ("variable", "choice"), ("value", "0")),
+                    place={"x": "0", "y": "40", "width": "144", "height": "32"},
+                ),
+            ),
+        )
+
+        page = run_generated(
+            flet_generator.emit_program(data, [ROOT, "Widget1", "Widget2"], ROOT)
+        )
+
+        found = {}
+
+        def walk(control):
+            for child in getattr(control, "controls", []) or []:
+                walk(child)
+            content = getattr(control, "content", None)
+            if content is not None and not isinstance(content, str):
+                walk(content)
+            if isinstance(control, ft.Checkbox):
+                found["checkbox"] = control
+            if isinstance(control, ft.RadioGroup):
+                found["radio"] = control
+
+        for control in page.controls:
+            walk(control)
+
+        self.assertIs(found["checkbox"].value, False)
+        self.assertEqual(found["radio"].value, "0.0")  # matches no radio
+
+    def test_multiline_lines_from_a_design_height(self):
+        self.assertEqual(flet_generator.multiline_lines(224), 12)
+        self.assertEqual(flet_generator.multiline_lines(0), 0)
+        self.assertEqual(flet_generator.multiline_lines(None), 0)
+        self.assertGreaterEqual(flet_generator.multiline_lines(10), 1)
+
+    def test_text_widget_becomes_a_sized_container_around_the_field(self):
+        """A multiline field ignores height, so the box comes from a Container."""
+        data = project(
+            theme="darkly",
+            widgets=(
+                widget(
+                    "Widget1",
+                    "text",
+                    attributes=(
+                        ("background", "#290af5"),
+                        ("height", "5"),
+                        ("width", "20"),
+                    ),
+                    place={"x": "240", "y": "80", "width": "320", "height": "224"},
+                ),
+            ),
+        )
+
+        source = flet_generator.emit_program(data, [ROOT, "Widget1"], ROOT)
+
+        ast.parse(source)
+        self.assertIn("Widget1 = ft.Container(", source)
+        self.assertIn("clip_behavior=ft.ClipBehavior.HARD_EDGE", source)
+        self.assertIn("min_lines=12", source)  # from the 224px design box
+        self.assertIn("border=None", source)  # no border of its own
+        self.assertIn("bgcolor='#290af5'", source)
+        # The Container carries the placement, so the box is exactly the design.
+        block = source[source.index("Widget1 = ") :]
+        self.assertIn("height=224", block)
+        self.assertIn("width=320", block)
+
+    def test_text_styles_pin_the_weight(self):
+        """Flet draws a TextStyle with no weight in bold; ttk does not."""
+        data = project(
+            theme="darkly",
+            widgets=(
+                widget(
+                    "Widget1",
+                    "ttk::button",
+                    attributes=(("text", "Go"), ("style", "primary.TButton")),
+                    place={"x": "0", "y": "0", "width": "80", "height": "32"},
+                ),
+                widget(
+                    "Widget2",
+                    "ttk::checkbutton",
+                    attributes=(("text", "C"), ("style", "primary.TCheckbutton")),
+                    place={"x": "0", "y": "40", "width": "140", "height": "32"},
+                ),
+                widget(
+                    "Widget3",
+                    "ttk::radiobutton",
+                    attributes=(
+                        ("text", "R"),
+                        ("variable", "choice"),
+                        ("value", "0"),
+                        ("style", "primary.TRadiobutton"),
+                    ),
+                    place={"x": "0", "y": "80", "width": "140", "height": "32"},
+                ),
+            ),
+        )
+
+        source = flet_generator.emit_program(
+            data, [ROOT, "Widget1", "Widget2", "Widget3"], ROOT
+        )
+
+        ast.parse(source)
+        for style in re.findall(r"ft\.TextStyle\(([^)]*)\)", source):
+            with self.subTest(style=style.strip().split(chr(10))[0]):
+                self.assertIn("weight=ft.FontWeight.NORMAL", style)
+
+    def test_notebook_is_a_panel_with_ttk_style_tabs(self):
+        data = project(
+            theme="tokyo-night-dark",
+            widgets=(
+                widget(
+                    "Widget0",
+                    "ttk::notebook",
+                    attributes=(("style", "primary.TNotebook"),),
+                    place={"x": "64", "y": "32", "width": "144", "height": "160"},
+                ),
+                widget("Widget1", "ttk::frame", parent="Widget0"),
+                widget("Widget2", "ttk::frame", parent="Widget0"),
+                widget("Widget3", "ttk::frame", parent="Widget0"),
+            ),
+        )
+        order = widget_names("Widget0", "Widget1", "Widget2", "Widget3")
+
+        source = flet_generator.emit_program(data, order, ROOT)
+
+        ast.parse(source)
+        # A panel of its own, so the tabs sit inside the notebook.
+        self.assertIn("Widget0 = ft.Container(", source)
+        self.assertIn("bgcolor='#1a1b26'", source)
+        self.assertIn("ft.BorderSide(1, '#3f3f49')", source)
+        # ttk style tabs: compact, left aligned, bootstyle accent.
+        self.assertIn("length=3", source)
+        self.assertIn("tab_alignment=ft.TabAlignment.START", source)
+        self.assertIn("label_padding=ft.Padding(", source)
+        self.assertIn("indicator_color='#95b5f9'", source)
+        self.assertIn("unselected_label_color='#c0caf5'", source)
+
+    def test_notebook_tab_labels_match_the_python_backend(self):
+        """The designer does not save tab labels, so ttk calls them all "Tab"."""
+        data = project(
+            theme="darkly",
+            widgets=(
+                widget("Widget0", "ttk::notebook", place={"x": "0", "y": "0"}),
+                widget("Widget1", "ttk::frame", parent="Widget0"),
+                widget("Widget2", "ttk::frame", parent="Widget0"),
+            ),
+        )
+        order = widget_names("Widget0", "Widget1", "Widget2")
+
+        source = flet_generator.emit_program(data, order, ROOT)
+
+        self.assertIn("ft.Tab(label='Tab')", source)
+        self.assertNotIn("Tab 1", source)
+
+    def test_hand_written_tab_labels_are_honoured(self):
+        data = project(
+            theme="darkly",
+            widgets=(
+                widget(
+                    "Widget0",
+                    "ttk::notebook",
+                    attributes=(("tab_labels", "First,Second"),),
+                    place={"x": "0", "y": "0"},
+                ),
+                widget("Widget1", "ttk::frame", parent="Widget0"),
+                widget("Widget2", "ttk::frame", parent="Widget0"),
+            ),
+        )
+        order = widget_names("Widget0", "Widget1", "Widget2")
+
+        source = flet_generator.emit_program(data, order, ROOT)
+
+        self.assertIn("ft.Tab(label='First')", source)
+        self.assertIn("ft.Tab(label='Second')", source)
+
+    def test_entry_value_is_bound_and_stubs_can_reach_the_variable(self):
+        """A handler assigning the variable must update the field, as in ttk."""
+        data = project(
+            theme="dracula-dark",
+            widgets=(
+                widget(
+                    "Widget1",
+                    "ttk::entry",
+                    attributes=(("textvariable", "calcvar"),),
+                    place={"x": "0", "y": "0", "width": "320", "height": "32"},
+                ),
+                widget(
+                    "Widget2",
+                    "ttk::button",
+                    attributes=(("text", "4"), ("command", "clicked_4")),
+                    place={"x": "0", "y": "40", "width": "80", "height": "32"},
+                ),
+            ),
+        )
+
+        source = flet_generator.emit_program(data, [ROOT, "Widget1", "Widget2"], ROOT)
+
+        ast.parse(source)
+        self.assertIn("value=calcvar", source)
+        # The field is bound, so set_text can put a value into it.
+        self.assertIn("TEXT_BINDINGS['calcvar'] = [(Widget1, 'value')]", source)
+        # And the stub can assign the module variable at all.
+        self.assertIn("    global calcvar", source)
+        self.assertIn("set_text('calcvar', 'new value')", source)
+        self.assertIn("PAGE = page", source)
+
+    def test_text_area_binds_the_field_inside_the_container(self):
+        data = project(
+            theme="darkly",
+            widgets=(
+                widget(
+                    "Widget1",
+                    "text",
+                    attributes=(("textvariable", "log_text"),),
+                    place={"x": "0", "y": "0", "width": "200", "height": "120"},
+                ),
+            ),
+        )
+
+        source = flet_generator.emit_program(data, [ROOT, "Widget1"], ROOT)
+
+        ast.parse(source)
+        # The Container is not the control holding the value; the field is.
+        self.assertIn("Widget1_field = ft.TextField(", source)
+        self.assertIn("content=Widget1_field", source)
+        self.assertIn("TEXT_BINDINGS['log_text'] = [(Widget1_field, 'value')]", source)
+
+    @unittest.skipUnless(FLET_AVAILABLE, "flet is not installed")
+    def test_set_text_updates_the_field_and_the_variable(self):
+        """The reported bug: a button handler could not change the display."""
+        data = project(
+            theme="dracula-dark",
+            widgets=(
+                widget(
+                    "Widget1",
+                    "ttk::entry",
+                    attributes=(("textvariable", "calcvar"),),
+                    place={"x": "0", "y": "0", "width": "320", "height": "32"},
+                ),
+                widget(
+                    "Widget2",
+                    "ttk::button",
+                    attributes=(("text", "4"), ("command", "clicked_4")),
+                    place={"x": "0", "y": "40", "width": "80", "height": "32"},
+                ),
+            ),
+        )
+        source = flet_generator.emit_program(data, [ROOT, "Widget1", "Widget2"], ROOT)
+        namespace, main = load_generated(source)
+        page = FakePage()
+        main(page)
+
+        found = []
+
+        def walk(control):
+            for child in getattr(control, "controls", []) or []:
+                walk(child)
+            content = getattr(control, "content", None)
+            if content is not None and not isinstance(content, str):
+                walk(content)
+            if isinstance(control, ft.TextField) and control.value == "0.0":
+                found.append(control)
+
+        for control in page.controls:
+            walk(control)
+        display = found[0]
+
+        namespace["set_text"]("calcvar", "4")
+
+        self.assertEqual(display.value, "4")  # the control refreshed
+        self.assertEqual(namespace["calcvar"], "4")  # the variable too
+        self.assertIs(namespace["PAGE"], page)
+
+    def test_the_variable_section_explains_set_text(self):
+        """The tip belongs where someone looks for the variables."""
+        data = project(
+            theme="darkly",
+            widgets=(
+                widget(
+                    "Widget1",
+                    "ttk::checkbutton",
+                    attributes=(("text", "On"), ("variable", "flag")),
+                    place={"x": "0", "y": "0", "width": "120", "height": "32"},
+                ),
+            ),
+        )
+
+        source = flet_generator.emit_program(data, [ROOT, "Widget1"], ROOT)
+
+        ast.parse(source)
+        variables_at = source.index("####### Flet variables #######")
+        functions_at = source.index("####### Functions #######")
+        tip = source[variables_at:functions_at]
+        self.assertIn("set_text('flag', 'new value')", tip)
+        self.assertIn("the widgets showing it keep the value they were built with", tip)
+        # A variable with nothing bound yet still gets the helper.
+        self.assertIn("def set_text(", source)
+        self.assertIn("TEXT_BINDINGS = {}", source)
+
+    def test_spinbox_and_variable_helpers_coexist(self):
+        """Regression: the binding helpers once wiped the stepper helper."""
+        data = project(
+            theme="darkly",
+            widgets=(
+                widget(
+                    "Widget1",
+                    "ttk::spinbox",
+                    attributes=(
+                        ("from", "0"),
+                        ("to", "10"),
+                        ("increment", "1"),
+                        ("textvariable", "count"),
+                    ),
+                    place={"x": "0", "y": "0", "width": "140", "height": "32"},
+                ),
+            ),
+        )
+
+        source = flet_generator.emit_program(data, [ROOT, "Widget1"], ROOT)
+
+        ast.parse(source)
+        self.assertIn("def _step_value(", source)
+        self.assertIn("def set_text(", source)
+
+    def test_variable_starts_at_the_value_the_designer_showed(self):
+        """Variables used to be '0.0' however the designer looked."""
+        data = project(
+            theme="dracula-dark",
+            widgets=(
+                widget(
+                    "Widget1",
+                    "ttk::entry",
+                    attributes=(
+                        ("textvariable", "calcvar"),
+                        ("var_value", "123"),
+                    ),
+                    place={"x": "0", "y": "0", "width": "320", "height": "32"},
+                ),
+            ),
+        )
+
+        source = flet_generator.emit_program(data, [ROOT, "Widget1"], ROOT)
+
+        ast.parse(source)
+        self.assertIn("calcvar = '123'", source)
+        self.assertNotIn("calcvar = '0.0'", source)
+
+    def test_variable_without_a_captured_value_still_defaults(self):
+        data = project(
+            theme="darkly",
+            widgets=(
+                widget(
+                    "Widget1",
+                    "ttk::entry",
+                    attributes=(("textvariable", "calcvar"),),
+                    place={"x": "0", "y": "0", "width": "320", "height": "32"},
+                ),
+            ),
+        )
+
+        source = flet_generator.emit_program(data, [ROOT, "Widget1"], ROOT)
+
+        self.assertIn("calcvar = '0.0'", source)
+
+    def test_user_edited_functions_and_variables_are_preserved(self):
+        """A handler whose stub marker is gone is never overwritten."""
+        earlier = '''"""Flet UI generated by PyTkQuickGui."""
+import flet as ft
+
+calcvar = '99'          # the user changed this
+
+####### Functions #######
+
+def clicked_4(e=None):
+    global calcvar
+    calcvar = '4'
+    print('my own code')
+
+def clicked_5(e=None):
+    # AUTO-GENERATED STUB
+    print('clicked_5')
+'''
+        path = os.path.join(self.temp_dir.name, "Calculator_flet.py")
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write(earlier)
+
+        data = project(
+            theme="dracula-dark",
+            widgets=(
+                widget(
+                    "Widget1",
+                    "ttk::entry",
+                    attributes=(("textvariable", "calcvar"), ("var_value", "0.0")),
+                    place={"x": "0", "y": "0", "width": "320", "height": "32"},
+                ),
+                widget(
+                    "Widget2",
+                    "ttk::button",
+                    attributes=(("text", "4"), ("command", "clicked_4")),
+                    place={"x": "0", "y": "40", "width": "80", "height": "32"},
+                ),
+                widget(
+                    "Widget3",
+                    "ttk::button",
+                    attributes=(("text", "5"), ("command", "clicked_5")),
+                    place={"x": "0", "y": "80", "width": "80", "height": "32"},
+                ),
+            ),
+        )
+        order = [ROOT, "Widget1", "Widget2", "Widget3"]
+
+        source = flet_generator.emit_program(data, order, ROOT, preserve_from=path)
+
+        ast.parse(source)
+        # The hand written handler survives, marker and all gone.
+        self.assertIn("print('my own code')", source)
+        self.assertNotIn("print('clicked_4')", source)
+        # The untouched stub is regenerated.
+        self.assertIn("# AUTO-GENERATED STUB", source)
+        self.assertIn("print('clicked_5')", source)
+        # And so is the user's variable value.
+        self.assertIn("calcvar = '99'", source)
+        self.assertNotIn("calcvar = '0.0'", source)
+
+    def test_an_unparsable_existing_file_is_ignored(self):
+        path = os.path.join(self.temp_dir.name, "broken_flet.py")
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write("this is not python(")
+
+        data = project(theme="darkly")
+        source = flet_generator.emit_program(data, [ROOT], ROOT, preserve_from=path)
+
+        ast.parse(source)  # regenerated cleanly rather than failing
+        self.assertIn("import flet as ft", source)
 
     @unittest.skipUnless(FLET_AVAILABLE, "flet is not installed")
     def test_generated_program_builds_real_flet_controls(self):

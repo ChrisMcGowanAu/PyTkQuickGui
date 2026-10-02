@@ -163,8 +163,8 @@ class RebuildWidgetListTests(unittest.TestCase):
                 ("Widget2", "rootWidget"),
             ],
         )
-        self.assertEqual(rebuilt[0][3], ["Widget1"])   # children of Widget0
-        self.assertEqual(rebuilt[0][2], "")            # no widget object in a file
+        self.assertEqual(rebuilt[0][3], ["Widget1"])  # children of Widget0
+        self.assertEqual(rebuilt[0][2], "")  # no widget object in a file
 
     def test_orphans_are_attached_to_the_root(self):
         project = {

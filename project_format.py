@@ -8,19 +8,113 @@ from ``widget.cget()``.
 
 from __future__ import annotations
 
+import ast
 import json
 import keyword
 import os
+import re
 import shutil
 from collections.abc import Iterable, Iterator, Mapping
 from typing import Any
 
 FORMAT_VERSION = 2
 
+#: Records the value a variable should start with: the text or number the
+#: widget showed for it in the designer.  Written by saveWidgetAsDict and read
+#: by both generators, so a variable is no longer always initialised to '0.0'.
+VAR_VALUE_KEY = "var_value"
+
+#: Attributes the designer records for its own purposes.  They are not Tk
+#: options, so they must never be handed to a widget constructor - and they do
+#: not appear in ``widget.keys()``, so they have to be captured explicitly.
+DESIGN_ONLY_KEYS = ("tab_count", "tab_labels", VAR_VALUE_KEY)
+
+
+def is_design_only(key: Any) -> bool:
+    """Whether *key* is designer metadata rather than a Tk widget option."""
+    return str(key) in DESIGN_ONLY_KEYS
+
+
+#: The widget types a project may contain: the palette, the containers, and the
+#: plain Tk widgets the designer can place.  ``fixWidgetTypeName`` accepts three
+#: spellings of the same thing ("ttk::button", "ttk.Button", "tk.button"), so
+#: the check normalises to the bare name.
+KNOWN_WIDGET_TYPES = frozenset(
+    {
+        "button",
+        "canvas",
+        "checkbutton",
+        "combobox",
+        "entry",
+        "frame",
+        "labelframe",
+        "label",
+        "listbox",
+        "notebook",
+        "panedwindow",
+        "progressbar",
+        "radiobutton",
+        "scale",
+        "scrollbar",
+        "separator",
+        "sizegrip",
+        "spinbox",
+        "text",
+        "treeview",
+    }
+)
+
+#: Marks anything the generator wrote.  A function or a variable line that no
+#: longer carries it is the user's, and regeneration must not overwrite it -
+#: one rule for both backends, and for both kinds of line.
+AUTO_MARKER = "# AUTO-GENERATED"
+STUB_SENTINEL = AUTO_MARKER + " STUB"
+VARIABLE_MARKER = AUTO_MARKER + " default"
+
+#: A Tk option name.  Anything else cannot be one - and is exactly what a hand
+#: crafted project file would use to break out of the widget call, which is
+#: assembled as a string and evaluated.
+_OPTION_KEY = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def base_widget_name(widget_type: Any) -> str:
+    """Return a widget type without its namespace prefix, lower case."""
+    name = str(widget_type or "").strip()
+    for prefix in ("ttk::", "ttk.", "tk."):
+        if name.startswith(prefix):
+            return name[len(prefix) :].lower()
+    return name.lower()
+
+
+def is_known_widget_type(widget_type: Any) -> bool:
+    """Whether *widget_type* is one this tool creates."""
+    return base_widget_name(widget_type) in KNOWN_WIDGET_TYPES
+
+
+def is_safe_option_key(key: Any) -> bool:
+    """Whether *key* can be a Tk option name."""
+    return bool(_OPTION_KEY.match(str(key or "")))
+
+
 CALLBACK_KEYS = ("command", "postcommand")
 VARIABLE_KEYS = ("textvariable", "variable")
 PRESERVED_STRING_KEYS = CALLBACK_KEYS + VARIABLE_KEYS
 RUNTIME_CALLABLE_KEYS = ("yscrollcommand", "xscrollcommand")
+
+
+def home_directory() -> str:
+    """Return the user's home directory, on any platform.
+
+    ``HOME`` is a POSIX convention: a Windows interpreter started from cmd or
+    PowerShell usually has none at all, so asking for ``os.environ["HOME"]``
+    raised KeyError on the paths that generate a program.  ``USERPROFILE`` is
+    the Windows spelling; expanduser() is the last resort.
+    """
+    for variable in ("HOME", "USERPROFILE"):
+        value = os.environ.get(variable)
+        if value:
+            return value
+    return os.path.expanduser("~")
 
 
 def format_python_call(call_expression: str, arguments: Iterable[str]) -> str:
@@ -32,16 +126,53 @@ def format_python_call(call_expression: str, arguments: Iterable[str]) -> str:
     return f"{call_expression}(\n{body}\n)"
 
 
-def generated_python_dialog_defaults(
+# The generated programs import these.  A generated file with one of these
+# names shadows the module: running ``flet.py`` makes ``import flet`` load the
+# script itself, and the program dies before it draws anything.
+MODULE_NAMES_TO_AVOID = ("flet", "tkinter", "ttkbootstrap", "ttk")
+
+
+def avoid_module_shadowing(path: str) -> str:
+    """Return *path*, renamed if its filename would shadow a module it imports.
+
+    ``flet.py`` becomes ``flet1.py`` - and ``flet2.py`` if that already exists -
+    so the program keeps a name it can actually be run under.  Anything that
+    does not shadow a module is returned unchanged, as is an empty path.
+    """
+    if not path:
+        return path
+    directory, filename = os.path.split(path)
+    stem, extension = os.path.splitext(filename)
+    if stem.lower() not in MODULE_NAMES_TO_AVOID:
+        return path
+    extension = extension or ".py"
+    index = 1
+    candidate = os.path.join(directory, f"{stem}{index}{extension}")
+    while os.path.exists(candidate):
+        index += 1
+        candidate = os.path.join(directory, f"{stem}{index}{extension}")
+    return candidate
+
+
+def generated_dialog_defaults(
     project_name: str,
     save_directory: str,
     generated_file: str,
-    home_directory: str,
+    home_dir: str,
+    suffix: str = "",
 ) -> tuple[str, str]:
-    """Return the last output directory and a project-derived Python name."""
+    """Return the output directory and filename offered when generating.
+
+    The first suggestion is ``<home>/<project>/`` with the backend named in the
+    file, so the two outputs of one project sit together and cannot be mistaken
+    for each other: ``Calculator/Calculator_ttk.py`` and
+    ``Calculator/Calculator_flet.py``.  Once a file has been saved, its own
+    directory is offered again.
+    """
+    name = str(project_name).strip() or "project"
     previous_directory = os.path.dirname(generated_file) if generated_file else ""
-    directory = previous_directory or save_directory or home_directory
-    filename = (str(project_name).strip() or "project") + ".py"
+    directory = previous_directory or save_directory or os.path.join(home_dir, name)
+    filename = f"{name}_{suffix}.py" if suffix else f"{name}.py"
     return directory, filename
 
 
@@ -196,3 +327,73 @@ def variable_names(
         )
         if valid_python_name(name)
     ]
+
+
+def variable_defaults(
+    project_data: Mapping[str, Any],
+    widget_order: Iterable[str],
+    root_name: str = "rootWidget",
+) -> dict[str, str]:
+    """Return ``{variable: starting value}`` captured from the designer.
+
+    A widget bound to a ``textvariable`` or ``variable`` records the value it
+    showed as ``var_value`` metadata.  The first non-empty value wins, so
+    several widgets sharing one variable agree; a variable with nothing
+    captured is simply absent and the generators fall back to "0.0".
+    """
+    defaults: dict[str, str] = {}
+    for name in widget_order:
+        if name == root_name:
+            continue
+        widget_data = project_data.get(name)
+        if not isinstance(widget_data, Mapping):
+            continue
+        attributes = attribute_map(name, widget_data)
+        variable = attributes.get("textvariable") or attributes.get("variable")
+        value = attributes.get(VAR_VALUE_KEY)
+        if not variable or not value:
+            continue
+        if valid_python_name(variable) and variable not in defaults:
+            defaults[variable] = str(value)
+    return defaults
+
+
+def preserved_pieces(
+    source: str,
+    function_names: Iterable[str],
+    var_names: Iterable[str],
+) -> tuple[dict[str, str], dict[str, str]]:
+    """Return the parts of an earlier generated file the user has taken over.
+
+    Shared by both backends so their rules cannot drift: anything the generator
+    wrote carries :data:`AUTO_MARKER`, so a function or a variable assignment
+    without it is the user's and is returned to be emitted verbatim.  A value
+    the designer has since changed is therefore refreshed, while a hand
+    written one is kept.
+
+    An unparsable file returns nothing, because regenerating beats refusing to.
+    """
+    functions: dict[str, str] = {}
+    variable_lines: dict[str, str] = {}
+    try:
+        tree = ast.parse(source)
+    except (SyntaxError, ValueError):
+        return functions, variable_lines
+    wanted_functions = set(function_names)
+    wanted_variables = set(var_names)
+    # Whole physical lines, not the AST segment: the marker is a trailing
+    # comment, which a segment for a bare assignment would not include.
+    lines = source.splitlines()
+    for node in tree.body:
+        start = max(0, (node.lineno or 1) - 1)
+        stop = node.end_lineno or node.lineno or 1
+        segment = "\n".join(lines[start:stop])
+        if not segment.strip() or AUTO_MARKER in segment:
+            continue
+        if isinstance(node, ast.FunctionDef) and node.name in wanted_functions:
+            functions[node.name] = segment
+        elif isinstance(node, ast.Assign) and len(node.targets) == 1:
+            target = node.targets[0]
+            if isinstance(target, ast.Name) and target.id in wanted_variables:
+                variable_lines[target.id] = segment
+    return functions, variable_lines

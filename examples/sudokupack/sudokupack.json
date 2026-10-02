@@ -1,0 +1,693 @@
+{
+    "formatVersion": 2,
+    "ProjectName": "sudokupack",
+    "ProjectPath": "",
+    "width": 0,
+    "height": 0,
+    "theme": "tokyo-night-dark",
+    "geomManager": "Grid",
+    "gridRows": 5,
+    "gridCols": 12,
+    "gridLineColor": "",
+    "gridRowMinsize": "2.5m",
+    "gridColMinsize": "5m",
+    "gridRowPad": "0.5m",
+    "gridColPad": "1m",
+    "generatedPyFile": "",
+    "widgetNameList": [
+        [
+            "Widget2",
+            "rootWidget",
+            "",
+            []
+        ],
+        [
+            "Widget3",
+            "rootWidget",
+            "",
+            []
+        ],
+        [
+            "Widget4",
+            "rootWidget",
+            "",
+            []
+        ],
+        [
+            "Widget5",
+            "rootWidget",
+            "",
+            []
+        ],
+        [
+            "Widget6",
+            "rootWidget",
+            "",
+            []
+        ],
+        [
+            "Widget7",
+            "rootWidget",
+            "",
+            []
+        ]
+    ],
+    "backgroundColor": "skyBlue3",
+    "imageFileNames": [],
+    "groups": {},
+    "Widget2": {
+        "WidgetName": "ttk::label",
+        "WidgetParent": "rootWidget",
+        "Place": {},
+        "GeomData": {
+            "row": "0",
+            "column": "0",
+            "columnspan": "5",
+            "rowspan": "1",
+            "sticky": "nsew",
+            "padx": "0",
+            "pady": "0",
+            "ipadx": "0",
+            "ipady": "0"
+        },
+        "Attribute0": {
+            "Key": "background",
+            "Value": ""
+        },
+        "Attribute1": {
+            "Key": "foreground",
+            "Value": ""
+        },
+        "Attribute2": {
+            "Key": "font",
+            "Value": "Bitstream\\ Charter 16 normal roman"
+        },
+        "Attribute3": {
+            "Key": "borderwidth",
+            "Value": "2"
+        },
+        "Attribute4": {
+            "Key": "relief",
+            "Value": "flat"
+        },
+        "Attribute5": {
+            "Key": "anchor",
+            "Value": "w"
+        },
+        "Attribute6": {
+            "Key": "justify",
+            "Value": "left"
+        },
+        "Attribute7": {
+            "Key": "wraplength",
+            "Value": ""
+        },
+        "Attribute8": {
+            "Key": "takefocus",
+            "Value": ""
+        },
+        "Attribute9": {
+            "Key": "text",
+            "Value": "    Free puzzle packs"
+        },
+        "Attribute10": {
+            "Key": "underline",
+            "Value": "-1"
+        },
+        "Attribute11": {
+            "Key": "width",
+            "Value": ""
+        },
+        "Attribute12": {
+            "Key": "image",
+            "Value": ""
+        },
+        "Attribute13": {
+            "Key": "compound",
+            "Value": ""
+        },
+        "Attribute14": {
+            "Key": "padding",
+            "Value": ""
+        },
+        "Attribute15": {
+            "Key": "state",
+            "Value": "normal"
+        },
+        "Attribute16": {
+            "Key": "cursor",
+            "Value": "arrow"
+        },
+        "Attribute17": {
+            "Key": "style",
+            "Value": "primary.TLabel"
+        },
+        "Attribute18": {
+            "Key": "class",
+            "Value": ""
+        },
+        "Widget2-KeyCount": 19
+    },
+    "Widget3": {
+        "WidgetName": "text",
+        "WidgetParent": "rootWidget",
+        "Place": {},
+        "GeomData": {
+            "row": "1",
+            "column": "0",
+            "columnspan": "12",
+            "rowspan": "1",
+            "sticky": "nsew",
+            "padx": "0",
+            "pady": "0",
+            "ipadx": "0",
+            "ipady": "0"
+        },
+        "Attribute0": {
+            "Key": "autoseparators",
+            "Value": "1"
+        },
+        "Attribute1": {
+            "Key": "background",
+            "Value": "#1f202d"
+        },
+        "Attribute2": {
+            "Key": "bd",
+            "Value": "0"
+        },
+        "Attribute3": {
+            "Key": "bg",
+            "Value": "#1f202d"
+        },
+        "Attribute4": {
+            "Key": "blockcursor",
+            "Value": "0"
+        },
+        "Attribute5": {
+            "Key": "borderwidth",
+            "Value": "0"
+        },
+        "Attribute6": {
+            "Key": "cursor",
+            "Value": "arrow"
+        },
+        "Attribute7": {
+            "Key": "endline",
+            "Value": ""
+        },
+        "Attribute8": {
+            "Key": "exportselection",
+            "Value": "1"
+        },
+        "Attribute9": {
+            "Key": "fg",
+            "Value": "#c0caf5"
+        },
+        "Attribute10": {
+            "Key": "font",
+            "Value": "TkDefaultFont"
+        },
+        "Attribute11": {
+            "Key": "foreground",
+            "Value": "#c0caf5"
+        },
+        "Attribute12": {
+            "Key": "height",
+            "Value": "1"
+        },
+        "Attribute13": {
+            "Key": "highlightbackground",
+            "Value": "#3f3f49"
+        },
+        "Attribute14": {
+            "Key": "highlightcolor",
+            "Value": "#95b5f9"
+        },
+        "Attribute15": {
+            "Key": "highlightthickness",
+            "Value": "1"
+        },
+        "Attribute16": {
+            "Key": "inactiveselectbackground",
+            "Value": "#c3c3c3"
+        },
+        "Attribute17": {
+            "Key": "insertbackground",
+            "Value": "#c0caf5"
+        },
+        "Attribute18": {
+            "Key": "insertborderwidth",
+            "Value": "0"
+        },
+        "Attribute19": {
+            "Key": "insertofftime",
+            "Value": "300"
+        },
+        "Attribute20": {
+            "Key": "insertontime",
+            "Value": "600"
+        },
+        "Attribute21": {
+            "Key": "insertunfocussed",
+            "Value": "none"
+        },
+        "Attribute22": {
+            "Key": "insertwidth",
+            "Value": "1"
+        },
+        "Attribute23": {
+            "Key": "maxundo",
+            "Value": "0"
+        },
+        "Attribute24": {
+            "Key": "padx",
+            "Value": "5"
+        },
+        "Attribute25": {
+            "Key": "pady",
+            "Value": "5"
+        },
+        "Attribute26": {
+            "Key": "relief",
+            "Value": "flat"
+        },
+        "Attribute27": {
+            "Key": "selectbackground",
+            "Value": "#787fa1"
+        },
+        "Attribute28": {
+            "Key": "selectborderwidth",
+            "Value": "0"
+        },
+        "Attribute29": {
+            "Key": "selectforeground",
+            "Value": "#ffffff"
+        },
+        "Attribute30": {
+            "Key": "setgrid",
+            "Value": "0"
+        },
+        "Attribute31": {
+            "Key": "spacing1",
+            "Value": "0"
+        },
+        "Attribute32": {
+            "Key": "spacing2",
+            "Value": "0"
+        },
+        "Attribute33": {
+            "Key": "spacing3",
+            "Value": "0"
+        },
+        "Attribute34": {
+            "Key": "startline",
+            "Value": ""
+        },
+        "Attribute35": {
+            "Key": "state",
+            "Value": "normal"
+        },
+        "Attribute36": {
+            "Key": "tabs",
+            "Value": ""
+        },
+        "Attribute37": {
+            "Key": "tabstyle",
+            "Value": "tabular"
+        },
+        "Attribute38": {
+            "Key": "takefocus",
+            "Value": ""
+        },
+        "Attribute39": {
+            "Key": "undo",
+            "Value": "0"
+        },
+        "Attribute40": {
+            "Key": "width",
+            "Value": "20"
+        },
+        "Attribute41": {
+            "Key": "wrap",
+            "Value": "char"
+        },
+        "Widget3-KeyCount": 42
+    },
+    "Widget4": {
+        "WidgetName": "ttk::combobox",
+        "WidgetParent": "rootWidget",
+        "Place": {},
+        "GeomData": {
+            "row": "3",
+            "column": "0",
+            "columnspan": "3",
+            "rowspan": "1",
+            "sticky": "nsew",
+            "padx": "2",
+            "pady": "2",
+            "ipadx": "0",
+            "ipady": "0"
+        },
+        "Attribute0": {
+            "Key": "height",
+            "Value": "10"
+        },
+        "Attribute1": {
+            "Key": "values",
+            "Value": "Classic XSudoku"
+        },
+        "Attribute2": {
+            "Key": "exportselection",
+            "Value": "1"
+        },
+        "Attribute3": {
+            "Key": "font",
+            "Value": "TkTextFont"
+        },
+        "Attribute4": {
+            "Key": "invalidcommand",
+            "Value": ""
+        },
+        "Attribute5": {
+            "Key": "justify",
+            "Value": "left"
+        },
+        "Attribute6": {
+            "Key": "show",
+            "Value": ""
+        },
+        "Attribute7": {
+            "Key": "state",
+            "Value": "normal"
+        },
+        "Attribute8": {
+            "Key": "validate",
+            "Value": "none"
+        },
+        "Attribute9": {
+            "Key": "validatecommand",
+            "Value": ""
+        },
+        "Attribute10": {
+            "Key": "width",
+            "Value": "20"
+        },
+        "Attribute11": {
+            "Key": "foreground",
+            "Value": ""
+        },
+        "Attribute12": {
+            "Key": "background",
+            "Value": ""
+        },
+        "Attribute13": {
+            "Key": "takefocus",
+            "Value": "ttk::takefocus"
+        },
+        "Attribute14": {
+            "Key": "cursor",
+            "Value": "arrow"
+        },
+        "Attribute15": {
+            "Key": "style",
+            "Value": "primary.TCombobox"
+        },
+        "Attribute16": {
+            "Key": "class",
+            "Value": ""
+        },
+        "Widget4-KeyCount": 17
+    },
+    "Widget5": {
+        "WidgetName": "ttk::label",
+        "WidgetParent": "rootWidget",
+        "Place": {},
+        "GeomData": {
+            "row": "2",
+            "column": "0",
+            "columnspan": "3",
+            "rowspan": "1",
+            "sticky": "nsew",
+            "padx": "0",
+            "pady": "0",
+            "ipadx": "3",
+            "ipady": "3"
+        },
+        "Attribute0": {
+            "Key": "background",
+            "Value": ""
+        },
+        "Attribute1": {
+            "Key": "foreground",
+            "Value": ""
+        },
+        "Attribute2": {
+            "Key": "font",
+            "Value": ""
+        },
+        "Attribute3": {
+            "Key": "borderwidth",
+            "Value": "0"
+        },
+        "Attribute4": {
+            "Key": "relief",
+            "Value": "solid"
+        },
+        "Attribute5": {
+            "Key": "anchor",
+            "Value": "w"
+        },
+        "Attribute6": {
+            "Key": "justify",
+            "Value": "left"
+        },
+        "Attribute7": {
+            "Key": "wraplength",
+            "Value": ""
+        },
+        "Attribute8": {
+            "Key": "takefocus",
+            "Value": ""
+        },
+        "Attribute9": {
+            "Key": "text",
+            "Value": "    Puzzle Type"
+        },
+        "Attribute10": {
+            "Key": "underline",
+            "Value": "-1"
+        },
+        "Attribute11": {
+            "Key": "width",
+            "Value": "0"
+        },
+        "Attribute12": {
+            "Key": "image",
+            "Value": ""
+        },
+        "Attribute13": {
+            "Key": "compound",
+            "Value": "none"
+        },
+        "Attribute14": {
+            "Key": "padding",
+            "Value": ""
+        },
+        "Attribute15": {
+            "Key": "state",
+            "Value": "normal"
+        },
+        "Attribute16": {
+            "Key": "cursor",
+            "Value": "arrow"
+        },
+        "Attribute17": {
+            "Key": "style",
+            "Value": "primary.TLabel"
+        },
+        "Attribute18": {
+            "Key": "class",
+            "Value": ""
+        },
+        "Widget5-KeyCount": 19
+    },
+    "Widget6": {
+        "WidgetName": "ttk::label",
+        "WidgetParent": "rootWidget",
+        "Place": {},
+        "GeomData": {
+            "row": "2",
+            "column": "4",
+            "columnspan": "3",
+            "rowspan": "1",
+            "sticky": "nsew",
+            "padx": "0",
+            "pady": "0",
+            "ipadx": "3",
+            "ipady": "3"
+        },
+        "Attribute0": {
+            "Key": "background",
+            "Value": ""
+        },
+        "Attribute1": {
+            "Key": "foreground",
+            "Value": ""
+        },
+        "Attribute2": {
+            "Key": "font",
+            "Value": ""
+        },
+        "Attribute3": {
+            "Key": "borderwidth",
+            "Value": "0"
+        },
+        "Attribute4": {
+            "Key": "relief",
+            "Value": "solid"
+        },
+        "Attribute5": {
+            "Key": "anchor",
+            "Value": "w"
+        },
+        "Attribute6": {
+            "Key": "justify",
+            "Value": "left"
+        },
+        "Attribute7": {
+            "Key": "wraplength",
+            "Value": ""
+        },
+        "Attribute8": {
+            "Key": "takefocus",
+            "Value": ""
+        },
+        "Attribute9": {
+            "Key": "text",
+            "Value": "    Difficulty"
+        },
+        "Attribute10": {
+            "Key": "underline",
+            "Value": "-1"
+        },
+        "Attribute11": {
+            "Key": "width",
+            "Value": "0"
+        },
+        "Attribute12": {
+            "Key": "image",
+            "Value": ""
+        },
+        "Attribute13": {
+            "Key": "compound",
+            "Value": "none"
+        },
+        "Attribute14": {
+            "Key": "padding",
+            "Value": ""
+        },
+        "Attribute15": {
+            "Key": "state",
+            "Value": "normal"
+        },
+        "Attribute16": {
+            "Key": "cursor",
+            "Value": "arrow"
+        },
+        "Attribute17": {
+            "Key": "style",
+            "Value": "primary.TLabel"
+        },
+        "Attribute18": {
+            "Key": "class",
+            "Value": ""
+        },
+        "Widget6-KeyCount": 19
+    },
+    "Widget7": {
+        "WidgetName": "ttk::combobox",
+        "WidgetParent": "rootWidget",
+        "Place": {},
+        "GeomData": {
+            "row": "3",
+            "column": "4",
+            "columnspan": "3",
+            "rowspan": "1",
+            "sticky": "nsew",
+            "padx": "2",
+            "pady": "2",
+            "ipadx": "0",
+            "ipady": "0"
+        },
+        "Attribute0": {
+            "Key": "height",
+            "Value": "10"
+        },
+        "Attribute1": {
+            "Key": "values",
+            "Value": "Easy Medium"
+        },
+        "Attribute2": {
+            "Key": "exportselection",
+            "Value": "1"
+        },
+        "Attribute3": {
+            "Key": "font",
+            "Value": "TkTextFont"
+        },
+        "Attribute4": {
+            "Key": "invalidcommand",
+            "Value": ""
+        },
+        "Attribute5": {
+            "Key": "justify",
+            "Value": "left"
+        },
+        "Attribute6": {
+            "Key": "show",
+            "Value": ""
+        },
+        "Attribute7": {
+            "Key": "state",
+            "Value": "normal"
+        },
+        "Attribute8": {
+            "Key": "validate",
+            "Value": "none"
+        },
+        "Attribute9": {
+            "Key": "validatecommand",
+            "Value": ""
+        },
+        "Attribute10": {
+            "Key": "width",
+            "Value": "20"
+        },
+        "Attribute11": {
+            "Key": "foreground",
+            "Value": ""
+        },
+        "Attribute12": {
+            "Key": "background",
+            "Value": ""
+        },
+        "Attribute13": {
+            "Key": "takefocus",
+            "Value": "ttk::takefocus"
+        },
+        "Attribute14": {
+            "Key": "cursor",
+            "Value": "arrow"
+        },
+        "Attribute15": {
+            "Key": "style",
+            "Value": "primary.TCombobox"
+        },
+        "Attribute16": {
+            "Key": "class",
+            "Value": ""
+        },
+        "Widget7-KeyCount": 17
+    },
+    "widgetCount": 6
+}

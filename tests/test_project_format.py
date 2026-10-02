@@ -1,7 +1,9 @@
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import project_format
 
@@ -43,7 +45,7 @@ class ProjectFormatTests(unittest.TestCase):
 
     def test_generated_filename_uses_project_name_and_last_directory(self):
         self.assertEqual(
-            project_format.generated_python_dialog_defaults(
+            project_format.generated_dialog_defaults(
                 "gridtest16",
                 "/tmp/older",
                 "/home/chris/previous-name.py",
@@ -52,7 +54,7 @@ class ProjectFormatTests(unittest.TestCase):
             ("/home/chris", "gridtest16.py"),
         )
         self.assertEqual(
-            project_format.generated_python_dialog_defaults(
+            project_format.generated_dialog_defaults(
                 "new-project",
                 "/common/python",
                 "",
@@ -162,6 +164,240 @@ class ProjectFormatTests(unittest.TestCase):
             self.assertFalse(Path(f"{project_name}-save6.json").exists())
             self.assertFalse(Path(result + ".tmp").exists())
             self.assertFalse(Path(result + ".backup-tmp").exists())
+
+    def test_variable_defaults_reads_the_designer_value(self):
+        project = {
+            "Widget1": {
+                "WidgetName": "ttk::entry",
+                "WidgetParent": "rootWidget",
+                "Widget1-KeyCount": 2,
+                "Attribute0": {"Key": "textvariable", "Value": "calcvar"},
+                "Attribute1": {"Key": "var_value", "Value": "123"},
+            },
+            "Widget2": {
+                "WidgetName": "ttk::checkbutton",
+                "WidgetParent": "rootWidget",
+                "Widget2-KeyCount": 2,
+                "Attribute0": {"Key": "variable", "Value": "flag"},
+                "Attribute1": {"Key": "var_value", "Value": "1"},
+            },
+            "Widget3": {
+                "WidgetName": "ttk::entry",
+                "WidgetParent": "rootWidget",
+                "Widget3-KeyCount": 1,
+                "Attribute0": {"Key": "textvariable", "Value": "empty"},
+            },
+        }
+
+        defaults = project_format.variable_defaults(
+            project, ["rootWidget", "Widget1", "Widget2", "Widget3"]
+        )
+
+        self.assertEqual(defaults, {"calcvar": "123", "flag": "1"})
+
+    def test_variable_defaults_ignores_names_that_are_not_identifiers(self):
+        project = {
+            "Widget1": {
+                "WidgetName": "ttk::entry",
+                "WidgetParent": "rootWidget",
+                "Widget1-KeyCount": 2,
+                "Attribute0": {"Key": "textvariable", "Value": "PY_VAR0 "},
+                "Attribute1": {"Key": "var_value", "Value": "1"},
+            },
+        }
+
+        defaults = project_format.variable_defaults(project, ["rootWidget", "Widget1"])
+
+        self.assertEqual(defaults, {})
+
+    def test_generated_filename_names_the_backend_and_defaults_to_a_folder(self):
+        # A brand new project: <home>/<project>/<project>_<backend>.py
+        self.assertEqual(
+            project_format.generated_dialog_defaults(
+                "Calculator", "", "", "/home/chris", suffix="flet"
+            ),
+            ("/home/chris/Calculator", "Calculator_flet.py"),
+        )
+        self.assertEqual(
+            project_format.generated_dialog_defaults(
+                "Calculator", "", "", "/home/chris", suffix="ttk"
+            ),
+            ("/home/chris/Calculator", "Calculator_ttk.py"),
+        )
+        # Once saved, its own directory is offered again.
+        self.assertEqual(
+            project_format.generated_dialog_defaults(
+                "Calculator",
+                "",
+                "/home/chris/Calculator/Calculator_flet.py",
+                "/home/chris",
+                suffix="flet",
+            ),
+            ("/home/chris/Calculator", "Calculator_flet.py"),
+        )
+
+    def test_widget_type_whitelist_matches_the_palette(self):
+        """Every type the designer can create has to be accepted."""
+        import pytkguivars as my_vars
+
+        for name in my_vars.widgetsUsed + my_vars.containerWidgetsUsed:
+            for spelling in (name, "ttk::" + name.lower(), "ttk." + name):
+                with self.subTest(widget=spelling):
+                    self.assertTrue(project_format.is_known_widget_type(spelling))
+        for extra in ("ttk::notebook", "ttk::scrollbar", "ttk::treeview", "text"):
+            self.assertTrue(project_format.is_known_widget_type(extra))
+
+    def test_widget_type_whitelist_refuses_anything_else(self):
+        """A project file is data: an unknown type must never be run as code."""
+        for bad in (
+            "__import__('os').system",
+            "os.system",
+            "eval",
+            "",
+            None,
+            "ttk::evil",
+        ):
+            with self.subTest(widget=bad):
+                self.assertFalse(project_format.is_known_widget_type(bad))
+
+    def test_option_name_check_stops_a_crafted_key(self):
+        """The widget call is built by string and eval'd, so keys are checked."""
+        for good in ("text", "background", "command", "onvalue", "from"):
+            self.assertTrue(project_format.is_safe_option_key(good))
+        for bad in (
+            "a=1) or __import__('os').system('x') or dict(",
+            "text=",
+            "text value",
+            "'quoted'",
+            "",
+            None,
+        ):
+            with self.subTest(key=bad):
+                self.assertFalse(project_format.is_safe_option_key(bad))
+
+    def test_the_marker_decides_who_owns_a_line(self):
+        """One rule for both backends: no marker means the user wrote it."""
+        source = (
+            "calcvar = '0.0'   # AUTO-GENERATED default\n"
+            "flag = '1'\n"
+            "\n"
+            "def clicked_4(e=None):\n"
+            "    global calcvar\n"
+            "    calcvar = '4'\n"
+            "\n"
+            "def clicked_5(e=None):\n"
+            "    # AUTO-GENERATED STUB\n"
+            "    print('clicked_5')\n"
+        )
+
+        functions, variables = project_format.preserved_pieces(
+            source, ["clicked_4", "clicked_5"], ["calcvar", "flag"]
+        )
+
+        # The hand written handler is kept, the untouched stub is regenerated.
+        self.assertEqual(list(functions), ["clicked_4"])
+        # 'calcvar' carries the marker, so its value is refreshed from the
+        # designer; 'flag' does not, so it is the user's.
+        self.assertEqual(variables, {"flag": "flag = '1'"})
+
+    def test_a_user_edited_variable_is_kept(self):
+        source = "calcvar = '99'   # my own default\n"
+
+        _functions, variables = project_format.preserved_pieces(source, [], ["calcvar"])
+
+        self.assertEqual(variables, {"calcvar": "calcvar = '99'   # my own default"})
+
+    def test_preserved_pieces_ignores_an_unparsable_file(self):
+        functions, variables = project_format.preserved_pieces(
+            "this is not python(", ["clicked_4"], ["calcvar"]
+        )
+
+        self.assertEqual(functions, {})
+        self.assertEqual(variables, {})
+
+
+class OutputNameTests(unittest.TestCase):
+    """A generated file must not shadow a module the generated program imports."""
+
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.directory.cleanup)
+
+    def path(self, name):
+        return str(Path(self.directory.name) / name)
+
+    def test_a_module_name_is_nudged(self):
+        self.assertEqual(
+            project_format.avoid_module_shadowing(self.path("flet.py")),
+            self.path("flet1.py"),
+        )
+
+    def test_the_nudge_does_not_clobber_an_existing_file(self):
+        Path(self.path("flet1.py")).touch()
+        self.assertEqual(
+            project_format.avoid_module_shadowing(self.path("flet.py")),
+            self.path("flet2.py"),
+        )
+
+    def test_case_is_kept(self):
+        self.assertEqual(
+            project_format.avoid_module_shadowing(self.path("FLET.py")),
+            self.path("FLET1.py"),
+        )
+
+    def test_every_shadowing_module_is_covered(self):
+        for stem in ("flet", "tkinter", "ttkbootstrap", "ttk"):
+            with self.subTest(stem=stem):
+                self.assertEqual(
+                    project_format.avoid_module_shadowing(self.path(f"{stem}.py")),
+                    self.path(f"{stem}1.py"),
+                )
+
+    def test_ordinary_names_are_left_alone(self):
+        for name in (
+            "Calculator_flet.py",
+            "Calculator_ttk.py",
+            "flet_gui.py",
+            "main.py",
+        ):
+            with self.subTest(name=name):
+                self.assertEqual(
+                    project_format.avoid_module_shadowing(self.path(name)),
+                    self.path(name),
+                )
+
+    def test_empty_path_is_returned_unchanged(self):
+        self.assertEqual(project_format.avoid_module_shadowing(""), "")
+
+
+class HomeDirectoryTests(unittest.TestCase):
+    """HOME is a POSIX convention and is usually absent on Windows."""
+
+    def test_home_is_used_when_set(self):
+        with mock.patch.dict(
+            os.environ,
+            {"HOME": "/home/tester", "USERPROFILE": "C:/Users/tester"},
+            clear=True,
+        ):
+            self.assertEqual(project_format.home_directory(), "/home/tester")
+
+    def test_the_windows_profile_is_used_when_home_is_absent(self):
+        with mock.patch.dict(
+            os.environ, {"USERPROFILE": "C:/Users/tester"}, clear=True
+        ):
+            self.assertEqual(project_format.home_directory(), "C:/Users/tester")
+
+    def test_an_empty_home_falls_through(self):
+        with mock.patch.dict(
+            os.environ, {"HOME": "", "USERPROFILE": "C:/Users/tester"}, clear=True
+        ):
+            self.assertEqual(project_format.home_directory(), "C:/Users/tester")
+
+    def test_expanduser_is_the_last_resort(self):
+        with mock.patch.dict(os.environ, {}, clear=True), mock.patch(
+            "os.path.expanduser", return_value="/fallback"
+        ):
+            self.assertEqual(project_format.home_directory(), "/fallback")
 
 
 if __name__ == "__main__":

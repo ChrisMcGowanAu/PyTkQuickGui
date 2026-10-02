@@ -113,18 +113,14 @@ def _probe(style, widgets):
     notebook = look_first(
         style, widgets["notebook"]("primary"), "background", "bordercolor"
     )
-    labelframe_fg = look_first(
-        style, widgets["labelframe"]("primary"), "foreground"
-    )
+    labelframe_fg = look_first(style, widgets["labelframe"]("primary"), "foreground")
     progressbar = look_first(
         style,
         widgets["progressbar"]("primary.Horizontal"),
         "troughcolor",
         "background",
     )
-    scale = look_first(
-        style, widgets["scale"]("primary.Horizontal"), "troughcolor"
-    )
+    scale = look_first(style, widgets["scale"]("primary.Horizontal"), "troughcolor")
     return {
         "styles": resolved,
         "widgets": {

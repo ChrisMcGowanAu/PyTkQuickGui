@@ -28,7 +28,7 @@ KEY: int = 1
 FILENAME: int = 2
 PHOTOIMAGE: int = 3
 
-widgetImageFilenames: []
+widgetImageFilenames: list = []
 snapTo: int
 imageIndex: int
 backgroundColor: str
@@ -100,8 +100,17 @@ widgetsUsed = (
 # Valid values: 'Place'  'Grid'  'Pack'
 # Some objects use Grid and Pack internally; the root window uses Grid.
 GEOM_MANAGERS = ("Place", "Grid", "Pack")
+#: Place is the default: it translates one to one, and is the better target
+#: for Flet output because Flet has no grid layout to map onto.
+DEFAULT_GEOM_MANAGER = "Place"
+#: Every mouse gesture that means "secondary click".  macOS delivers a trackpad
+#: two-finger tap, or Control-click, as Button-2 in some Tk builds and Button-3
+#: in others, so binding Button-3 alone left the widget menus unreachable on a
+#: Mac unless it had a three button mouse.
+RIGHT_CLICK_BINDINGS = ("<Button-3>", "<Button-2>", "<Control-Button-1>")
+
 # Default
-geomManager = "Grid"
+geomManager = DEFAULT_GEOM_MANAGER
 # Number of rows/columns in the initial grid (Grid mode only).
 # The grid auto-expands if more rows/cols are needed.
 gridRows: int = tool_defaults.GRID_DEFAULTS["gridRows"]
@@ -436,10 +445,92 @@ def saveWidgetAsDict(widgetName) -> dict:
                         newWidget = Merge(widgetDict, widgetAttribute)
                         widgetDict = newWidget
                         keyCount += 1
+    # The value the widget shows for its variable is the right starting value
+    # for the generated program: variables used to be initialised to '0.0'
+    # whatever the designer showed.  The variable itself lives in Tcl (its name
+    # came from the saved attributes just emitted), so read it from there.
+    _var_key = ""
+    _var_name = ""
+    for _attr in widgetDict.values():
+        if isinstance(_attr, dict) and str(_attr.get("Key", "")) in (
+            "textvariable",
+            "variable",
+        ):
+            _var_key = str(_attr.get("Key"))
+            _var_name = str(_attr.get("Value", ""))
+            break
+    if _var_name and project_format.valid_python_name(_var_name):
+        _shown = _shown_variable_value(w, _var_key, _var_name)
+        if _shown:
+            widgetDict = Merge(
+                widgetDict,
+                {
+                    "Attribute"
+                    + str(keyCount): {
+                        "Key": project_format.VAR_VALUE_KEY,
+                        "Value": _shown,
+                    }
+                },
+            )
+            keyCount += 1
+            log.debug("saveWidgetAsDict: %s = %r", _var_name, _shown)
+
+    if not widgetDetails:
+        # Nothing to save: without this the notebook block below would raise on
+        # the unbound widget instead of returning an empty record.
+        log.warning("saveWidgetAsDict: no widget named %r", widgetName)
+        return {}
+
+    # A notebook keeps its tab captions on the tab ids rather than as widget
+    # options, so w.keys() never reports them.  Record them explicitly or a
+    # label typed in the attribute editor is lost on the next save.
+    if _is_notebook_widget(w):
+        try:
+            tab_labels = [str(w.tab(tab_id, "text")) for tab_id in w.tabs()]
+        except tk.TclError as _te:
+            log.debug("saveWidgetAsDict: cannot read tab labels: %s", _te)
+            tab_labels = []
+        for _dkey, _dval in (
+            ("tab_labels", ",".join(tab_labels)),
+            ("tab_count", str(len(tab_labels))),
+        ):
+            if not _dval:
+                continue
+            widgetDict = Merge(
+                widgetDict,
+                {
+                    "Attribute" + str(keyCount): {"Key": _dkey, "Value": _dval},
+                },
+            )
+            keyCount += 1
     widgetKeys = widgetName + "-KeyCount"
     tmpDict = Merge(widgetDict, {widgetKeys: keyCount})
     newWidget = {widgetName: tmpDict}
     return newWidget
+
+
+def _shown_variable_value(widget, variable_key: str, variable_name: str) -> str:
+    """Return the value a widget shows for its variable, or ``""``.
+
+    An entry, combobox or spinbox knows its own text, so ``get()`` returns what
+    the user sees; other widgets read the variable itself.  This never raises:
+    a design-time default is a nicety, not something that should break a save.
+    """
+    try:
+        if variable_key == "textvariable" and hasattr(widget, "get"):
+            return str(widget.get())
+        return str(widget.getvar(variable_name) or "")
+    except (tk.TclError, AttributeError, TypeError, ValueError):
+        return ""
+
+
+def _is_notebook_widget(widget) -> bool:
+    """Whether *widget* is a ttk Notebook, whose tabs hold the captions."""
+    return (
+        "notebook" in str(getattr(widget, "widgetName", "")).lower()
+        and hasattr(widget, "tabs")
+        and hasattr(widget, "tab")
+    )
 
 
 def buildAWidget(widgetId: object, wDictOrig: dict) -> str:
@@ -471,6 +562,13 @@ def buildAWidget(widgetId: object, wDictOrig: dict) -> str:
     except AttributeError as e:
         log.error("Cannot find %s Exception %s", "WidgetName", str(e))
         print("wDictOrig", wDictOrig)
+        return ""
+    if not project_format.is_known_widget_type(wType):
+        # The call below is assembled as a string and evaluated, so a
+        # WidgetName the tool never writes is refused rather than run.
+        log.error(
+            "buildAWidget: refusing unknown WidgetName %r on %s", wType, widgetName
+        )
         return ""
     t = fixWidgetTypeName(wType)
     wType = t
@@ -505,6 +603,16 @@ def buildAWidget(widgetId: object, wDictOrig: dict) -> str:
         val = str(aDict.get("Value", ""))
         if not key:
             log.error("buildAWidget: %s has no Key value", attribute)
+            continue
+        if not project_format.is_safe_option_key(key):
+            log.error(
+                "buildAWidget: refusing unsafe option name %r on %s", key, widgetName
+            )
+            continue
+        if project_format.is_design_only(key):
+            # tab_count / tab_labels are the designer's own metadata; a widget
+            # constructor would reject them.
+            log.debug("buildAWidget: skipping design-only key %s", key)
             continue
         useValQuotes = True
         if key == "image":

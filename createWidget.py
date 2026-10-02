@@ -405,7 +405,8 @@ class createWidget:
             [self.pythonName, myVars.rootWidgetName, self.widget, []]
         )
         #  K_UP,  K_DOWN,  K_LEFT,  and K_RIGHT
-        self.widget.bind("<Button-3>", self.rightMouseDown)
+        for _sequence in myVars.RIGHT_CLICK_BINDINGS:
+            self.widget.bind(_sequence, self.rightMouseDown)
         self.widget.bind("<Button-1>", self.leftMouseDown)
         self.widget.bind("<B1-Motion>", self.leftMouseDrag)
         self.widget.bind("<ButtonRelease-1>", self.leftMouseRelease)
@@ -889,6 +890,9 @@ class createWidget:
         construction_parent = createWidget.baseRoot
         if construction_parent is any or construction_parent is None:
             construction_parent = self.root
+        if not widgetDef:
+            log.error("clone: buildAWidget refused the widget definition")
+            return
         widget = eval(  # pylint: disable=eval-used
             widgetDef, globals(), {"mainFrame": construction_parent}
         )
@@ -1317,7 +1321,8 @@ class createWidget:
 
         self.widget.place(x=self.x, y=self.y, width=width, height=height)
         log.debug(
-            "self.dragType %s x = %s y = %s self.x %s y=self.y %s width %s height %s self.startX %s self.startY %s",
+            "self.dragType %s x = %s y = %s self.x %s y=self.y %s "
+            "width %s height %s self.startX %s self.startY %s",
             self.dragType,
             x,
             y,

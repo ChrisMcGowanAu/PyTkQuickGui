@@ -1,11 +1,10 @@
-import ast
 import json
 import logging
 import os
 import os.path
 import pickle
-import re
 import shutil
+import subprocess
 import sys as _sys
 import tkinter as tk
 from collections import defaultdict
@@ -51,7 +50,7 @@ def getConfigPath() -> str:
     elif "XDG_CONFIG_HOME" in os.environ:
         confighome = os.environ["XDG_CONFIG_HOME"]
     else:
-        confighome = os.path.join(os.environ["HOME"], ".config")
+        confighome = os.path.join(project_format.home_directory(), ".config")
     configPath = os.path.join(confighome, myVars.programName)
     if os.path.isdir(configPath):
         log.debug("Config Path %s %s %s", configPath, confighome, myVars.programName)
@@ -126,6 +125,11 @@ def createFileName(sa, sb, sc) -> str:
 
 
 # This will be from a project's defaultdict
+# Crash diagnostics: a Python traceback on a fatal signal (Tk and Flet both
+# have C code that can segfault), and `kill -USR1 <pid>` for a traceback of a
+# hung app.  Must run before anything can crash.
+startup_checks.enable_crash_diagnostics()
+
 useTheme = getDefaultTheme()
 rootWin = ttk.Window(theme=useTheme, iconphoto="snake.png")
 # Register all pre-2.0 Bootswatch theme names (solar, darkly, cosmo, …) so
@@ -345,6 +349,7 @@ def saveProject():
         "gridRowPad": myVars.gridRowPad,
         "gridColPad": myVars.gridColPad,
         "generatedPyFile": myVars.generatedPyFile,
+        "generatedFletFile": myVars.generatedFletFile,
         "widgetNameList": cleanList,
         "backgroundColor": myVars.backgroundColor,
         "imageFileNames": createCleanImageList(),
@@ -406,87 +411,43 @@ _SEC_WIDGETS = "####### Widgets #######"
 _SEC_MAIN = "####### Main  #######"
 
 
-def _parseExistingPython(filePath: str) -> tuple[dict, dict]:
-    """Parse *filePath* (a previously generated .py file) and return:
+def _generated_variable_lines(runDict, createdWidgetOrder, rootName) -> dict:
+    """Return ``{variable: init line}`` as this run would write it."""
+    defaults = project_format.variable_defaults(runDict, createdWidgetOrder, rootName)
+    return {
+        name: f"{name} = tk.StringVar(rootWin,{defaults.get(name, '0.0')!r})"
+        f"   {project_format.VARIABLE_MARKER}"
+        for name in project_format.variable_names(runDict, createdWidgetOrder, rootName)
+    }
 
-    * ``func_bodies``  – ``{func_name: full_source_string}`` for every
-      function that the user has modified (stub sentinel absent).
-    * ``tkvar_lines``  – ``{var_name: init_line}`` for every tk variable
-      line that differs from the plain auto-generated default
-      (``var = tk.StringVar(rootWin,'0.0')``).
 
-    Returns two empty dicts if the file cannot be read or parsed.
+def _parseExistingPython(
+    filePath: str,
+    function_names=None,
+    variable_names=None,
+) -> tuple[dict, dict]:
+    """Parse *filePath*, a previously generated .py file, and return:
+
+    * ``func_bodies``  - ``{func_name: full_source_string}`` for every function
+      the user has taken over (stub sentinel absent).
+    * ``tkvar_lines``  - ``{var_name: init_line}`` for every tk variable line
+      that differs from the one this run would generate.
+
+    The rules live in :func:`project_format.preserved_pieces`, shared with the
+    Flet backend so the two cannot drift.  Two empty dicts come back when the
+    file cannot be read or parsed.
     """
-    func_bodies: dict[str, str] = {}
-    tkvar_lines: dict[str, str] = {}
-
     if not filePath or not os.path.isfile(filePath):
-        return func_bodies, tkvar_lines
-
+        return {}, {}
     try:
-        src = open(filePath, "r", encoding="utf-8").read()
+        with open(filePath, "r", encoding="utf-8") as handle:
+            source = handle.read()
     except OSError as e:
         log.warning("_parseExistingPython: cannot read %s: %s", filePath, e)
-        return func_bodies, tkvar_lines
-
-    lines = src.splitlines(keepends=True)
-
-    # ---- Locate section boundaries by scanning for the sentinel comments --
-    sec_tkvars = sec_functions = sec_widgets = sec_main = None
-    for i, line in enumerate(lines):
-        stripped = line.strip()
-        if stripped == _SEC_TKVARS:
-            sec_tkvars = i
-        elif stripped == _SEC_FUNCTIONS:
-            sec_functions = i
-        elif stripped == _SEC_WIDGETS:
-            sec_widgets = i
-        elif stripped == _SEC_MAIN:
-            sec_main = i
-
-    # ---- Extract user-modified tk variable lines -------------------------
-    if sec_tkvars is not None:
-        end = sec_functions if sec_functions is not None else len(lines)
-        var_pat = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*tk\.StringVar\s*\(.*\)")
-        for line in lines[sec_tkvars + 1 : end]:
-            m = var_pat.match(line.strip())
-            if m:
-                var_name = m.group(1)
-                default_line = f"{var_name} = tk.StringVar(rootWin,'0.0')"
-                actual_line = line.rstrip()
-                if actual_line.strip() != default_line:
-                    tkvar_lines[var_name] = actual_line.strip()
-                    log.debug("_parseExistingPython: preserved tkvar %s", var_name)
-
-    # ---- Extract user-modified function bodies ---------------------------
-    if sec_functions is not None:
-        end = (
-            sec_widgets
-            if sec_widgets is not None
-            else (sec_main if sec_main is not None else len(lines))
-        )
-        # Walk function definitions using the AST for reliability
-        func_region = "".join(lines[sec_functions + 1 : end])
-        try:
-            ast_tree = ast.parse(func_region)
-        except SyntaxError as e:
-            log.warning("_parseExistingPython: SyntaxError in functions section: %s", e)
-            ast_tree = None
-        if ast_tree:
-            region_lines = func_region.splitlines(keepends=True)
-            for node in ast.walk(ast_tree):
-                if not isinstance(node, ast.FunctionDef):
-                    continue
-                name = node.name
-                # Grab source lines for this function
-                start = node.lineno - 1  # ast lines are 1-based
-                end_ln = node.end_lineno  # inclusive 1-based
-                func_src = "".join(region_lines[start:end_ln])
-                # Check for stub sentinel anywhere in body
-                if _STUB_SENTINEL not in func_src:
-                    func_bodies[name] = func_src
-                    log.debug("_parseExistingPython: preserved user function %s", name)
-    return func_bodies, tkvar_lines
+        return {}, {}
+    return project_format.preserved_pieces(
+        source, function_names or (), variable_names or ()
+    )
 
 
 def buildPython() -> str:
@@ -521,11 +482,21 @@ def buildPython() -> str:
         else {}
     )
     log.info("nWidgets %s", nWidgets)
+    rootName = myVars.rootWidgetName
     configPath = getConfigPath()
     fileName = configPath + "/" + "test.py"
 
     # ---- Load existing user edits (if any) from the last saved .py ------
-    _preserved_funcs, _preserved_tkvars = _parseExistingPython(myVars.generatedPyFile)
+    # The lines this run will write: used both to decide whether an existing
+    # line is a user edit and to write it.
+    _generated_var_lines = _generated_variable_lines(
+        runDict, createdWidgetOrder, rootName
+    )
+    _preserved_funcs, _preserved_tkvars = _parseExistingPython(
+        myVars.generatedPyFile,
+        project_format.callback_names(runDict, createdWidgetOrder, rootName),
+        project_format.variable_names(runDict, createdWidgetOrder, rootName),
+    )
     if _preserved_funcs or _preserved_tkvars:
         log.info(
             "buildPython: preserving %d function(s) and %d tkvar(s) from %s",
@@ -546,7 +517,6 @@ def buildPython() -> str:
             ("theme=themeName", "title=title"),
         )
     )
-    rootName = myVars.rootWidgetName
     print(
         project_format.format_python_call(
             rootName + " = ttk.Frame",
@@ -599,10 +569,18 @@ def buildPython() -> str:
         if v and v not in seen_vars:
             seen_vars.add(v)
             if v in _preserved_tkvars:
-                # User has changed this initialisation – keep their version
+                # The user's own version of this initialisation.
                 print(_preserved_tkvars[v])
             else:
-                print(v + " = tk.StringVar(rootWin,'0.0')")
+                # Either the designer's captured value or the '0.0' fallback.
+                print(
+                    _generated_var_lines.get(
+                        v,
+                        v
+                        + " = tk.StringVar(rootWin,'0.0')"
+                        + f"   {project_format.VARIABLE_MARKER}",
+                    )
+                )
     print("")
     print(_SEC_FUNCTIONS)
     # Deduplicate function names (a command may appear on multiple widgets)
@@ -638,6 +616,7 @@ def buildPython() -> str:
         print("#     print('button clicked')")
     print("")
     print(_SEC_WIDGETS)
+    _notebookTabIndex: dict = {}
     for widgetName in createdWidgetOrder:
         # widgetId = "Widget" + str(n)
         if widgetName == rootName:
@@ -651,6 +630,13 @@ def buildPython() -> str:
         if wDict is not None:
             log.debug("Dictionary for %s = %s", widgetName, str(wDict))
             wType = wDict.get("WidgetName")
+            if not project_format.is_known_widget_type(wType):
+                log.error(
+                    "buildPython: skipping %s with unknown WidgetName %r",
+                    widgetName,
+                    wType,
+                )
+                continue
             t = myVars.fixWidgetTypeName(wType)
             wType = t
             widgetArguments = [parentName]
@@ -693,6 +679,18 @@ def buildPython() -> str:
                 val = str(aDict.get("Value", ""))
                 if not key:
                     log.error("buildPython: %s has no Key value", attribute)
+                    continue
+                if not project_format.is_safe_option_key(key):
+                    log.error(
+                        "buildPython: skipping unsafe option name %r on %s",
+                        key,
+                        widgetName,
+                    )
+                    continue
+                if project_format.is_design_only(key):
+                    # tab_count / tab_labels are the designer's own metadata;
+                    # ttk.Notebook would reject them as an unknown option.
+                    log.debug("buildPython: skipping design-only key %s", key)
                     continue
                 if key in specialKeys:
                     useValQuotes = False
@@ -740,7 +738,22 @@ def buildPython() -> str:
                 _emit_grid_configuration(widgetName)
             geomData = wDict.get("GeomData", {})
             if layout_model.is_saved_notebook_tab(runDict, widgetName, rootName):
-                print(f"{parentName}.add({widgetName}, text='Tab')")
+                # Use the captions the designer saved (tab_labels metadata);
+                # every tab is called "Tab" when there are none, which is what
+                # this backend always did.
+                _labels = [
+                    part.strip()
+                    for part in project_format.attribute_map(
+                        parentName, runDict.get(parentName) or {}
+                    )
+                    .get("tab_labels", "")
+                    .split(",")
+                    if part.strip()
+                ]
+                _index = _notebookTabIndex.get(parentName, 0)
+                _notebookTabIndex[parentName] = _index + 1
+                _label = _labels[_index] if _index < len(_labels) else "Tab"
+                print(f"{parentName}.add({widgetName}, text={_label!r})")
             elif myVars.geomManager == "Place":
                 place = wDict.get("Place", geomData)
                 x = place.get("x", "0")
@@ -830,24 +843,22 @@ def buildPython() -> str:
                 log.error("Unknown geometry manager %s", myVars.geomManager)
             print("")
     # For Grid mode the Place-coord accumulation above produces zeros/wrong
-    # values.  Use the actual geomWidgetFrame size instead.
+    # values.  Use the layout's own *requested* size: Tk works that out from
+    # the cells and their contents, so it comes from the project rather than
+    # from how big the design canvas happens to be.  Measuring the grid as
+    # rendered (grid_bbox) instead made the exported window size follow the
+    # designer - two different Grid projects exported as the same size.
     if myVars.geomManager == "Grid" and geomWidgetFrame is not None:
         try:
             geomWidgetFrame.update_idletasks()
-            ncols, nrows = geomWidgetFrame.grid_size()
-            gw, gh = 0, 0
-            if ncols > 0 and nrows > 0:
-                # grid_bbox(col, row) → (x, y, w, h) of that cell
-                bbox = geomWidgetFrame.grid_bbox(ncols - 1, nrows - 1)
-                if bbox:
-                    gw = bbox[0] + bbox[2]  # x + width of last col
-                    gh = bbox[1] + bbox[3]  # y + height of last row
+            gw = geomWidgetFrame.winfo_reqwidth()
+            gh = geomWidgetFrame.winfo_reqheight()
             if gw > 100:
                 largestWidth = gw
             if gh > 100:
                 largestHeight = gh
-        except (tk.TclError, ValueError) as _ge:
-            log.warning("Grid geometry estimation failed: %s", _ge)
+        except tk.TclError as _ge:
+            log.warning("Grid size estimation failed: %s", _ge)
 
     largestWidth += 20
     largestHeight += 20
@@ -883,19 +894,61 @@ def buildPython() -> str:
     print("\nrootWin.mainloop()")
     _sys.stdout.close()
     _sys.stdout = _sys.__stdout__
-    # _sys.stdout = open(fileName, "w", encoding="utf8")
-    # cmd = "python3 " + fileName + " &"
-    # os.system(cmd)
     return fileName
 
 
 def runMe():
+    """Run the generated Python in the interpreter running the tool.
+
+    `sys.executable` rather than `python3` on PATH: they are often different
+    environments, and the generated program needs the one that has
+    ttkbootstrap installed.  A list also survives spaces in the file name.
+    """
     fileName = buildPython()
     if not fileName:
         return
     log.info("python fileName ->%s<-", fileName)
-    cmd = "python3 " + fileName + " &"
-    os.system(cmd)
+    _launchProgram(fileName)
+
+
+def _launchProgram(fileName: str) -> None:
+    """Start a generated program without going through a shell."""
+    try:
+        subprocess.Popen([_sys.executable, fileName])
+    except OSError as e:
+        log.error("could not start %s: %s", fileName, e)
+        Messagebox.show_error(
+            title="Trial Run",
+            message=f"Could not start the generated program:\n{e}",
+        )
+
+
+def _safeGeneratedOutputPath(newFile: str) -> str:
+    """Nudge a chosen output name that would shadow a module the program imports.
+
+    A generated program called flet.py cannot run: ``import flet`` finds the file
+    itself instead of the package.  Renaming it keeps the export usable, and the
+    user is told, so the file is not simply "missing".
+    """
+    safe = project_format.avoid_module_shadowing(newFile)
+    if safe == newFile:
+        return newFile
+    stem = os.path.splitext(os.path.basename(newFile))[0]
+    log.warning(
+        "output name %s would shadow the %s module; using %s instead",
+        newFile,
+        stem,
+        safe,
+    )
+    Messagebox.show_info(
+        title="Output name changed",
+        message=(
+            f"A program named '{os.path.basename(newFile)}' cannot run: it\n"
+            f"would be imported in place of the '{stem}' module it needs.\n\n"
+            f"It will be written as '{os.path.basename(safe)}' instead."
+        ),
+    )
+    return safe
 
 
 def generatePython():
@@ -906,12 +959,17 @@ def generatePython():
     """
     # Reuse the last output directory, but always derive the filename from the
     # current project instead of carrying over another project's filename.
-    initialDir, initialFile = project_format.generated_python_dialog_defaults(
+    initialDir, initialFile = project_format.generated_dialog_defaults(
         myVars.projectName,
         myVars.saveDirName,
         myVars.generatedPyFile,
-        os.environ["HOME"],
+        project_format.home_directory(),
+        suffix="ttk",
     )
+    try:
+        os.makedirs(initialDir, exist_ok=True)
+    except OSError as e:
+        log.debug("could not create %s: %s", initialDir, e)
     newFile = tk.filedialog.asksaveasfilename(
         initialdir=initialDir,
         initialfile=initialFile,
@@ -920,6 +978,7 @@ def generatePython():
     )
     if not newFile:
         return  # user cancelled
+    newFile = _safeGeneratedOutputPath(newFile)
 
     # Remember where the user is keeping their generated file.
     myVars.saveDirName = os.path.dirname(newFile)
@@ -997,6 +1056,7 @@ def buildFlet() -> str:
             flet_generator.DEFAULT_MINIMUM_FLET_VERSION,
             flet_generator.DEFAULT_STRICT_FLET_VERSION,
             naturalSizes,
+            myVars.generatedFletFile,
         )
     except (KeyError, TypeError, ValueError) as e:
         log.error("buildFlet: cannot generate Flet code: %s", e)
@@ -1019,20 +1079,24 @@ def runFlet():
     if not fileName:
         return
     log.info("flet fileName ->%s<-", fileName)
-    cmd = "python3 " + fileName + " &"
-    os.system(cmd)
+    _launchProgram(fileName)
 
 
 def generateFlet():
     """Ask for a save path, generate Flet code and write it there."""
     if not askFletOptions():
         return
-    initialDir, initialFile = project_format.generated_python_dialog_defaults(
+    initialDir, initialFile = project_format.generated_dialog_defaults(
         myVars.projectName,
         myVars.saveDirName,
         myVars.generatedFletFile,
-        os.environ["HOME"],
+        project_format.home_directory(),
+        suffix="flet",
     )
+    try:
+        os.makedirs(initialDir, exist_ok=True)
+    except OSError as e:
+        log.debug("could not create %s: %s", initialDir, e)
     newFile = tk.filedialog.asksaveasfilename(
         initialdir=initialDir,
         initialfile=initialFile,
@@ -1041,6 +1105,7 @@ def generateFlet():
     )
     if not newFile:
         return  # user cancelled
+    newFile = _safeGeneratedOutputPath(newFile)
     myVars.saveDirName = os.path.dirname(newFile)
     myVars.generatedFletFile = newFile
     fileName = buildFlet()
@@ -1408,8 +1473,9 @@ def newProject():
     undoredo.stack.clear()
 
     # Keep the last output directory, but never preserve functions from a
-    # different project's previously generated Python file.
+    # different project's previously generated files.
     myVars.generatedPyFile = ""
+    myVars.generatedFletFile = ""
     path = os.path.join(configPath, name)
     # Create directory only if it doesn't already exist
     os.makedirs(path, exist_ok=True)
@@ -1450,11 +1516,13 @@ def _askGeomManager() -> tuple:
     ).pack(pady=(16, 4), padx=16)
 
     descriptions = {
-        "Place": "Free-form drag & drop (absolute x/y)",
-        "Grid": "Row / column grid layout  ← recommended",
+        "Place": "Free-form drag & drop (absolute x/y)  ← recommended",
+        "Grid": "Row / column grid layout",
         "Pack": "Stack widgets top-to-bottom or left-to-right  (coming soon)",
     }
-    chosen = tk.StringVar(value="Grid")
+    # A new project starts from the tool default (Place), not from whatever
+    # geometry manager the project that happens to be open uses.
+    chosen = tk.StringVar(value=myVars.DEFAULT_GEOM_MANAGER)
     for mgr, desc in descriptions.items():
         rb = ttk.Radiobutton(top, text=f"{mgr}  —  {desc}", variable=chosen, value=mgr)
         if mgr == "Pack":
@@ -1660,6 +1728,55 @@ def openBackupFile():
         loadProject(projectName, filePath)
 
 
+def _restore_notebook_tab_labels(runDict, widgetNameList) -> None:
+    """Put a notebook's saved tab captions back on its tabs.
+
+    The captions are stored as ``tab_labels`` metadata rather than as widget
+    options, so they are applied here once the tab frames have been added to
+    their notebook.  Tabs are matched by position, the order the designer saved
+    them in.
+    """
+    for entry in widgetNameList or []:
+        name = entry[cw.NAME]
+        wDict = runDict.get(name)
+        if not isinstance(wDict, dict):
+            continue
+        labels = [
+            part.strip()
+            for part in project_format.attribute_map(name, wDict)
+            .get("tab_labels", "")
+            .split(",")
+            if part.strip()
+        ]
+        if not labels:
+            continue
+        found = cw.findPythonWidgetNameList(name)
+        notebook = found[cw.WIDGET] if found else None
+        if notebook is None or not _is_notebook_widget(notebook):
+            continue
+        try:
+            tab_ids = list(notebook.tabs())
+        except tk.TclError:
+            continue
+        for index, tab_id in enumerate(tab_ids):
+            if index >= len(labels):
+                break
+            try:
+                notebook.tab(tab_id, text=labels[index])
+            except tk.TclError as error:
+                log.debug("tab label restore failed for %s: %s", tab_id, error)
+        log.info("Restored %d tab label(s) on %s", min(len(tab_ids), len(labels)), name)
+
+
+def _is_notebook_widget(widget) -> bool:
+    """Whether *widget* is a ttk Notebook (its tabs carry the captions)."""
+    return (
+        "notebook" in str(getattr(widget, "widgetName", "")).lower()
+        and hasattr(widget, "tabs")
+        and hasattr(widget, "tab")
+    )
+
+
 def _loadProjectData(fullFileName: str):
     """Return the project dict from *fullFileName*.
 
@@ -1835,6 +1952,10 @@ def loadProject(project, altFileName):
             myVars.generatedPyFile = savedPyFile
             myVars.saveDirName = os.path.dirname(savedPyFile)
             log.info("Restored generatedPyFile path: %s", savedPyFile)
+        savedFletFile = runDict.get("generatedFletFile", "")
+        if savedFletFile and os.path.isfile(savedFletFile):
+            myVars.generatedFletFile = savedFletFile
+            log.info("Restored generatedFletFile path: %s", savedFletFile)
         savedGroups = runDict.get("groups", {})
         if isinstance(savedGroups, dict):
             myVars.groups = savedGroups
@@ -2027,6 +2148,8 @@ def loadProject(project, altFileName):
         else:
             log.warning("name %s parent %s", name, parent)
             log.warning("widgetNameList %s", str(widgetNameList))
+
+    _restore_notebook_tab_labels(runDict, widgetNameList)
 
     # Grid mode: after reparenting, re-apply the saved grid geometry for every
     # widget.  changeParentOfTo preserves row/col/span from cwo, but a final
@@ -2486,8 +2609,8 @@ def welcome():
     about = """PyTkGui:
     Chris McGowan 2024.
     A tool to build a simple TkInter GUI.
-	This tool uses ttkbootstrap widgets.
-	A website - youtube - pdf TBD."""
+    This tool uses ttkbootstrap widgets.
+    A website - youtube - pdf TBD."""
 
     # remove leading whitespace from each line
     # this does not work on python 3.12
@@ -3085,7 +3208,7 @@ def _make_grid_overlay(frame: ttk.Frame) -> tk.Canvas:  # type: ignore[name-defi
     # tk.Misc.lower() lowers in the window stacking order (not a canvas item op).
     tk.Misc.lower(oc)
     # Right-clicks on the overlay canvas must still open the widget-creation menu
-    oc.bind("<Button-3>", rightMouseDown)
+    _bindRightClick(oc, rightMouseDown)
     # oc.bind("<Button-1>", _grid_overlay_btn1)
     oc.bind("<B1-Motion>", _grid_overlay_drag)
     oc.bind("<ButtonRelease-1>", _grid_overlay_release)
@@ -3800,6 +3923,17 @@ def createWidgetPopup(event, widgetName):
     _placeNewWidget(w, x, y)
 
 
+def _bindRightClick(widget, callback) -> None:
+    """Bind every gesture that means "secondary click" on *widget*.
+
+    See myVars.RIGHT_CLICK_BINDINGS: a Mac without a three button mouse has no
+    Button-3 to give, so the widget menus have to answer to Button-2 and to
+    Control-click as well.
+    """
+    for sequence in myVars.RIGHT_CLICK_BINDINGS:
+        widget.bind(sequence, callback)
+
+
 def rightMouseDown(event):
     # global mainCanvas
     log.debug("rightMouseDown -- event %s", str(event))
@@ -3875,7 +4009,7 @@ def buildGrid(rows, cols):
     mainCanvas.grid(
         row=0, column=0, columnspan=cols, rowspan=rows, padx=5, pady=5, sticky="NSEW"
     )
-    mainCanvas.bind("<Button-3>", rightMouseDown)
+    _bindRightClick(mainCanvas, rightMouseDown)
 
     # For Grid / Pack modes create an inner Frame that fills the canvas.
     # Widgets are parented to this frame so their geometry manager is
@@ -3893,7 +4027,7 @@ def buildGrid(rows, cols):
         )
         # Bug fix: right-click on empty frame background must reach rightMouseDown.
         # geomWidgetFrame covers the entire canvas so mainCanvas never sees the event.
-        geomWidgetFrame.bind("<Button-3>", rightMouseDown)
+        _bindRightClick(geomWidgetFrame, rightMouseDown)
         # Overlay canvas for grid guide-lines (drawn inside geomWidgetFrame so
         # they appear above the frame background but below child widgets).
         _make_grid_overlay(geomWidgetFrame)
@@ -3965,7 +4099,7 @@ def _rebuild_canvas_for_geom():
             0, 0, window=geomWidgetFrame, anchor="nw", tags="geomframe"
         )
         # Bug fix: right-click on empty frame background must reach rightMouseDown.
-        geomWidgetFrame.bind("<Button-3>", rightMouseDown)
+        _bindRightClick(geomWidgetFrame, rightMouseDown)
         # Overlay canvas for grid guide-lines
         _make_grid_overlay(geomWidgetFrame)
 
