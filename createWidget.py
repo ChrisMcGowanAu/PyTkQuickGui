@@ -1,11 +1,11 @@
 import logging as log
 import random
 import tkinter as tk
-import tkinter.messagebox as mb
-import tkinter.simpledialog as sd
 from typing import Any
 
 import ttkbootstrap as ttk
+from ttkbootstrap.dialogs import Messagebox as TtkMessagebox
+from ttkbootstrap.dialogs import Querybox
 
 import editWidget as ew
 import project_format
@@ -1038,14 +1038,24 @@ class createWidget:
         myVars.projectSaved = False
 
     def _highlight(self, on: bool):
-        """Toggle a visual highlight to show multi-selection."""
+        """Toggle a visual highlight to show multi-selection.
+
+        The real feedback is the dashed outline the canvas draws around the
+        selection (_drawSelectionOutlines); relief only exists on the classic Tk
+        widgets, so it is attempted and then ignored if Tk refuses it.
+        """
         try:
             if on:
                 self.widget.configure(relief="solid")
             else:
                 self.widget.configure(relief="flat")
         except tk.TclError:
-            pass  # widget may not support 'relief'
+            pass  # ttk widgets have no 'relief' option
+
+    def _redrawSelection(self):
+        """Redraw the canvas so the selection outlines keep up."""
+        if myVars.redrawGridLines is not None:
+            myVars.redrawGridLines()
 
     def makePopup(self):
         # Add Menu
@@ -1071,6 +1081,7 @@ class createWidget:
         if self.pythonName not in myVars.selectedWidgets:
             myVars.selectedWidgets.append(self.pythonName)
             self._highlight(True)
+            self._redrawSelection()
             log.info(
                 "Added %s to selection: %s", self.pythonName, myVars.selectedWidgets
             )
@@ -1079,16 +1090,22 @@ class createWidget:
         """Prompt for a group name and group all selected widgets."""
         sel = myVars.selectedWidgets
         if len(sel) < 2:
-            mb.showinfo("Group", "Select two or more widgets first.")
+            TtkMessagebox.show_info(
+                title="Group",
+                message="Select two or more widgets first (Shift+click), "
+                "then group them.",
+            )
             return
-        name = sd.askstring(
-            "Create Group",
-            "Group name:",
+        name = Querybox.get_string(
+            prompt="Group name:",
+            title="Create Widget Group",
             initialvalue=f"group{len(myVars.groups) + 1}",
         )
-        if name:
-            undoredo.stack.push(undoredo.GroupCommand(name, list(sel)))
-            log.info("Grouped %s as '%s'", sel, name)
+        if not name:
+            return
+        undoredo.stack.push(undoredo.GroupCommand(name, list(sel)))
+        log.info("Grouped %s as '%s'", sel, name)
+        TtkMessagebox.show_info(title="Group", message=f"Created group '{name}'.")
 
     def menuPopup(self, event):
         # display the popup menu
@@ -1150,6 +1167,7 @@ class createWidget:
             else:
                 myVars.selectedWidgets.append(self.pythonName)
                 self._highlight(True)
+            self._redrawSelection()
             return  # don't start a drag when Shift-clicking
         else:
             # Normal click: clear multi-selection and highlight only this widget
@@ -1158,6 +1176,7 @@ class createWidget:
                 if obj:
                     obj._highlight(False)
             myVars.selectedWidgets.clear()
+            self._redrawSelection()
 
         self.startX = event.x
         self.startY = event.y
