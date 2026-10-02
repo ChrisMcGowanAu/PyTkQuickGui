@@ -843,24 +843,22 @@ def buildPython() -> str:
                 log.error("Unknown geometry manager %s", myVars.geomManager)
             print("")
     # For Grid mode the Place-coord accumulation above produces zeros/wrong
-    # values.  Use the actual geomWidgetFrame size instead.
+    # values.  Use the layout's own *requested* size: Tk works that out from
+    # the cells and their contents, so it comes from the project rather than
+    # from how big the design canvas happens to be.  Measuring the grid as
+    # rendered (grid_bbox) instead made the exported window size follow the
+    # designer - two different Grid projects exported as the same size.
     if myVars.geomManager == "Grid" and geomWidgetFrame is not None:
         try:
             geomWidgetFrame.update_idletasks()
-            ncols, nrows = geomWidgetFrame.grid_size()
-            gw, gh = 0, 0
-            if ncols > 0 and nrows > 0:
-                # grid_bbox(col, row) → (x, y, w, h) of that cell
-                bbox = geomWidgetFrame.grid_bbox(ncols - 1, nrows - 1)
-                if bbox:
-                    gw = bbox[0] + bbox[2]  # x + width of last col
-                    gh = bbox[1] + bbox[3]  # y + height of last row
+            gw = geomWidgetFrame.winfo_reqwidth()
+            gh = geomWidgetFrame.winfo_reqheight()
             if gw > 100:
                 largestWidth = gw
             if gh > 100:
                 largestHeight = gh
-        except (tk.TclError, ValueError) as _ge:
-            log.warning("Grid geometry estimation failed: %s", _ge)
+        except tk.TclError as _ge:
+            log.warning("Grid size estimation failed: %s", _ge)
 
     largestWidth += 20
     largestHeight += 20
@@ -925,6 +923,34 @@ def _launchProgram(fileName: str) -> None:
         )
 
 
+def _safeGeneratedOutputPath(newFile: str) -> str:
+    """Nudge a chosen output name that would shadow a module the program imports.
+
+    A generated program called flet.py cannot run: ``import flet`` finds the file
+    itself instead of the package.  Renaming it keeps the export usable, and the
+    user is told, so the file is not simply "missing".
+    """
+    safe = project_format.avoid_module_shadowing(newFile)
+    if safe == newFile:
+        return newFile
+    stem = os.path.splitext(os.path.basename(newFile))[0]
+    log.warning(
+        "output name %s would shadow the %s module; using %s instead",
+        newFile,
+        stem,
+        safe,
+    )
+    Messagebox.show_info(
+        title="Output name changed",
+        message=(
+            f"A program named '{os.path.basename(newFile)}' cannot run: it\n"
+            f"would be imported in place of the '{stem}' module it needs.\n\n"
+            f"It will be written as '{os.path.basename(safe)}' instead."
+        ),
+    )
+    return safe
+
+
 def generatePython():
     """Ask for a save path, generate Python and copy the file there.
 
@@ -952,6 +978,7 @@ def generatePython():
     )
     if not newFile:
         return  # user cancelled
+    newFile = _safeGeneratedOutputPath(newFile)
 
     # Remember where the user is keeping their generated file.
     myVars.saveDirName = os.path.dirname(newFile)
@@ -1078,6 +1105,7 @@ def generateFlet():
     )
     if not newFile:
         return  # user cancelled
+    newFile = _safeGeneratedOutputPath(newFile)
     myVars.saveDirName = os.path.dirname(newFile)
     myVars.generatedFletFile = newFile
     fileName = buildFlet()

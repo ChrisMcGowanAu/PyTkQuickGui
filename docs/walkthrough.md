@@ -34,22 +34,24 @@ take.
 | 2:30 | **File > Trial Run**. | The real ttkbootstrap program, running. This is the first payoff. |
 | 3:00 | **File > Generate Python**, save it as `demo.py`, open the file in an editor. Point out the readable widget calls, and that a callback you edited in a previous version is carried over rather than overwritten. | The generated Python at `demo.py`. |
 | 3:45 | **File > Generate Flet**, then **File > Trial Run (Flet)**. | The same layout running as a Flet application. The Flet compatibility report is worth showing here: it lists anything that had to be approximated. |
-| 4:30 | Optional second act: **File > Open Project > examples > sudokupack**, then right-click the canvas for **Edit Grid settings**, and drag a widget so it snaps. | Grid mode, and how a project's grid is configured. |
+| 4:30 | Optional second act: **File > Open Project > examples > sudokupack**, then **Tools > Edit Grid settings**, and drag a widget so it snaps. | Grid mode, and how a project's grid is configured. |
 | 5:00 | **File > Save Project**, then Ctrl+Z a few times. Mention that each save keeps rolling `-saveN` backups, and where `examples/` came from. | The JSON project and the undo stack. |
 
 ## Before each take
 
 - **Restart the tool after changing its code.** A running instance keeps the
   modules it started with, so a fix can look like it did nothing.
-- **Do not name an exported Flet program `flet.py`.** Running it then imports
-  itself instead of the Flet package (the tool's own file is called
-  `flet_test.py` for this reason). Any other name is fine.
+- **`flet.py` is safe to type in the save dialog.** The tool writes it as
+  `flet1.py` and says why: a program called flet.py is imported in place of the
+  Flet package and cannot start. The same applies to `tkinter.py` and
+  `ttkbootstrap.py`.
 - **Close each Trial Run window before the next take.** A Flet window can
   outlive the Python process that started it, leaving a window on screen that
   belongs to nothing.
-- **Grid projects export at the designer's canvas size**, not the content size,
-  so a sparse Grid project opens with empty space around the widgets. Fill the
-  grid, or crop the still, until that is tidied up in the generator.
+- **A Grid project opens at the size its layout asks for**, and stretches from
+  there as you resize the window. If a Grid project looks sparse, the grid
+  itself is larger than the content - tighten it under Tools > Edit Grid
+  settings.
 
 ## Stills
 

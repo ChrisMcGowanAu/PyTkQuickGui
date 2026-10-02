@@ -111,6 +111,34 @@ def format_python_call(call_expression: str, arguments: Iterable[str]) -> str:
     return f"{call_expression}(\n{body}\n)"
 
 
+# The generated programs import these.  A generated file with one of these
+# names shadows the module: running ``flet.py`` makes ``import flet`` load the
+# script itself, and the program dies before it draws anything.
+MODULE_NAMES_TO_AVOID = ("flet", "tkinter", "ttkbootstrap", "ttk")
+
+
+def avoid_module_shadowing(path: str) -> str:
+    """Return *path*, renamed if its filename would shadow a module it imports.
+
+    ``flet.py`` becomes ``flet1.py`` - and ``flet2.py`` if that already exists -
+    so the program keeps a name it can actually be run under.  Anything that
+    does not shadow a module is returned unchanged, as is an empty path.
+    """
+    if not path:
+        return path
+    directory, filename = os.path.split(path)
+    stem, extension = os.path.splitext(filename)
+    if stem.lower() not in MODULE_NAMES_TO_AVOID:
+        return path
+    extension = extension or ".py"
+    index = 1
+    candidate = os.path.join(directory, f"{stem}{index}{extension}")
+    while os.path.exists(candidate):
+        index += 1
+        candidate = os.path.join(directory, f"{stem}{index}{extension}")
+    return candidate
+
+
 def generated_dialog_defaults(
     project_name: str,
     save_directory: str,

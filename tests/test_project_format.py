@@ -314,5 +314,59 @@ class ProjectFormatTests(unittest.TestCase):
         self.assertEqual(variables, {})
 
 
+class OutputNameTests(unittest.TestCase):
+    """A generated file must not shadow a module the generated program imports."""
+
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.directory.cleanup)
+
+    def path(self, name):
+        return str(Path(self.directory.name) / name)
+
+    def test_a_module_name_is_nudged(self):
+        self.assertEqual(
+            project_format.avoid_module_shadowing(self.path("flet.py")),
+            self.path("flet1.py"),
+        )
+
+    def test_the_nudge_does_not_clobber_an_existing_file(self):
+        Path(self.path("flet1.py")).touch()
+        self.assertEqual(
+            project_format.avoid_module_shadowing(self.path("flet.py")),
+            self.path("flet2.py"),
+        )
+
+    def test_case_is_kept(self):
+        self.assertEqual(
+            project_format.avoid_module_shadowing(self.path("FLET.py")),
+            self.path("FLET1.py"),
+        )
+
+    def test_every_shadowing_module_is_covered(self):
+        for stem in ("flet", "tkinter", "ttkbootstrap", "ttk"):
+            with self.subTest(stem=stem):
+                self.assertEqual(
+                    project_format.avoid_module_shadowing(self.path(f"{stem}.py")),
+                    self.path(f"{stem}1.py"),
+                )
+
+    def test_ordinary_names_are_left_alone(self):
+        for name in (
+            "Calculator_flet.py",
+            "Calculator_ttk.py",
+            "flet_gui.py",
+            "main.py",
+        ):
+            with self.subTest(name=name):
+                self.assertEqual(
+                    project_format.avoid_module_shadowing(self.path(name)),
+                    self.path(name),
+                )
+
+    def test_empty_path_is_returned_unchanged(self):
+        self.assertEqual(project_format.avoid_module_shadowing(""), "")
+
+
 if __name__ == "__main__":
     unittest.main()
