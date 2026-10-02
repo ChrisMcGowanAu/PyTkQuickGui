@@ -14,36 +14,6 @@
     "gridRowPad": "0.5m",
     "gridColPad": "1m",
     "generatedPyFile": "",
-    "widgetNameList": [
-        [
-            "Widget0",
-            "rootWidget",
-            "",
-            [
-                "Widget1",
-                "Widget2",
-                "Widget3"
-            ]
-        ],
-        [
-            "Widget1",
-            "Widget0",
-            "",
-            []
-        ],
-        [
-            "Widget2",
-            "Widget0",
-            "",
-            []
-        ],
-        [
-            "Widget3",
-            "Widget0",
-            "",
-            []
-        ]
-    ],
     "backgroundColor": "skyBlue3",
     "imageFileNames": [],
     "groups": {},
@@ -51,13 +21,13 @@
         "WidgetName": "ttk::notebook",
         "WidgetParent": "rootWidget",
         "Place": {
-            "x": "64",
+            "x": "32",
             "relx": "0",
             "y": "32",
             "rely": "0",
-            "width": "192",
+            "width": "560",
             "relwidth": "",
-            "height": "160",
+            "height": "208",
             "relheight": "",
             "anchor": "nw",
             "bordermode": "inside"
@@ -108,7 +78,7 @@
         "GeomData": {},
         "Attribute0": {
             "Key": "borderwidth",
-            "Value": "1"
+            "Value": "0"
         },
         "Attribute1": {
             "Key": "padding",
@@ -136,13 +106,171 @@
         },
         "Attribute7": {
             "Key": "style",
-            "Value": "dark.TFrame"
+            "Value": ""
         },
         "Attribute8": {
             "Key": "class",
             "Value": ""
         },
         "Widget1-KeyCount": 9
+    },
+    "Widget4": {
+        "WidgetName": "ttk::label",
+        "WidgetParent": "Widget1",
+        "Place": {
+            "x": "16",
+            "relx": "0",
+            "y": "16",
+            "rely": "0",
+            "width": "320",
+            "relwidth": "",
+            "height": "32",
+            "relheight": "",
+            "anchor": "nw",
+            "bordermode": "inside"
+        },
+        "GeomData": {},
+        "Attribute0": {
+            "Key": "borderwidth",
+            "Value": "1"
+        },
+        "Attribute1": {
+            "Key": "relief",
+            "Value": "solid"
+        },
+        "Attribute2": {
+            "Key": "anchor",
+            "Value": "center"
+        },
+        "Attribute3": {
+            "Key": "justify",
+            "Value": "left"
+        },
+        "Attribute4": {
+            "Key": "text",
+            "Value": "Welcome to PyTkQuickGui"
+        },
+        "Attribute5": {
+            "Key": "underline",
+            "Value": "-1"
+        },
+        "Attribute6": {
+            "Key": "state",
+            "Value": "normal"
+        },
+        "Attribute7": {
+            "Key": "cursor",
+            "Value": "arrow"
+        },
+        "Attribute8": {
+            "Key": "style",
+            "Value": "info.Inverse.TLabel"
+        },
+        "Widget4-KeyCount": 9
+    },
+    "Widget5": {
+        "WidgetName": "ttk::label",
+        "WidgetParent": "Widget1",
+        "Place": {
+            "x": "16",
+            "relx": "0",
+            "y": "56",
+            "rely": "0",
+            "width": "480",
+            "relwidth": "",
+            "height": "32",
+            "relheight": "",
+            "anchor": "nw",
+            "bordermode": "inside"
+        },
+        "GeomData": {},
+        "Attribute0": {
+            "Key": "borderwidth",
+            "Value": "1"
+        },
+        "Attribute1": {
+            "Key": "relief",
+            "Value": "solid"
+        },
+        "Attribute2": {
+            "Key": "anchor",
+            "Value": "center"
+        },
+        "Attribute3": {
+            "Key": "justify",
+            "Value": "left"
+        },
+        "Attribute4": {
+            "Key": "text",
+            "Value": "Draw the window, then generate Python or Flet."
+        },
+        "Attribute5": {
+            "Key": "underline",
+            "Value": "-1"
+        },
+        "Attribute6": {
+            "Key": "state",
+            "Value": "normal"
+        },
+        "Attribute7": {
+            "Key": "cursor",
+            "Value": "arrow"
+        },
+        "Attribute8": {
+            "Key": "style",
+            "Value": "light.TLabel"
+        },
+        "Widget5-KeyCount": 9
+    },
+    "Widget6": {
+        "WidgetName": "ttk::button",
+        "WidgetParent": "Widget1",
+        "Place": {
+            "x": "16",
+            "relx": "0",
+            "y": "104",
+            "rely": "0",
+            "width": "160",
+            "relwidth": "",
+            "height": "40",
+            "relheight": "",
+            "anchor": "nw",
+            "bordermode": "inside"
+        },
+        "GeomData": {},
+        "Attribute0": {
+            "Key": "command",
+            "Value": "getstartedcmd"
+        },
+        "Attribute1": {
+            "Key": "default",
+            "Value": "normal"
+        },
+        "Attribute2": {
+            "Key": "takefocus",
+            "Value": "ttk::takefocus"
+        },
+        "Attribute3": {
+            "Key": "text",
+            "Value": "Get started"
+        },
+        "Attribute4": {
+            "Key": "underline",
+            "Value": "-1"
+        },
+        "Attribute5": {
+            "Key": "state",
+            "Value": "normal"
+        },
+        "Attribute6": {
+            "Key": "cursor",
+            "Value": "arrow"
+        },
+        "Attribute7": {
+            "Key": "style",
+            "Value": "success.TButton"
+        },
+        "Widget6-KeyCount": 8
     },
     "Widget2": {
         "WidgetName": "ttk::frame",
@@ -151,7 +279,7 @@
         "GeomData": {},
         "Attribute0": {
             "Key": "borderwidth",
-            "Value": "1"
+            "Value": "0"
         },
         "Attribute1": {
             "Key": "padding",
@@ -179,13 +307,171 @@
         },
         "Attribute7": {
             "Key": "style",
-            "Value": "danger.TFrame"
+            "Value": ""
         },
         "Attribute8": {
             "Key": "class",
             "Value": ""
         },
         "Widget2-KeyCount": 9
+    },
+    "Widget7": {
+        "WidgetName": "ttk::label",
+        "WidgetParent": "Widget2",
+        "Place": {
+            "x": "16",
+            "relx": "0",
+            "y": "16",
+            "rely": "0",
+            "width": "160",
+            "relwidth": "",
+            "height": "32",
+            "relheight": "",
+            "anchor": "nw",
+            "bordermode": "inside"
+        },
+        "GeomData": {},
+        "Attribute0": {
+            "Key": "borderwidth",
+            "Value": "1"
+        },
+        "Attribute1": {
+            "Key": "relief",
+            "Value": "solid"
+        },
+        "Attribute2": {
+            "Key": "anchor",
+            "Value": "center"
+        },
+        "Attribute3": {
+            "Key": "justify",
+            "Value": "left"
+        },
+        "Attribute4": {
+            "Key": "text",
+            "Value": "Settings"
+        },
+        "Attribute5": {
+            "Key": "underline",
+            "Value": "-1"
+        },
+        "Attribute6": {
+            "Key": "state",
+            "Value": "normal"
+        },
+        "Attribute7": {
+            "Key": "cursor",
+            "Value": "arrow"
+        },
+        "Attribute8": {
+            "Key": "style",
+            "Value": "warning.Inverse.TLabel"
+        },
+        "Widget7-KeyCount": 9
+    },
+    "Widget8": {
+        "WidgetName": "ttk::label",
+        "WidgetParent": "Widget2",
+        "Place": {
+            "x": "16",
+            "relx": "0",
+            "y": "56",
+            "rely": "0",
+            "width": "480",
+            "relwidth": "",
+            "height": "32",
+            "relheight": "",
+            "anchor": "nw",
+            "bordermode": "inside"
+        },
+        "GeomData": {},
+        "Attribute0": {
+            "Key": "borderwidth",
+            "Value": "1"
+        },
+        "Attribute1": {
+            "Key": "relief",
+            "Value": "solid"
+        },
+        "Attribute2": {
+            "Key": "anchor",
+            "Value": "center"
+        },
+        "Attribute3": {
+            "Key": "justify",
+            "Value": "left"
+        },
+        "Attribute4": {
+            "Key": "text",
+            "Value": "Every tab is an ordinary Frame you can fill."
+        },
+        "Attribute5": {
+            "Key": "underline",
+            "Value": "-1"
+        },
+        "Attribute6": {
+            "Key": "state",
+            "Value": "normal"
+        },
+        "Attribute7": {
+            "Key": "cursor",
+            "Value": "arrow"
+        },
+        "Attribute8": {
+            "Key": "style",
+            "Value": "light.TLabel"
+        },
+        "Widget8-KeyCount": 9
+    },
+    "Widget9": {
+        "WidgetName": "ttk::button",
+        "WidgetParent": "Widget2",
+        "Place": {
+            "x": "16",
+            "relx": "0",
+            "y": "104",
+            "rely": "0",
+            "width": "160",
+            "relwidth": "",
+            "height": "40",
+            "relheight": "",
+            "anchor": "nw",
+            "bordermode": "inside"
+        },
+        "GeomData": {},
+        "Attribute0": {
+            "Key": "command",
+            "Value": "applycmd"
+        },
+        "Attribute1": {
+            "Key": "default",
+            "Value": "normal"
+        },
+        "Attribute2": {
+            "Key": "takefocus",
+            "Value": "ttk::takefocus"
+        },
+        "Attribute3": {
+            "Key": "text",
+            "Value": "Apply"
+        },
+        "Attribute4": {
+            "Key": "underline",
+            "Value": "-1"
+        },
+        "Attribute5": {
+            "Key": "state",
+            "Value": "normal"
+        },
+        "Attribute6": {
+            "Key": "cursor",
+            "Value": "arrow"
+        },
+        "Attribute7": {
+            "Key": "style",
+            "Value": "warning.TButton"
+        },
+        "Widget9-KeyCount": 8
     },
     "Widget3": {
         "WidgetName": "ttk::frame",
@@ -194,7 +480,7 @@
         "GeomData": {},
         "Attribute0": {
             "Key": "borderwidth",
-            "Value": "1"
+            "Value": "0"
         },
         "Attribute1": {
             "Key": "padding",
@@ -222,7 +508,7 @@
         },
         "Attribute7": {
             "Key": "style",
-            "Value": "success.TFrame"
+            "Value": ""
         },
         "Attribute8": {
             "Key": "class",
@@ -230,5 +516,259 @@
         },
         "Widget3-KeyCount": 9
     },
-    "widgetCount": 4
+    "Widget10": {
+        "WidgetName": "ttk::label",
+        "WidgetParent": "Widget3",
+        "Place": {
+            "x": "16",
+            "relx": "0",
+            "y": "16",
+            "rely": "0",
+            "width": "160",
+            "relwidth": "",
+            "height": "32",
+            "relheight": "",
+            "anchor": "nw",
+            "bordermode": "inside"
+        },
+        "GeomData": {},
+        "Attribute0": {
+            "Key": "borderwidth",
+            "Value": "1"
+        },
+        "Attribute1": {
+            "Key": "relief",
+            "Value": "solid"
+        },
+        "Attribute2": {
+            "Key": "anchor",
+            "Value": "center"
+        },
+        "Attribute3": {
+            "Key": "justify",
+            "Value": "left"
+        },
+        "Attribute4": {
+            "Key": "text",
+            "Value": "About"
+        },
+        "Attribute5": {
+            "Key": "underline",
+            "Value": "-1"
+        },
+        "Attribute6": {
+            "Key": "state",
+            "Value": "normal"
+        },
+        "Attribute7": {
+            "Key": "cursor",
+            "Value": "arrow"
+        },
+        "Attribute8": {
+            "Key": "style",
+            "Value": "danger.Inverse.TLabel"
+        },
+        "Widget10-KeyCount": 9
+    },
+    "Widget11": {
+        "WidgetName": "ttk::label",
+        "WidgetParent": "Widget3",
+        "Place": {
+            "x": "16",
+            "relx": "0",
+            "y": "56",
+            "rely": "0",
+            "width": "480",
+            "relwidth": "",
+            "height": "32",
+            "relheight": "",
+            "anchor": "nw",
+            "bordermode": "inside"
+        },
+        "GeomData": {},
+        "Attribute0": {
+            "Key": "borderwidth",
+            "Value": "1"
+        },
+        "Attribute1": {
+            "Key": "relief",
+            "Value": "solid"
+        },
+        "Attribute2": {
+            "Key": "anchor",
+            "Value": "center"
+        },
+        "Attribute3": {
+            "Key": "justify",
+            "Value": "left"
+        },
+        "Attribute4": {
+            "Key": "text",
+            "Value": "A visual designer for tkinter and ttkbootstrap."
+        },
+        "Attribute5": {
+            "Key": "underline",
+            "Value": "-1"
+        },
+        "Attribute6": {
+            "Key": "state",
+            "Value": "normal"
+        },
+        "Attribute7": {
+            "Key": "cursor",
+            "Value": "arrow"
+        },
+        "Attribute8": {
+            "Key": "style",
+            "Value": "light.TLabel"
+        },
+        "Widget11-KeyCount": 9
+    },
+    "Widget12": {
+        "WidgetName": "ttk::button",
+        "WidgetParent": "Widget3",
+        "Place": {
+            "x": "16",
+            "relx": "0",
+            "y": "104",
+            "rely": "0",
+            "width": "160",
+            "relwidth": "",
+            "height": "40",
+            "relheight": "",
+            "anchor": "nw",
+            "bordermode": "inside"
+        },
+        "GeomData": {},
+        "Attribute0": {
+            "Key": "command",
+            "Value": "closecmd"
+        },
+        "Attribute1": {
+            "Key": "default",
+            "Value": "normal"
+        },
+        "Attribute2": {
+            "Key": "takefocus",
+            "Value": "ttk::takefocus"
+        },
+        "Attribute3": {
+            "Key": "text",
+            "Value": "Close"
+        },
+        "Attribute4": {
+            "Key": "underline",
+            "Value": "-1"
+        },
+        "Attribute5": {
+            "Key": "state",
+            "Value": "normal"
+        },
+        "Attribute6": {
+            "Key": "cursor",
+            "Value": "arrow"
+        },
+        "Attribute7": {
+            "Key": "style",
+            "Value": "danger.TButton"
+        },
+        "Widget12-KeyCount": 8
+    },
+    "widgetNameList": [
+        [
+            "Widget0",
+            "rootWidget",
+            "",
+            [
+                "Widget1",
+                "Widget2",
+                "Widget3"
+            ]
+        ],
+        [
+            "Widget1",
+            "Widget0",
+            "",
+            [
+                "Widget4",
+                "Widget5",
+                "Widget6"
+            ]
+        ],
+        [
+            "Widget4",
+            "Widget1",
+            "",
+            []
+        ],
+        [
+            "Widget5",
+            "Widget1",
+            "",
+            []
+        ],
+        [
+            "Widget6",
+            "Widget1",
+            "",
+            []
+        ],
+        [
+            "Widget2",
+            "Widget0",
+            "",
+            [
+                "Widget7",
+                "Widget8",
+                "Widget9"
+            ]
+        ],
+        [
+            "Widget7",
+            "Widget2",
+            "",
+            []
+        ],
+        [
+            "Widget8",
+            "Widget2",
+            "",
+            []
+        ],
+        [
+            "Widget9",
+            "Widget2",
+            "",
+            []
+        ],
+        [
+            "Widget3",
+            "Widget0",
+            "",
+            [
+                "Widget10",
+                "Widget11",
+                "Widget12"
+            ]
+        ],
+        [
+            "Widget10",
+            "Widget3",
+            "",
+            []
+        ],
+        [
+            "Widget11",
+            "Widget3",
+            "",
+            []
+        ],
+        [
+            "Widget12",
+            "Widget3",
+            "",
+            []
+        ]
+    ],
+    "widgetCount": 13
 }

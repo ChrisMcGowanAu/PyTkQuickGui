@@ -6,8 +6,8 @@
     "height": 0,
     "theme": "tokyo-night-dark",
     "geomManager": "Grid",
-    "gridRows": 15,
-    "gridCols": 21,
+    "gridRows": 5,
+    "gridCols": 12,
     "gridLineColor": "",
     "gridRowMinsize": "2.5m",
     "gridColMinsize": "5m",
@@ -564,7 +564,7 @@
         },
         "Attribute9": {
             "Key": "text",
-            "Value": "    Difficulity"
+            "Value": "    Difficulty"
         },
         "Attribute10": {
             "Key": "underline",
