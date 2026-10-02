@@ -395,6 +395,17 @@ layout testing and does not replace the explicitly saved Python file.
 data. The translation lives in `flet_generator.py` and is a pure function of the
 project, so it can be tested without a display.
 
+Run one in a browser to test it without a desktop build, and to open it from
+another machine:
+
+```bash
+venv/bin/flet run --web ~/Calculator/Calculator_flet.py       # add --port 8550
+```
+
+The generated program is unchanged either way - `flet run --web` serves the same
+file, and `python <program>.py` still runs it as a desktop application.
+INSTALL.TXT has the details, including `--host 0.0.0.0`.
+
 | Designer | Flet output |
 |---|---|
 | Place | `ft.Stack` with absolute `left`/`top`/`width`/`height` |

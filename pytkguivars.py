@@ -103,6 +103,12 @@ GEOM_MANAGERS = ("Place", "Grid", "Pack")
 #: Place is the default: it translates one to one, and is the better target
 #: for Flet output because Flet has no grid layout to map onto.
 DEFAULT_GEOM_MANAGER = "Place"
+#: Every mouse gesture that means "secondary click".  macOS delivers a trackpad
+#: two-finger tap, or Control-click, as Button-2 in some Tk builds and Button-3
+#: in others, so binding Button-3 alone left the widget menus unreachable on a
+#: Mac unless it had a three button mouse.
+RIGHT_CLICK_BINDINGS = ("<Button-3>", "<Button-2>", "<Control-Button-1>")
+
 # Default
 geomManager = DEFAULT_GEOM_MANAGER
 # Number of rows/columns in the initial grid (Grid mode only).

@@ -141,10 +141,38 @@ macOS
 
     venv/bin/python pytkquickgui.py
 
-   macOS has had less testing than Linux.  A three button mouse is needed to
-   reach the widget context menu, and on some setups buttons 2 and 3 are
-   swapped; the code has no Mac specific quirks handling yet.
+   macOS has had less testing than Linux.  The widget context menu opens on a
+   right click, and also on a two-finger tap and on Control-click, so a
+   trackpad is enough; a three button mouse is not required.  On a Mac without
+   a right button, Control-click is the one to use.
 
+
+Running a generated program in a browser
+----------------------------------------
+
+A generated Flet program can be served as a web page.  This is the quickest way
+to test one - there is no desktop build to wait for, and another machine (or a
+phone) on the same network can open it:
+
+    cd PyTkQuickGui
+    venv/bin/flet run --web ~/Calculator/Calculator_flet.py
+
+It prints the URL and opens your browser at it.  Ctrl-C stops it.  Useful
+variations:
+
+    --port 8550        pin the port instead of taking a random one
+    --host 0.0.0.0     listen on every interface, to test from another machine
+
+Use the venv's flet: the library runs under a system Python, but `flet run`
+also needs `flet-cli`, which the first run may download (so it wants network
+access once).  The command watches the file, so editing the generated program
+reloads the page.
+
+The same program still runs as a desktop application - **File > Trial Run
+(Flet)**, or `venv/bin/python <program>.py` - so this changes nothing about
+what you generate.  Do not name the file `flet.py`: the tool writes that as
+`flet1.py` for you, because a program of that name imports itself instead of
+the Flet package.
 
 If the generated programs cannot find their packages
 ----------------------------------------------------

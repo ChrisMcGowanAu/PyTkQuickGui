@@ -405,7 +405,8 @@ class createWidget:
             [self.pythonName, myVars.rootWidgetName, self.widget, []]
         )
         #  K_UP,  K_DOWN,  K_LEFT,  and K_RIGHT
-        self.widget.bind("<Button-3>", self.rightMouseDown)
+        for _sequence in myVars.RIGHT_CLICK_BINDINGS:
+            self.widget.bind(_sequence, self.rightMouseDown)
         self.widget.bind("<Button-1>", self.leftMouseDown)
         self.widget.bind("<B1-Motion>", self.leftMouseDrag)
         self.widget.bind("<ButtonRelease-1>", self.leftMouseRelease)

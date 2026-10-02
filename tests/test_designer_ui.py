@@ -1,4 +1,4 @@
-"""Exports made by the running designer: window size and output file names.
+"""Designer UI behaviour: exported window size, output file names, clicks.
 
 Window size regression: buildPython used to take the design canvas *as
 rendered* (grid_bbox) as the exported window size, so the export followed the
@@ -10,6 +10,10 @@ Output name: a generated program called flet.py cannot run, because ``import
 flet`` loads the file itself instead of the package.  Both export call sites are
 covered, with the save dialog and the message box stubbed out.
 
+Secondary click: the widget menus must open from every gesture that means
+"right click", not just Button-3, or a Mac without a three button mouse cannot
+reach them.
+
 These tests start the real designer, so they need a display and are skipped
 where there is not one (CI runs headless).
 """
@@ -20,6 +24,7 @@ import os
 import re
 import sys
 import tempfile
+import tkinter as tk
 import unittest
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -157,6 +162,33 @@ class OutputNameTests(unittest.TestCase):
         chosen = self._export(app.generateFlet, "Calc_flet.py")
         self.assertTrue(os.path.isfile(chosen))
         self.assertEqual(self.messages, [], "no message should be shown")
+
+
+@unittest.skipIf(app is None, f"the designer cannot start here: {IMPORT_ERROR}")
+class SecondaryClickTests(unittest.TestCase):
+    """Button-3 is not the only gesture that opens the widget menus.
+
+    A Mac trackpad's two-finger tap arrives as Button-2 in some Tk builds and as
+    Button-3 in others, and Control-click as Control-Button-1, so binding
+    Button-3 alone leaves the menus unreachable without a three button mouse.
+    """
+
+    def setUp(self):
+        # A synthetic event cannot be delivered to a withdrawn window, so this
+        # checks the bindings rather than the events.
+        self.frame = tk.Frame(app.rootWin)
+        app._bindRightClick(self.frame, lambda event: None)
+        self.addCleanup(self.frame.destroy)
+
+    def test_every_secondary_click_gesture_is_bound(self):
+        bound = self.frame.bind()
+        for sequence in app.myVars.RIGHT_CLICK_BINDINGS:
+            with self.subTest(sequence=sequence):
+                self.assertIn(sequence, bound)
+
+    def test_the_gestures_include_the_mac_trackpad_ones(self):
+        self.assertIn("<Button-2>", app.myVars.RIGHT_CLICK_BINDINGS)
+        self.assertIn("<Control-Button-1>", app.myVars.RIGHT_CLICK_BINDINGS)
 
 
 if __name__ == "__main__":

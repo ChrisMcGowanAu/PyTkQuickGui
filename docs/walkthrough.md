@@ -33,7 +33,7 @@ take.
 | 1:45 | **File > Open Project > examples > tabs**. Click the body of a tab, right-click, choose **Edit**, and change the tab captions. | A notebook where every tab is an ordinary Frame you can fill. |
 | 2:30 | **File > Trial Run**. | The real ttkbootstrap program, running. This is the first payoff. |
 | 3:00 | **File > Generate Python**, save it as `demo.py`, open the file in an editor. Point out the readable widget calls, and that a callback you edited in a previous version is carried over rather than overwritten. | The generated Python at `demo.py`. |
-| 3:45 | **File > Generate Flet**, then **File > Trial Run (Flet)**. | The same layout running as a Flet application. The Flet compatibility report is worth showing here: it lists anything that had to be approximated. |
+| 3:45 | **File > Generate Flet**, then **File > Trial Run (Flet)**. If you want a second screen in the shot, run the saved file in a browser instead: `venv/bin/flet run --web <file>`. | The same layout running as a Flet application, on the desktop and as a web page. The Flet compatibility report is worth showing here: it lists anything that had to be approximated. |
 | 4:30 | Optional second act: **File > Open Project > examples > sudokupack**, then **Tools > Edit Grid settings**, and drag a widget so it snaps. | Grid mode, and how a project's grid is configured. |
 | 5:00 | **File > Save Project**, then Ctrl+Z a few times. Mention that each save keeps rolling `-saveN` backups, and where `examples/` came from. | The JSON project and the undo stack. |
 

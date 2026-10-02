@@ -3208,7 +3208,7 @@ def _make_grid_overlay(frame: ttk.Frame) -> tk.Canvas:  # type: ignore[name-defi
     # tk.Misc.lower() lowers in the window stacking order (not a canvas item op).
     tk.Misc.lower(oc)
     # Right-clicks on the overlay canvas must still open the widget-creation menu
-    oc.bind("<Button-3>", rightMouseDown)
+    _bindRightClick(oc, rightMouseDown)
     # oc.bind("<Button-1>", _grid_overlay_btn1)
     oc.bind("<B1-Motion>", _grid_overlay_drag)
     oc.bind("<ButtonRelease-1>", _grid_overlay_release)
@@ -3923,6 +3923,17 @@ def createWidgetPopup(event, widgetName):
     _placeNewWidget(w, x, y)
 
 
+def _bindRightClick(widget, callback) -> None:
+    """Bind every gesture that means "secondary click" on *widget*.
+
+    See myVars.RIGHT_CLICK_BINDINGS: a Mac without a three button mouse has no
+    Button-3 to give, so the widget menus have to answer to Button-2 and to
+    Control-click as well.
+    """
+    for sequence in myVars.RIGHT_CLICK_BINDINGS:
+        widget.bind(sequence, callback)
+
+
 def rightMouseDown(event):
     # global mainCanvas
     log.debug("rightMouseDown -- event %s", str(event))
@@ -3998,7 +4009,7 @@ def buildGrid(rows, cols):
     mainCanvas.grid(
         row=0, column=0, columnspan=cols, rowspan=rows, padx=5, pady=5, sticky="NSEW"
     )
-    mainCanvas.bind("<Button-3>", rightMouseDown)
+    _bindRightClick(mainCanvas, rightMouseDown)
 
     # For Grid / Pack modes create an inner Frame that fills the canvas.
     # Widgets are parented to this frame so their geometry manager is
@@ -4016,7 +4027,7 @@ def buildGrid(rows, cols):
         )
         # Bug fix: right-click on empty frame background must reach rightMouseDown.
         # geomWidgetFrame covers the entire canvas so mainCanvas never sees the event.
-        geomWidgetFrame.bind("<Button-3>", rightMouseDown)
+        _bindRightClick(geomWidgetFrame, rightMouseDown)
         # Overlay canvas for grid guide-lines (drawn inside geomWidgetFrame so
         # they appear above the frame background but below child widgets).
         _make_grid_overlay(geomWidgetFrame)
@@ -4088,7 +4099,7 @@ def _rebuild_canvas_for_geom():
             0, 0, window=geomWidgetFrame, anchor="nw", tags="geomframe"
         )
         # Bug fix: right-click on empty frame background must reach rightMouseDown.
-        geomWidgetFrame.bind("<Button-3>", rightMouseDown)
+        _bindRightClick(geomWidgetFrame, rightMouseDown)
         # Overlay canvas for grid guide-lines
         _make_grid_overlay(geomWidgetFrame)
 
