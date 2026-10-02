@@ -1,6 +1,10 @@
 name: Python Package using Conda
 
-on: [push, pull_request]
+on:
+  push:
+  pull_request:
+  # So the environment can be checked on demand, without waiting for a push.
+  workflow_dispatch:
 
 jobs:
   build-linux:
