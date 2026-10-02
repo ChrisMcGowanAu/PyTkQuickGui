@@ -5,6 +5,7 @@ import os
 import re
 import tempfile
 import unittest
+from types import SimpleNamespace
 
 try:
     import flet as ft
@@ -607,9 +608,32 @@ class FletGeneratorTests(unittest.TestCase):
         self.assertIn("keyboard_type=ft.KeyboardType.NUMBER", source)
         self.assertIn("Widget1 = ft.Row(", source)
         self.assertIn("ft.Icons.KEYBOARD_ARROW_UP", source)
-        self.assertIn("_step_value(Widget1_field, 1, 0.0, 10.0, 0.5)", source)
         self.assertIn("def _step_value(", source)
-        self.assertIn("not kept in sync", source)
+        # This spinbox has a textvariable, so the stepper publishes to it and
+        # the field follows it - the note about them drifting apart is gone.
+        self.assertIn("_step_field(Widget1_field, 1, 0.0, 10.0, 0.5, 'count')", source)
+        self.assertIn("TEXT_BINDINGS['count'] = [(Widget1_field, 'value')]", source)
+        self.assertNotIn("not kept in sync", source)
+
+    def test_a_spinbox_without_a_variable_just_steps(self):
+        data = project(
+            widgets=(
+                widget(
+                    "Widget1",
+                    "ttk::spinbox",
+                    attributes=(
+                        ("from", "0"),
+                        ("to", "10"),
+                        ("increment", "0.5"),
+                    ),
+                ),
+            )
+        )
+        source = flet_generator.emit_program(data, widget_names("Widget1"), ROOT)
+        self.assertIn("_step_value(Widget1_field, 1, 0.0, 10.0, 0.5)", source)
+        # The helper is always defined; it is the *call* that must not appear
+        # when there is no variable to publish to.
+        self.assertNotIn("_step_field(Widget1_field", source)
 
     def test_generated_stepper_helper_clamps_the_value(self):
         data = project(
@@ -2412,6 +2436,77 @@ def clicked_5(e=None):
 
         self.assertEqual(len(page.controls), 1)
         self.assertIn("placeholder", source)
+
+
+class SharedVariableTests(unittest.TestCase):
+    """A spinbox and a scale on one variable must stay in step, as they do in Tk.
+
+    Tk binds both widgets to the same variable, so moving either moves the
+    other.  The Flet backend used to read the variable into the scale, leave the
+    spinbox's field unbound, and write nothing back - so the two drifted apart,
+    which is what the user reported.
+    """
+
+    WIDGETS = (
+        widget(
+            "Widget1",
+            "ttk::spinbox",
+            attributes=(
+                ("textvariable", "timeOn"),
+                ("from", "0"),
+                ("to", "20"),
+                ("increment", "0.1"),
+            ),
+        ),
+        widget(
+            "Widget2",
+            "ttk::scale",
+            attributes=(
+                ("variable", "timeOn"),
+                ("from", "0"),
+                ("to", "20"),
+                ("current", "6.3"),
+            ),
+        ),
+    )
+
+    def source(self) -> str:
+        data = project(geom_manager="Place", widgets=self.WIDGETS)
+        return flet_generator.emit_program(
+            data, widget_names("Widget1", "Widget2"), ROOT
+        )
+
+    def test_both_controls_are_registered_against_the_variable(self):
+        source = self.source()
+        self.assertIn("TEXT_BINDINGS['timeOn']", source)  # the spinbox field
+        self.assertIn("NUMERIC_BINDINGS['timeOn']", source)  # the slider
+        self.assertEqual(source.count("on_change=lambda e: set_text('timeOn'"), 2)
+
+    def test_the_stepper_publishes_and_the_note_is_gone(self):
+        source = self.source()
+        self.assertIn("_step_field(", source)
+        self.assertNotIn("not kept in sync by the stepper", source)
+        self.assertNotIn("not bound to ft.Slider.value", source)
+
+    @unittest.skipUnless(FLET_AVAILABLE, "flet is not installed")
+    def test_the_spinbox_and_the_scale_stay_in_step(self):
+        namespace, main = load_generated(self.source())
+        main(FakePage())
+        field = namespace["TEXT_BINDINGS"]["timeOn"][0][0]
+        slider = namespace["NUMERIC_BINDINGS"]["timeOn"][0][0]
+        field.update = lambda *args, **kwargs: None  # no live session here
+
+        namespace["set_text"]("timeOn", "15")
+        self.assertEqual(field.value, "15")
+        self.assertEqual(slider.value, 15.0)
+
+        namespace["_step_field"](field, 1, 0.0, 20.0, 0.1, "timeOn")
+        self.assertEqual(namespace["timeOn"], "15.1")
+        self.assertEqual(slider.value, 15.1)
+
+        slider.on_change(SimpleNamespace(control=SimpleNamespace(value=12.5)))
+        self.assertEqual(namespace["timeOn"], "12.5")
+        self.assertEqual(field.value, "12.5")
 
 
 if __name__ == "__main__":

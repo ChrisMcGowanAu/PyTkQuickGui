@@ -130,8 +130,19 @@ SECTION_VARIABLES = "####### Flet variables #######"
 #: Emitted when widgets take their caption from a textvariable.
 _TEXT_BINDING_HELPERS = (
     "TEXT_BINDINGS = {}",
+    "# Numeric controls (Slider, and the like) need a number, not the string a",
+    "# text control takes, so they are refreshed separately.",
+    "NUMERIC_BINDINGS = {}",
     "# The running page, set in main(), so handlers can refresh without it.",
     "PAGE = None",
+    "",
+    "",
+    "def _as_number(value, fallback=0.0):",
+    '    """The numeric value of *value*, or *fallback* if it is not a number."""',
+    "    try:",
+    "        return float(value)",
+    "    except (TypeError, ValueError):",
+    "        return fallback",
     "",
     "",
     "def set_text(name, value, page=None):",
@@ -145,6 +156,11 @@ _TEXT_BINDING_HELPERS = (
     "    globals()[name] = value",
     "    for control, attribute in TEXT_BINDINGS.get(name, ()):",
     "        setattr(control, attribute, value)",
+    "    for control, attribute in NUMERIC_BINDINGS.get(name, ()):",
+    "        try:",
+    "            setattr(control, attribute, float(value))",
+    "        except (TypeError, ValueError):",
+    "            pass",
     "    target = page or PAGE",
     "    if target is not None:",
     "        target.update()",
@@ -1208,6 +1224,12 @@ class _Emitter:
         self.defined: set[str] = set()
         self.helpers: list[str] = []
         self.text_bindings: dict[str, list[tuple[str, str]]] = {}
+        # Numeric controls (a Slider's value) need a number where a text
+        # control takes the string, so they are tracked separately.
+        self.numeric_bindings: dict[str, list[tuple[str, str]]] = {}
+        # Numeric controls (a Slider's value) take a number where the
+        # text bindings take a string, so they are tracked separately.
+        self.numeric_bindings: dict[str, list[tuple[str, str]]] = {}
 
     # -- control emission ------------------------------------------------
     def _arguments(self, name: str, control: str) -> tuple[dict[str, str], list[str]]:
@@ -1264,11 +1286,18 @@ class _Emitter:
                 )
                 arguments["options"] = f"[{options}]"
         elif control == "ft.Slider":
-            if properties.pop("value", None):
-                self.notes.append(
-                    f"# {name}: Tk variable is not bound to ft.Slider.value"
-                )
+            variable = properties.pop("value", None)
             arguments.update(self._slider_arguments(properties))
+            if variable:
+                # Two way, like Tk: the slider starts from the variable, and
+                # moving it writes the variable back, which refreshes every
+                # other control showing it.
+                start = arguments.get("value", "0.0")
+                arguments["value"] = f"_as_number({variable}, {start})"
+                arguments["on_change"] = (
+                    "lambda e: set_text(" + repr(variable) + ', f"{e.control.value:g}")'
+                )
+                self.numeric_bindings.setdefault(variable, []).append((name, "value"))
             properties = {}
         elif control == "ft.ProgressBar":
             if properties.pop("value", None):
@@ -2511,8 +2540,20 @@ class _Emitter:
         field_arguments: list[str] = [
             f"{keyword}={value}" for keyword, value in field_style.items()
         ]
+        variable = properties.get("value")
         if "value" in properties:
             field_arguments.append(f"value={properties['value']}")
+            if variable:
+                # Typing in the field updates the variable; set_text then
+                # refreshes every other control showing it.
+                self.text_bindings.setdefault(variable, []).append(
+                    (field_name, "value")
+                )
+                field_arguments.append(
+                    "on_change=lambda e: set_text("
+                    + repr(variable)
+                    + ", e.control.value)"
+                )
         if properties.get("read_only"):
             field_arguments.append("read_only=True")
         if properties.get("disabled"):
@@ -2530,13 +2571,15 @@ class _Emitter:
         )
 
         self._register_spin_helper()
+        helper = "_step_field" if variable else "_step_value"
+        tail = f", {variable!r}" if variable else ""
         up = (
-            "on_click=lambda e: _step_value("
-            f"{field_name}, 1, {minimum!r}, {maximum!r}, {step!r})"
+            f"on_click=lambda e: {helper}("
+            f"{field_name}, 1, {minimum!r}, {maximum!r}, {step!r}{tail})"
         )
         down = (
-            "on_click=lambda e: _step_value("
-            f"{field_name}, -1, {minimum!r}, {maximum!r}, {step!r})"
+            f"on_click=lambda e: {helper}("
+            f"{field_name}, -1, {minimum!r}, {maximum!r}, {step!r}{tail})"
         )
         row_height = _number(str(placement.get("height", "")).strip()) or 32
         arrow_height = max(12, int(int(row_height) / 2))
@@ -2572,10 +2615,6 @@ class _Emitter:
                 f"# {name}: options with no Flet equivalent -> "
                 f"{', '.join(sorted(set(unmapped)))}"
             )
-        if properties.get("value"):
-            self.notes.append(
-                f"# {name}: Tk variable is not kept in sync by the stepper"
-            )
         if properties.get("values"):
             self.notes.append(
                 f"# {name}: spinbox value list is not reproduced - "
@@ -2602,6 +2641,12 @@ class _Emitter:
                 "    value = max(minimum, value)",
                 '    field.value = f"{value:g}"',
                 "    field.update()",
+                "",
+                "",
+                "def _step_field(field, delta, minimum, maximum, step, variable):",
+                '    """Step *field*, then publish the value to its Tk variable."""',
+                "    _step_value(field, delta, minimum, maximum, step)",
+                "    set_text(variable, field.value)",
             )
         )
 
@@ -2929,6 +2974,12 @@ def emit_program(
             f"follow {len(emitter.text_bindings)} variable(s); call "
             "set_text(name, value) to change them"
         )
+    if emitter.numeric_bindings:
+        lines.append("")
+        for variable, controls in sorted(emitter.numeric_bindings.items()):
+            pairs = [f"({control}, {attribute!r})" for control, attribute in controls]
+            statement = f"NUMERIC_BINDINGS[{variable!r}] = {_list_expression(pairs)}"
+            lines.extend(_indent_lines(statement, 4).split("\n"))
     lines.extend(
         (
             "",
