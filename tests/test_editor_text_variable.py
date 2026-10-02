@@ -9,6 +9,7 @@ saved project and both generated programs agree.
 These tests open the real attribute editor, so they need a display and are
 skipped where there is not one (CI runs headless).
 """
+
 import contextlib
 import io
 import os
@@ -62,8 +63,9 @@ def load(project):
     with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(
         io.StringIO()
     ):
-        app.loadProject(project, os.path.join(PROJECT_ROOT, "examples", project,
-                                              f"{project}.json"))
+        app.loadProject(
+            project, os.path.join(PROJECT_ROOT, "examples", project, f"{project}.json")
+        )
     app.myVars.projectPath = WORK
     app.myVars.projectFileName = os.path.join(WORK, project)
 
@@ -180,7 +182,7 @@ class TextVariableTests(unittest.TestCase):
         self.assertIsNotNone(checkbutton, "SimplePlace has a checkbutton")
         # A variable of our own, so its value can be read back regardless of the
         # name the project happened to store.
-        checkbutton.setvar("test_state", "0")   # Tk creates it lazily otherwise
+        checkbutton.setvar("test_state", "0")  # Tk creates it lazily otherwise
         checkbutton.configure(variable="test_state")
         before = str(checkbutton.getvar("test_state"))
 
