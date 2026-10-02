@@ -1833,7 +1833,9 @@ def loadProject(project, altFileName):
                 mustexist=True, initialdir=configPath, title="Select Project Directory"
             )
         log.info("Load Project ->%s<-", folder)
-        if folder != configPath:
+        # Cancelling askdirectory gives "" or () rather than None, so this has
+        # to test the value, not just compare it with configPath.
+        if folder and folder != configPath:
             myVars.projectName = os.path.basename(str(folder))
             myVars.projectPath = folder
             log.info(
@@ -2410,7 +2412,7 @@ def chooseBackground():
     colors = askcolor(title="Tkinter color chooser")
     if colors[1] is not None:
         mainCanvas.configure(bg=colors[1])
-        mainCanvas.update()
+        mainCanvas.update_idletasks()
         myVars.backgroundColor = colors[1]
 
 
@@ -3191,8 +3193,12 @@ def _make_grid_overlay(frame: ttk.Frame) -> tk.Canvas:  # type: ignore[name-defi
     """
     global _gridOverlayCanvas
     if _gridOverlayCanvas is not None:
+        # This canvas carries the click/drag/release bindings, so destroying it
+        # synchronously can free it out from under the binding that is running
+        # (the Tk_FreeConfigOptions segfault).  after_idle lets Tk finish first.
+        _old = _gridOverlayCanvas
         try:
-            _gridOverlayCanvas.destroy()
+            _old.after_idle(lambda w=_old: w.destroy())
         except tk.TclError:
             pass
     oc = tk.Canvas(
@@ -3368,6 +3374,7 @@ def _grid_overlay_drag(event):
 
 def _grid_overlay_release(_event):
     """Finish a divider drag and restore the cursor."""
+    log.info("action: grid overlay release")
     global _grid_drag_state
     _grid_drag_state = {}
     if _gridOverlayCanvas is not None:
@@ -3471,7 +3478,10 @@ def drawGridLines():
 
 def _drawGridLines_impl():
     """Internal implementation called only from drawGridLines()."""
-    mainCanvas.update()
+    # update_idletasks, not update: update() dispatches pending events from
+    # inside a binding, which can free a widget underneath the binding that is
+    # still running (the Tk_FreeConfigOptions segfault).
+    mainCanvas.update_idletasks()
     width = mainCanvas.winfo_width()
     height = mainCanvas.winfo_height()
     log.debug(

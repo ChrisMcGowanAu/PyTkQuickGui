@@ -213,7 +213,7 @@ def changeParentOfTo(widget, newParentWidget):
                 if cwo is not None:
                     cwo.lock_as_tab_frame()
             widget.parent = newParentWidget
-            newParentWidget.update()
+            newParentWidget.update_idletasks()
             return
         else:
             # Non-frame widget: route into the currently-selected tab frame
@@ -276,8 +276,8 @@ def changeParentOfTo(widget, newParentWidget):
     reparentWidget(pythonName, newParentWidget)
     widget.parent = newParentWidget
     tk.Misc.lift(widget, aboveThis=None)
-    widget.update()
-    newParentWidget.update()
+    widget.update_idletasks()
+    newParentWidget.update_idletasks()
 
 
 def raiseChildren(pythonName):
@@ -436,7 +436,7 @@ class createWidget:
         else:
             log.error("Geometry Manager %s is TBD", myVars.geomManager)
 
-        self.widget.update()
+        self.widget.update_idletasks()
         self.width = self.widget.winfo_width()
         self.height = self.widget.winfo_height()
         if myVars.geomManager == "Place":
@@ -1342,6 +1342,13 @@ class createWidget:
         ox, oy, ow, oh = pre
 
         self._last_drag_type = self.dragType  # read before clearing
+        log.info(
+            "action: drop %s (%s, %s) manager=%s",
+            self.pythonName,
+            self.widget.winfo_class(),
+            getattr(self, "_last_drag_type", "") or "move",
+            myVars.geomManager,
+        )
         self.dragType = ""
         if myVars.geomManager == "Grid":
             if not getattr(self, "_grid_drag_active", False):

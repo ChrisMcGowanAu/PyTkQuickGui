@@ -577,6 +577,10 @@ class widgetEditPopup:
                 newVal = self.stringDict.get(k)
                 if newVal == "None" or newVal is None:
                     newVal = ""
+                if k in project_format.CALLBACK_KEYS and newVal:
+                    # A design-time Python name; give Tk a no-op to call so it
+                    # does not report "invalid command name" on the canvas.
+                    myVars.ensureDesignCallback(str(newVal))
                 if k in project_format.PRESERVED_STRING_KEYS:
                     oldVal = project_format.preserved_widget_value(
                         self.widget, k, oldVal
