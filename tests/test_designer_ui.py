@@ -27,6 +27,7 @@ import sys
 import tempfile
 import tkinter as tk
 import unittest
+from types import SimpleNamespace
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, PROJECT_ROOT)
@@ -43,6 +44,7 @@ except Exception as error:  # noqa: BLE001 - no display, no ttkbootstrap, ...
     IMPORT_ERROR = error
 
 EXAMPLE = os.path.join(PROJECT_ROOT, "examples", "sudokupack", "sudokupack.json")
+CALCULATOR = os.path.join(PROJECT_ROOT, "examples", "Calculator", "Calculator.json")
 WORK = None
 ORIGINAL_STDOUT = None
 
@@ -349,6 +351,80 @@ class DestroyWidgetTests(unittest.TestCase):
         self.assertFalse(parent.winfo_exists())
         cw.destroyWidget(child)  # Tk already took it down with the parent
         app.rootWin.update()
+
+
+@unittest.skipIf(app is None, f"the designer cannot start here: {IMPORT_ERROR}")
+class SelectionTests(unittest.TestCase):
+    """A multi-selection has to be visible, or grouping looks broken.
+
+    The highlight used to be ``relief=solid``, which every ttk widget refuses
+    ("unknown option -relief") and the failure was swallowed - so selecting two
+    widgets looked exactly like selecting none, and "Group Selected" then said
+    to select two or more.  The canvas now outlines the selection.
+    """
+
+    def setUp(self):
+        # Never let a test put a modal dialog on someone's screen: the group
+        # action prompts for a name and confirms afterwards.
+        self._saved = {
+            "query": cw.Querybox.get_string,
+            "ttk_info": cw.TtkMessagebox.show_info,
+            "info": app.Messagebox.show_info,
+            "error": app.Messagebox.show_error,
+        }
+        cw.Querybox.get_string = staticmethod(lambda **kwargs: "mygroup")
+        cw.TtkMessagebox.show_info = staticmethod(lambda **kwargs: None)
+        app.Messagebox.show_info = lambda **kwargs: None
+        app.Messagebox.show_error = lambda **kwargs: None
+        self.addCleanup(self._restore_dialogs)
+
+        quiet(app.loadProject, "Calculator", CALCULATOR)
+        app.myVars.selectedWidgets = []
+        app.myVars.groups = {}
+        names = [
+            name
+            for name in app.workOutWidgetCreationOrder()
+            if name != app.myVars.rootWidgetName
+        ]
+        self.first, self.second = names[0], names[1]
+        # The startup path in pytkquickgui does this after buildMainGui(); a test
+        # that calls buildMainGui() itself has to do it too, or nothing that
+        # triggers a redraw (selection outlines included) is wired up.
+        app.myVars.style = app.ttk.Style()
+        app.myVars.redrawGridLines = app.drawGridLines
+        # Geometry is needed for the outlines: idle tasks only, never update(),
+        # which would dispatch events (see drawGridLines).
+        app.rootWin.update_idletasks()
+
+    def _restore_dialogs(self):
+        cw.Querybox.get_string = self._saved["query"]
+        cw.TtkMessagebox.show_info = self._saved["ttk_info"]
+        app.Messagebox.show_info = self._saved["info"]
+        app.Messagebox.show_error = self._saved["error"]
+
+    def _select(self, name):
+        cw.findCreateWidgetObject(name)._addToSelection()
+
+    def test_each_selected_widget_is_outlined(self):
+        app.rootWin.update_idletasks()
+        self._select(self.first)
+        self._select(self.second)
+        items = app.mainCanvas.find_withtag("seloutline")
+        self.assertEqual(len(items), 2, "the selection is not drawn")
+
+    def test_the_outlines_go_when_the_selection_does(self):
+        self._select(self.first)
+        cw.findCreateWidgetObject(self.first).leftMouseDown(
+            SimpleNamespace(state=0, x=1, y=1)
+        )
+        self.assertEqual(app.myVars.selectedWidgets, [])
+        self.assertEqual(app.mainCanvas.find_withtag("seloutline"), ())
+
+    def test_grouping_the_selection_creates_the_group(self):
+        self._select(self.first)
+        self._select(self.second)
+        cw.findCreateWidgetObject(self.second)._groupFromPopup()
+        self.assertEqual(app.myVars.groups, {"mygroup": [self.first, self.second]})
 
 
 if __name__ == "__main__":

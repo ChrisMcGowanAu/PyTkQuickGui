@@ -64,6 +64,10 @@ def _toolDefaultsPath() -> str:
     return tool_defaults.default_path(myVars.programName)
 
 
+#: Colour of the dashed outline drawn around multi-selected widgets.
+SELECTION_OUTLINE_COLOUR = "#ff8c00"
+
+
 def loadToolDefaults() -> None:
     """Load layered tool-wide geometry defaults."""
     defaults, loaded_paths = tool_defaults.read_discovered(myVars.programName)
@@ -3466,13 +3470,68 @@ def drawGridLines():
       Pack mode   – nothing (Pack stacks automatically)
     """
     global _drawing_grid_lines
+    # The selection outlines are drawn before the guard as well: they are cheap,
+    # cannot re-enter Tk, and must still be cleared when a redraw is already
+    # running - otherwise deselecting leaves outlines behind.
+    _drawSelectionOutlines()
     if _drawing_grid_lines:
         return  # Re-entrancy guard: update() can fire <Configure> → us again
     _drawing_grid_lines = True
     try:
         _drawGridLines_impl()
+        # Again after the grid: the dots are canvas items too, and the outlines
+        # should sit above them.
+        _drawSelectionOutlines()
     finally:
         _drawing_grid_lines = False
+
+
+def _drawSelectionOutlines() -> None:
+    """Outline the widgets in the current multi-selection.
+
+    The multi-selection used to be shown by giving each widget ``relief=solid``,
+    which every ttk widget refuses ("unknown option -relief"), so selecting two
+    widgets looked exactly like selecting none - and grouping then appeared to
+    do nothing.  The outlines go on whichever canvas the current geometry
+    manager already draws on, just outside each widget's bounds.
+    """
+    selected = list(getattr(myVars, "selectedWidgets", None) or [])
+    canvas = mainCanvas
+    if myVars.geomManager == "Grid" and _gridOverlayCanvas is not None:
+        canvas = _gridOverlayCanvas
+    if canvas is None or not canvas.winfo_exists():
+        return
+    canvas.delete("seloutline")
+    if not selected:
+        return
+    try:
+        origin_x = canvas.winfo_rootx()
+        origin_y = canvas.winfo_rooty()
+    except tk.TclError:
+        return
+    for name in selected:
+        entry = cw.findPythonWidgetNameList(name)
+        widget = entry[cw.WIDGET] if entry else None
+        if widget is None:
+            continue
+        try:
+            x = widget.winfo_rootx() - origin_x
+            y = widget.winfo_rooty() - origin_y
+            width = widget.winfo_width()
+            height = widget.winfo_height()
+        except tk.TclError:
+            continue
+        canvas.create_rectangle(
+            x - 2,
+            y - 2,
+            x + width + 2,
+            y + height + 2,
+            outline=SELECTION_OUTLINE_COLOUR,
+            dash=(4, 2),
+            width=2,
+            tags="seloutline",
+        )
+    canvas.tag_raise("seloutline")
 
 
 def _drawGridLines_impl():
