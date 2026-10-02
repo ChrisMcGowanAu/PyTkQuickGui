@@ -20,6 +20,7 @@ Flet program:
 
 | ttkbootstrap output | Flet output |
 |---|---|
+| ![Simple Calculator, ttkbootstrap output](docs/example_Calculator_tk.png) | ![Simple Calculator, Flet output](docs/example_Calculator_flet.png) |
 | ![UserForm, ttkbootstrap output](docs/example_UserForm_tk.png) | ![UserForm, Flet output](docs/example_UserForm_flet.png) |
 | ![FletAllWidgets, ttkbootstrap output](docs/example_FletAllWidgets_tk.png) | ![FletAllWidgets, Flet output](docs/example_FletAllWidgets_flet.png) |
 | ![tabs, ttkbootstrap output](docs/example_tabs_tk.png) | ![tabs, Flet output](docs/example_tabs_flet.png) |
@@ -29,12 +30,6 @@ Calculator (nineteen hand placed buttons), UserForm (entries, a combo box and a
 notebook), sudoku3 (a 91 widget Grid project) and sudokupack (Grid, small).
 Screenshots of all of them, in both backends, are in
 [`docs/`](docs).
-
-## Screenshots
-
-| Place layout | Instrument-style project |
-|---|---|
-| ![PyTkQuickGui Place project](docs/screenshot_place_platypus.png) | ![PyTkQuickGui instrument project](docs/screenshot_place_test_tool.png) |
 
 ## What it does
 
