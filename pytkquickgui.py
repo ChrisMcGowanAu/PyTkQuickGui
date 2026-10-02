@@ -1281,12 +1281,13 @@ def deleteWidgetData():
     # automatically destroys all its children, so by the time we reach a child
     # entry in widgetList it may already be gone.  Guard with winfo_exists()
     # and catch any residual TclError so cleanup always completes.
+    # Disable validation across the whole tree first: destroying a validating
+    # widget re-enters Tk's config code and frees a 3D border twice (see
+    # createWidget.disableValidation), and one of these destroys may take a
+    # whole subtree with it.
+    cw.disableValidation(cw.createWidget.baseRoot)
     for w in cw.createWidget.widgetList:
-        try:
-            if w.winfo_exists():
-                w.destroy()
-        except tk.TclError:
-            pass  # already destroyed (e.g. child of a previously destroyed parent)
+        cw.destroyWidget(w)
     cw.createWidget.widgetNameList = []
     cw.createWidget.widgetList = []
     cw.createWidget.widgetObjectList = []
@@ -2387,6 +2388,8 @@ def exitApp():
         return
     elif mb == "Yes":
         saveProject()
+    # Same reason: leave Tk nothing that validates while the tree comes down.
+    cw.disableValidation(rootWin)
     rootWin.destroy()
 
 
@@ -3196,11 +3199,7 @@ def _make_grid_overlay(frame: ttk.Frame) -> tk.Canvas:  # type: ignore[name-defi
         # This canvas carries the click/drag/release bindings, so destroying it
         # synchronously can free it out from under the binding that is running
         # (the Tk_FreeConfigOptions segfault).  after_idle lets Tk finish first.
-        _old = _gridOverlayCanvas
-        try:
-            _old.after_idle(lambda w=_old: w.destroy())
-        except tk.TclError:
-            pass
+        cw.destroyWidget(_gridOverlayCanvas)
     oc = tk.Canvas(
         frame,
         background=_theme_grid_background(),
@@ -3957,7 +3956,8 @@ def rightMouseDown(event):
             label=wName, command=lambda e=event, w=wName: createWidgetPopup(e, w)
         )
     popup.add_separator()
-    popup.add_command(label="Close", command=popup.destroy)
+    # A menu is a widget too: destroy it after its own command returns.
+    popup.add_command(label="Close", command=lambda: cw.destroyWidget(popup))
     try:
         popup.tk_popup(event.x_root, event.y_root, 0)
     finally:
@@ -4089,10 +4089,7 @@ def _rebuild_canvas_for_geom():
         return
     # Destroy old inner frame if present (also destroys _gridOverlayCanvas child)
     if geomWidgetFrame is not None:
-        try:
-            geomWidgetFrame.destroy()
-        except tk.TclError:
-            pass
+        cw.destroyWidget(geomWidgetFrame)
         geomWidgetFrame = None
     _gridOverlayCanvas = None
     # Clear any leftover canvas windows

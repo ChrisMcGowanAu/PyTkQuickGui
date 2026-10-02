@@ -310,5 +310,46 @@ class DesignTimeCallbackTests(unittest.TestCase):
         self.assertEqual(attributes.get("textvariable"), "spin_value")
 
 
+@unittest.skipIf(app is None, f"the designer cannot start here: {IMPORT_ERROR}")
+class DestroyWidgetTests(unittest.TestCase):
+    """Destroying must be safe from a binding, and must refuse to happen twice.
+
+    A second destroy of a widget Tk has already taken down (a child of a parent
+    destroyed first, say) double-frees its option table - the segfault the core
+    dumps show - and a widget that validates re-enters Tk's config code while it
+    is being torn down, so its validation is turned off first.
+    """
+
+    def test_validation_is_turned_off_across_the_subtree(self):
+        frame = tk.Frame(app.rootWin)
+        entry = tk.Entry(frame, validate="focusout")
+        entry.pack()
+        self.addCleanup(frame.destroy)
+        cw.disableValidation(frame)
+        self.assertEqual(str(entry.cget("validate")), "none")
+
+    def test_the_widget_is_destroyed(self):
+        frame = tk.Frame(app.rootWin)
+        cw.destroyWidget(frame)
+        app.rootWin.update()
+        self.assertFalse(frame.winfo_exists())
+
+    def test_destroying_it_again_is_harmless(self):
+        frame = tk.Frame(app.rootWin)
+        cw.destroyWidget(frame)
+        app.rootWin.update()
+        cw.destroyWidget(frame)  # must not raise
+        app.rootWin.update()
+
+    def test_a_child_of_a_destroyed_parent_is_skipped(self):
+        parent = tk.Frame(app.rootWin)
+        child = tk.Frame(parent)
+        cw.destroyWidget(parent)
+        app.rootWin.update()
+        self.assertFalse(parent.winfo_exists())
+        cw.destroyWidget(child)  # Tk already took it down with the parent
+        app.rootWin.update()
+
+
 if __name__ == "__main__":
     unittest.main()

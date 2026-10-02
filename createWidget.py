@@ -132,6 +132,66 @@ def reparentWidget(pythonName, w):
             nl[PARENT] = myVars.rootWidgetName
 
 
+def disableValidation(widget) -> None:
+    """Turn off ``validate`` on *widget* and its children, best effort.
+
+    Destroying a widget that validates re-enters Tk's config code: the destroy
+    fires focusout, focusout runs validatecommand, and that reads the widget
+    being torn down.  Tk ends up freeing a 3D border twice, which is the
+    segfault the core dumps show (Tk_Get3DBorderFromObj under
+    Tk_FreeConfigOptions, from Tk_BindEvent).  The attribute popup's Close
+    button has done this since df9a922; every other destroy path needs it too.
+    """
+    try:
+        widget.configure(validate="none")
+    except tk.TclError:
+        pass  # not every widget has a validate option
+    try:
+        children = widget.winfo_children()
+    except tk.TclError:
+        return
+    for child in children:
+        disableValidation(child)
+
+
+def destroyWidget(widget) -> None:
+    """Destroy *widget* safely: once, and after Tk has finished this event.
+
+    Two things here are load-bearing.
+
+    Destroying a widget from inside a binding is a use-after-free - Tk carries
+    on with the remaining bindings for that widget after the Python callback
+    returns.  The destroy is therefore deferred to the end of the event.
+
+    Destroying a widget that Tk has already destroyed double-frees its option
+    table, which is the Tk_FreeConfigOptions segfault seen from Tk_BindEvent:
+    freeing the options of a dead widget looks up its 3D border in the display's
+    cache and faults.  That happens when a child is destroyed after the parent
+    that took it down, so the widget is checked first.  Each destroy is logged
+    with the widget's name, so a crash names the last widget to go.
+    """
+    name = getattr(widget, "pythonName", "") or str(widget)
+    # Before anything is torn down, and before the destroy is deferred: another
+    # destroy may get there first, and validation during destruction is the
+    # crash this exists to prevent.
+    disableValidation(widget)
+
+    def _destroy():
+        try:
+            if not widget.winfo_exists():
+                log.info("destroyWidget: %s is already gone, skipping", name)
+                return
+            log.info("action: destroy %s (%s)", name, widget.winfo_class())
+            widget.destroy()
+        except tk.TclError as e:
+            log.warning("destroyWidget: %s: %s", name, e)
+
+    try:
+        widget.after_idle(_destroy)
+    except tk.TclError:
+        _destroy()
+
+
 def deleteWidgetFromLists(pythonName, widget):
     # NAME: int = 0 PARENT: int = 1 WIDGET: int = 2 CHILDREN: int = 3
     commands = []
@@ -974,7 +1034,7 @@ class createWidget:
         # Record deletion BEFORE destroying so snapshot can still be taken
         undoredo.stack.push_done(undoredo.DeleteCommand(self, self.root))
         deleteWidgetFromLists(self.pythonName, self.widget)
-        self.widget.destroy()
+        destroyWidget(self.widget)
         myVars.projectSaved = False
 
     def _highlight(self, on: bool):
@@ -1003,7 +1063,8 @@ class createWidget:
         self.popup.add_command(label="Add to Selection", command=self._addToSelection)
         self.popup.add_command(label="Group Selected", command=self._groupFromPopup)
         self.popup.add_separator()
-        self.popup.add_command(label="Close", command=self.popup.destroy)
+        # A menu is a widget too: destroy it after its own command returns.
+        self.popup.add_command(label="Close", command=lambda: destroyWidget(self.popup))
 
     def _addToSelection(self):
         """Add this widget to the multi-selection."""
