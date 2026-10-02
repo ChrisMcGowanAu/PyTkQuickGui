@@ -1,0 +1,21 @@
+# Conda environment for PyTkQuickGui.
+#
+# Used by .github/workflows/python-package-conda.yml, and usable locally:
+#
+#     conda env create --file environment.yml
+#     conda activate pytkquickgui
+#     python pytkquickgui.py
+#
+# The tool's own dependencies are installed with pip from requirments.txt, the
+# same list an ordinary install uses, so the two paths cannot drift apart.
+name: pytkquickgui
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - pip
+  # tkinter comes from conda's tk rather than a wheel; the designer needs it.
+  - tk
+  - pip:
+      - -r requirments.txt
+      - pytest
