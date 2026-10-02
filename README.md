@@ -54,7 +54,7 @@ Screenshots of all of them, in both backends, are in
 - Applies ttkbootstrap themes to the builder and generated program.
 
 ## Requirements
-
+- try and install python3.12-full (sudo apt install python3.12-full)
 - Python 3.10 or newer
 - tkinter (sometimes supplied as a separate operating-system package)
 - ttkbootstrap 2.0 or newer
