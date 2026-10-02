@@ -20,6 +20,7 @@ where there is not one (CI runs headless).
 
 import contextlib
 import io
+import json
 import os
 import re
 import sys
@@ -31,6 +32,9 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, PROJECT_ROOT)
 
 try:
+    import createWidget as cw
+    import project_format
+    import pytkguivars as my_vars
     import pytkquickgui as app
 
     IMPORT_ERROR = None
@@ -189,6 +193,162 @@ class SecondaryClickTests(unittest.TestCase):
     def test_the_gestures_include_the_mac_trackpad_ones(self):
         self.assertIn("<Button-2>", app.myVars.RIGHT_CLICK_BINDINGS)
         self.assertIn("<Control-Button-1>", app.myVars.RIGHT_CLICK_BINDINGS)
+
+
+@unittest.skipIf(app is None, f"the designer cannot start here: {IMPORT_ERROR}")
+class OpenProjectDialogTests(unittest.TestCase):
+    """Cancelling the directory dialog must be a no-op, not an error.
+
+    Tk's askdirectory returns "" or () when it is cancelled, and loadProject
+    only compared the result with the config path - so a cancel took the success
+    path and os.path.join raised "expected str, bytes or os.PathLike object, not
+    tuple", which is what the user saw immediately before a segfault.
+    """
+
+    def setUp(self):
+        self.errors = []
+        self._saved = {
+            "directory": app.tk.filedialog.askdirectory,
+            "error": app.Messagebox.show_error,
+            "save": app.saveProject,
+        }
+        app.Messagebox.show_error = lambda **kwargs: self.errors.append(kwargs)
+        app.saveProject = lambda *args, **kwargs: True
+        self.addCleanup(self._restore)
+
+    def _restore(self):
+        app.tk.filedialog.askdirectory = self._saved["directory"]
+        app.Messagebox.show_error = self._saved["error"]
+        app.saveProject = self._saved["save"]
+
+    def _cancel_returns(self, value):
+        app.tk.filedialog.askdirectory = lambda **kwargs: value
+        before = (app.myVars.projectName, app.myVars.projectPath)
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(
+            io.StringIO()
+        ):
+            app.loadProject(None, None)
+        return before
+
+    def test_an_empty_tuple_cancel_is_a_no_op(self):
+        before = self._cancel_returns(())
+        self.assertEqual((app.myVars.projectName, app.myVars.projectPath), before)
+
+    def test_an_empty_string_cancel_is_a_no_op(self):
+        before = self._cancel_returns("")
+        self.assertEqual((app.myVars.projectName, app.myVars.projectPath), before)
+
+    def test_the_user_is_told_nothing_was_selected(self):
+        self._cancel_returns(())
+        self.assertTrue(self.errors, "no message was shown for a cancelled dialog")
+
+
+def callback_project(path, command_name):
+    """A one widget project whose spinbox carries a design-time callback name."""
+    project = {
+        "formatVersion": 2,
+        "ProjectName": "cbtest",
+        "geomManager": "Place",
+        "theme": "cyborg",
+        "widgetNameList": [["Widget0", "rootWidget", "", []]],
+        "widgetCount": 1,
+        "Widget0": {
+            "WidgetName": "ttk::spinbox",
+            "WidgetParent": "rootWidget",
+            "Place": {"x": "0", "y": "0", "width": "100", "height": "32"},
+            "GeomData": {},
+            "Attribute0": {"Key": "command", "Value": command_name},
+            "Attribute1": {"Key": "textvariable", "Value": "spin_value"},
+            "Widget0-KeyCount": 2,
+        },
+    }
+    with open(path, "w", encoding="utf-8") as handle:
+        json.dump(project, handle)
+    return path
+
+
+@unittest.skipIf(app is None, f"the designer cannot start here: {IMPORT_ERROR}")
+class DesignTimeCallbackTests(unittest.TestCase):
+    """A stored callback is a Python name, not a command Tk can call yet.
+
+    Handing it straight to widget.configure() left Tk invoking a command that
+    does not exist, so using the widget on the canvas raised "invalid command
+    name" from inside Tk's own bindings - and the name had to survive the next
+    save, because it is what the generated program defines.
+    """
+
+    def setUp(self):
+        self.path = callback_project(os.path.join(WORK, "cbtest.json"), "timeSpin")
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(
+            io.StringIO()
+        ):
+            app.loadProject("cbtest", self.path)
+        app.myVars.projectPath = WORK
+        app.myVars.projectFileName = os.path.join(WORK, "cbtest")
+
+    def _spinbox(self):
+        entry = cw.findPythonWidgetNameList("Widget0")
+        return entry[cw.WIDGET]
+
+    def test_the_design_time_name_is_registered_as_a_command(self):
+        registered = app.rootWin.tk.call("info", "commands", "timeSpin")
+        self.assertTrue(registered, "Tk has no command named timeSpin")
+
+    def test_invoking_it_is_harmless(self):
+        # This is what Tk's spinbox does on an arrow click: it must not raise
+        # (it used to be "invalid command name").  The stub returns nothing, so
+        # Tcl hands back the string "None".
+        self.assertIn(str(app.rootWin.tk.call("timeSpin")), ("", "None"))
+
+    def test_the_widget_reports_the_name_unchanged(self):
+        self.assertEqual(str(self._spinbox().cget("command")), "timeSpin")
+
+    def test_the_name_survives_a_save(self):
+        saved = my_vars.saveWidgetAsDict("Widget0")["Widget0"]
+        attributes = project_format.attribute_map("Widget0", saved)
+        self.assertEqual(attributes.get("command"), "timeSpin")
+        self.assertEqual(attributes.get("textvariable"), "spin_value")
+
+
+@unittest.skipIf(app is None, f"the designer cannot start here: {IMPORT_ERROR}")
+class DestroyWidgetTests(unittest.TestCase):
+    """Destroying must be safe from a binding, and must refuse to happen twice.
+
+    A second destroy of a widget Tk has already taken down (a child of a parent
+    destroyed first, say) double-frees its option table - the segfault the core
+    dumps show - and a widget that validates re-enters Tk's config code while it
+    is being torn down, so its validation is turned off first.
+    """
+
+    def test_validation_is_turned_off_across_the_subtree(self):
+        frame = tk.Frame(app.rootWin)
+        entry = tk.Entry(frame, validate="focusout")
+        entry.pack()
+        self.addCleanup(frame.destroy)
+        cw.disableValidation(frame)
+        self.assertEqual(str(entry.cget("validate")), "none")
+
+    def test_the_widget_is_destroyed(self):
+        frame = tk.Frame(app.rootWin)
+        cw.destroyWidget(frame)
+        app.rootWin.update()
+        self.assertFalse(frame.winfo_exists())
+
+    def test_destroying_it_again_is_harmless(self):
+        frame = tk.Frame(app.rootWin)
+        cw.destroyWidget(frame)
+        app.rootWin.update()
+        cw.destroyWidget(frame)  # must not raise
+        app.rootWin.update()
+
+    def test_a_child_of_a_destroyed_parent_is_skipped(self):
+        parent = tk.Frame(app.rootWin)
+        child = tk.Frame(parent)
+        cw.destroyWidget(parent)
+        app.rootWin.update()
+        self.assertFalse(parent.winfo_exists())
+        cw.destroyWidget(child)  # Tk already took it down with the parent
+        app.rootWin.update()
 
 
 if __name__ == "__main__":

@@ -282,8 +282,8 @@ class CreateCommand(Command):
         if nl:
             widget = nl[cw.WIDGET]
             cw.deleteWidgetFromLists(self.pythonName, widget)
-            widget.destroy()
-            log.info("CreateCommand.undo: destroyed %s", self.pythonName)
+            cw.destroyWidget(widget)
+            log.info("CreateCommand.undo: destroying %s", self.pythonName)
         else:
             log.warning("CreateCommand.undo: %s not found", self.pythonName)
 
@@ -315,7 +315,7 @@ class DeleteCommand(Command):
         if nl:
             widget = nl[cw.WIDGET]
             cw.deleteWidgetFromLists(self.pythonName, widget)
-            widget.destroy()
+            cw.destroyWidget(widget)
 
     def undo(self):
         restore_widget(self.snapshot, self.main_frame)

@@ -561,7 +561,7 @@ def buildAWidget(widgetId: object, wDictOrig: dict) -> str:
         wType = wDict.get("WidgetName")
     except AttributeError as e:
         log.error("Cannot find %s Exception %s", "WidgetName", str(e))
-        print("wDictOrig", wDictOrig)
+        log.debug("buildAWidget: no WidgetName in %s", wDictOrig)
         return ""
     if not project_format.is_known_widget_type(wType):
         # The call below is assembled as a string and evaluated, so a
@@ -609,6 +609,9 @@ def buildAWidget(widgetId: object, wDictOrig: dict) -> str:
                 "buildAWidget: refusing unsafe option name %r on %s", key, widgetName
             )
             continue
+        if key in project_format.CALLBACK_KEYS and val:
+            # The stored value is a design-time Python name, not a Tcl command.
+            val = ensureDesignCallback(val)
         if project_format.is_design_only(key):
             # tab_count / tab_labels are the designer's own metadata; a widget
             # constructor would reject them.
@@ -671,6 +674,34 @@ def buildAWidget(widgetId: object, wDictOrig: dict) -> str:
     tmp = widgetDef + ")"
     widgetDef = tmp
     return widgetDef
+
+
+def ensureDesignCallback(name: str) -> str:
+    """Register a no-op Tcl command for a design-time callback name.
+
+    A project stores callbacks as plain Python names ("timeSpin") because the
+    *generated* program defines them.  Handing such a name to widget.configure()
+    leaves Tk calling a command that does not exist yet, so using the widget on
+    the canvas raised "invalid command name" from inside Tk's own button and
+    spinbox bindings.  Registering a no-op of that name makes the design
+    harmless - and because the value is then a real Tcl command, cget() hands it
+    back unchanged, so the name survives the next save.
+    """
+    if not name or not project_format.valid_python_name(name):
+        return name
+    # getattr, not attribute access: baseRoot is the builtin ``any`` until the
+    # canvas exists, and pylint infers that type and objects.
+    root = getattr(cw.createWidget, "baseRoot", None) or tk._default_root
+    interp = getattr(root, "tk", None)
+    if interp is None:
+        return name
+    try:
+        if not interp.call("info", "commands", name):
+            interp.createcommand(name, lambda *args: None)
+            log.debug("registered design-time callback %s", name)
+    except tk.TclError as e:
+        log.warning("could not register design callback %s: %s", name, e)
+    return name
 
 
 def fixComboValues(key, val) -> list:

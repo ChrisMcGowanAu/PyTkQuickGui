@@ -154,32 +154,7 @@ class widgetEditPopup:
         Validation is switched off first, and the destroy is deferred out of
         the binding with ``after_idle``.  Closing twice is harmless.
         """
-        self._disable_validation(popupFrame)
-
-        def _destroy() -> None:
-            try:
-                popupFrame.destroy()
-            except tk.TclError:
-                pass  # already gone
-
-        try:
-            popupFrame.winfo_toplevel().after_idle(_destroy)
-        except tk.TclError:
-            pass
-
-    @classmethod
-    def _disable_validation(cls, widget) -> None:
-        """Turn off ``validate`` on *widget* and its children, best effort."""
-        try:
-            widget.configure(validate="none")
-        except tk.TclError:
-            pass  # not every widget has a validate option
-        try:
-            children = widget.winfo_children()
-        except tk.TclError:
-            return
-        for child in children:
-            cls._disable_validation(child)
+        cw.destroyWidget(popupFrame)
 
     def changeColour(self, key, swatch_btn=None):
         """
@@ -577,6 +552,10 @@ class widgetEditPopup:
                 newVal = self.stringDict.get(k)
                 if newVal == "None" or newVal is None:
                     newVal = ""
+                if k in project_format.CALLBACK_KEYS and newVal:
+                    # A design-time Python name; give Tk a no-op to call so it
+                    # does not report "invalid command name" on the canvas.
+                    myVars.ensureDesignCallback(str(newVal))
                 if k in project_format.PRESERVED_STRING_KEYS:
                     oldVal = project_format.preserved_widget_value(
                         self.widget, k, oldVal
