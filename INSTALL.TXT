@@ -6,7 +6,7 @@ Linux first, then Windows and macOS.  If you only want to try the tool, the
 short version is:
 
     # Full python
-    sudo sudo apt install python3.13.full
+    sudo apt install python3.13.full
     
     git clone https://github.com/ChrisMcGowanAu/PyTkQuickGui.git
     cd PyTkQuickGui
@@ -14,7 +14,7 @@ short version is:
     venv/bin/pip install --upgrade pip
     venv/bin/pip install -r requirments.txt
 
-    echo tokyo-night-dark > $HOME/.config/pytkgui/defaulTheme,txt
+    echo tokyo-night-dark > $HOME/.config/pytkgui/defaulTheme.txt
 
     venv/bin/python pytkquickgui.py
 
