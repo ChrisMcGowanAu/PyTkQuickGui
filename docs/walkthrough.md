@@ -16,9 +16,14 @@ take.
    cp -r examples/* "$HOME/.config/pytkgui/examples/"
    ```
 
-3. Make the UI readable on video. The default font is small at 1080p; **Tools >
-   Set default label font** and **Tools > Set default style font** both take a
-   larger size, and the window can be dragged to a 16:9 shape before recording.
+3. Make the UI readable on video. The default font is small at 1080p, and a ttk
+   widget has no font of its own - a ttkbootstrap button takes its font from the
+   *style* - so **Tools > Set default style font** is the one that sizes buttons
+   and labels. Do it *before* you place any widgets: the Calculator's digits and
+   operators look cramped at the default size, and resizing the font afterwards
+   means re-setting it. **Tools > Set default label font** is the narrower tool:
+   it sets the font on each label widget. The window can be dragged to a 16:9
+   shape before recording.
 4. Keep `docs/example_*.png` open in a second window: they are the stills for
    cutaways and for the website.
 
