@@ -1330,10 +1330,18 @@ class widgetEditPopup:
 
         def _on_frame_configure(_evt):
             scrollCanvas.configure(scrollregion=scrollCanvas.bbox("all"))
-            # Resize inner frame to fill canvas width
-            scrollCanvas.itemconfig(_win_id, width=scrollCanvas.winfo_width())
-            # Dynamically show/hide scrollbar based on actual content height
             content_h = scrollContent.winfo_reqheight()
+            # The canvas was a fixed 280 wide, so with the style font set to
+            # something larger the labels and fields were clipped.  Fit it to
+            # the content instead, never below the comfortable minimum.
+            wanted_w = max(_scroll_w, scrollContent.winfo_reqwidth())
+            if int(scrollCanvas.cget("width")) != wanted_w:
+                scrollCanvas.configure(width=wanted_w)
+            scrollCanvas.itemconfig(_win_id, width=scrollCanvas.winfo_width())
+            # Grow for taller rows too, up to the maximum the window allows.
+            grown = min(max(content_h, _content_h), _MAX_H)
+            if int(scrollCanvas.cget("height")) != grown:
+                scrollCanvas.configure(height=grown)
             canvas_h = scrollCanvas.winfo_height()
             if content_h > canvas_h:
                 vscroll.grid(row=2, column=6, sticky="ns")

@@ -513,17 +513,6 @@ def buildPython() -> str:
     print("version control, and move a larger body of your own code into a separate")
     print('module that imports this one."""\n')
     print("import tkinter as tk\nimport ttkbootstrap as ttk\n")
-    # Tools -> Set default style font: the generated program configures the
-    # same styles, so it looks like the designer.
-    _style_font = getattr(myVars, "styleFont", None)
-    _font_spec = myVars.checkFontDict(dict(_style_font)) if _style_font else ""
-    if _font_spec:
-        print("style = ttk.Style()")
-        for _widget in myVars.widgetsUsed:
-            if "T" + _widget == "TCanvas":
-                continue
-            print(f"style.configure({('T' + _widget)!r}, font={_font_spec!r})")
-        print("")
     themeName = myVars.theme
     title = myVars.projectName
     print(f"themeName = {themeName!r}\n")
@@ -534,6 +523,17 @@ def buildPython() -> str:
             ("theme=themeName", "title=title"),
         )
     )
+    # Tools -> Set default style font.  This has to come after ttk.Window(),
+    # which creates the Style singleton: a Style made first leaves ttkbootstrap
+    # refusing the window ("a Style is already bound to an existing live root").
+    # The window's own style is used, so no second one is made either.
+    _style_font = getattr(myVars, "styleFont", None)
+    _font_spec = myVars.checkFontDict(dict(_style_font)) if _style_font else ""
+    if _font_spec:
+        for _widget in myVars.widgetsUsed:
+            if "T" + _widget == "TCanvas":
+                continue
+            print(f"rootWin.style.configure({('T' + _widget)!r}, font={_font_spec!r})")
     print(
         project_format.format_python_call(
             rootName + " = ttk.Frame",
@@ -1196,8 +1196,7 @@ def askFletOptions() -> str:
     )
 
     choice = tk.StringVar(value=myVars.fletGridMode)
-    dialog = tk.Toplevel(rootWin)
-    dialog.title("Generate Flet")
+    dialog = themedToplevel("Generate Flet")
     dialog.transient(rootWin)
     dialog.resizable(False, False)
 
@@ -1424,7 +1423,8 @@ def applyStyleFont() -> None:
     spec = myVars.checkFontDict(dict(font))
     if not spec:
         return
-    myVars.style = ttk.Style()
+    if getattr(myVars, "style", None) is None:
+        myVars.style = ttk.Style()
     for widget in myVars.widgetsUsed:
         style_name = "T" + widget
         if style_name == "TCanvas":
@@ -1445,7 +1445,23 @@ def setDefaultLabelFont():
 
 def setDefaultFont(which):
     font: dict
-    font = tkfc.askfont(mainFrame, text="Font To Use")
+    # Open the chooser on the font already in use, so changing the size is a
+    # tweak rather than picking the whole thing again.
+    preset: dict = {}
+    if myVars.styleFont:
+        preset = {
+            "family": myVars.styleFont.get("family") or "",
+            "size": myVars.styleFont.get("size") or 10,
+            "weight": myVars.styleFont.get("weight") or "normal",
+            "slant": myVars.styleFont.get("slant") or "roman",
+            "underline": bool(myVars.styleFont.get("underline")),
+            "overstrike": bool(myVars.styleFont.get("overstrike")),
+        }
+    try:
+        font = tkfc.askfont(mainFrame, text="Font To Use", **preset)
+    except (tk.TclError, TypeError) as e:
+        log.warning("font chooser would not take the current font (%s)", e)
+        font = tkfc.askfont(mainFrame, text="Font To Use")
 
     # This does not work correctly
     # using the standard askfont
@@ -1528,6 +1544,23 @@ def newProject():
     myVars.projectSaved = False
 
 
+def themedToplevel(title: str, parent=None) -> tk.Toplevel:
+    """Return a Toplevel that matches the current theme.
+
+    These dialogs are plain ``tk.Toplevel`` rather than ``ttk.Toplevel``
+    (ttkbootstrap's takes its arguments differently), and a plain one is filled
+    with the desktop grey - which looks wrong against the dark themes.  Only the
+    container's colour is set here: the widgets inside are ttk, and follow the
+    theme themselves.
+    """
+    window = tk.Toplevel(parent if parent is not None else rootWin)
+    window.title(title)
+    colours = getattr(getattr(rootWin, "style", None), "colors", None)
+    if colours is not None:
+        window.configure(background=colours.bg)
+    return window
+
+
 def _askGeomManager() -> tuple:
     """Show a dialog to choose Place / Grid / Pack and (for Grid) rows/cols.
 
@@ -1535,9 +1568,9 @@ def _askGeomManager() -> tuple:
     (only meaningful when geom_manager_str == "Grid").
     Returns ``("", 10, 10)`` if the user cancelled.
     """
-    # Use tk.Toplevel to avoid ttkbootstrap positional-arg conflict with 'title'
-    top = tk.Toplevel(rootWin)
-    top.title("New Project — Layout")
+    # A tk.Toplevel rather than ttk.Toplevel: ttkbootstrap's takes its
+    # arguments differently.  themedToplevel gives it the theme's background.
+    top = themedToplevel("New Project — Layout")
     top.resizable(False, False)
     top.grab_set()
 
@@ -2470,8 +2503,7 @@ def useThemeGridColor():
 
 def editGridSettings():
     """Edit project Grid dimensions, guide colour, minsize, and padding."""
-    top = tk.Toplevel(rootWin)
-    top.title("Grid settings")
+    top = themedToplevel("Grid settings")
     top.resizable(False, False)
     top.transient(rootWin)
 
