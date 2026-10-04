@@ -449,9 +449,7 @@ def _parseExistingPython(
     except OSError as e:
         log.warning("_parseExistingPython: cannot read %s: %s", filePath, e)
         return {}, {}
-    return project_format.preserved_pieces(
-        source, function_names or (), variable_names or ()
-    )
+    return project_format.preserved_pieces(source, variable_names or ())
 
 
 def buildPython() -> str:

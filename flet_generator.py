@@ -166,6 +166,18 @@ _TEXT_BINDING_HELPERS = (
     "        target.update()",
 )
 SECTION_FUNCTIONS = "####### Functions #######"
+
+#: Functions this generator writes itself.  Anything else found in an earlier
+#: copy of the file is the user's, and is emitted again verbatim.
+GENERATED_FUNCTION_NAMES = (
+    "main",
+    "set_text",
+    "_as_number",
+    "_step_value",
+    "_step_field",
+    "_flet_major",
+    "_check_flet_version",
+)
 SECTION_WIDGETS = "####### Widgets #######"
 SECTION_MAIN = "####### Main  #######"
 
@@ -2912,6 +2924,13 @@ def emit_program(
                 lines.append(f"    global {', '.join(project.variables)}")
             lines.append(f"    {STUB_SENTINEL}")
             lines.append(f"    print({callback!r})")
+        # Emit any function the tool did not write: a helper the user added to
+        # this file used to be deleted on the next save.  The generator's own
+        # functions are skipped - they are emitted by name above or below.
+        for name, text in sorted(preserved_functions.items()):
+            if name in project.callbacks or name in GENERATED_FUNCTION_NAMES:
+                continue
+            lines.extend(("", "", text))
     else:
         lines.append("# Add your event handlers here.")
 
@@ -3039,9 +3058,7 @@ def _read_preserved(
             existing = handle.read()
     except OSError:
         return {}, {}
-    return project_format.preserved_pieces(
-        existing, project.callbacks, project.variables
-    )
+    return project_format.preserved_pieces(existing, project.variables)
 
 
 def window_size_for(

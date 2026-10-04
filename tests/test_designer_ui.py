@@ -427,5 +427,41 @@ class SelectionTests(unittest.TestCase):
         self.assertEqual(app.myVars.groups, {"mygroup": [self.first, self.second]})
 
 
+@unittest.skipIf(app is None, f"the designer cannot start here: {IMPORT_ERROR}")
+class PythonPreservationTests(unittest.TestCase):
+    """A helper added to a generated ttk program must survive the next save.
+
+    Both backends shared the rule that kept only the function names the
+    generator knows, so hand written code in either output was deleted on the
+    next save.
+    """
+
+    def setUp(self):
+        quiet(app.loadProject, "Calculator", CALCULATOR)
+        # Save into the scratch directory rather than beside the project, but
+        # do NOT stub saveProject: it is what collects the widgets' callbacks.
+        app.myVars.projectPath = WORK
+        app.myVars.projectFileName = os.path.join(WORK, "Calculator")
+        app.myVars.generatedPyFile = ""
+
+    def test_a_hand_written_function_survives(self):
+        first = quiet(app.buildPython)
+        with open(first, encoding="utf-8") as handle:
+            source = handle.read()
+        self.assertIn("def clicked_4(", source)
+
+        edited = os.path.join(WORK, "edited_ttk.py")
+        with open(edited, "w", encoding="utf-8") as handle:
+            handle.write(source + "\n\ndef my_helper():\n    return 1\n")
+        app.myVars.generatedPyFile = edited
+
+        second = quiet(app.buildPython)
+        with open(second, encoding="utf-8") as handle:
+            regenerated = handle.read()
+
+        self.assertIn("def my_helper():", regenerated)
+        self.assertEqual(regenerated.count("def clicked_4("), 1)
+
+
 if __name__ == "__main__":
     unittest.main()
