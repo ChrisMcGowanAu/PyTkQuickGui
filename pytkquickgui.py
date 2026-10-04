@@ -513,6 +513,17 @@ def buildPython() -> str:
     print("version control, and move a larger body of your own code into a separate")
     print('module that imports this one."""\n')
     print("import tkinter as tk\nimport ttkbootstrap as ttk\n")
+    # Tools -> Set default style font: the generated program configures the
+    # same styles, so it looks like the designer.
+    _style_font = getattr(myVars, "styleFont", None)
+    _font_spec = myVars.checkFontDict(dict(_style_font)) if _style_font else ""
+    if _font_spec:
+        print("style = ttk.Style()")
+        for _widget in myVars.widgetsUsed:
+            if "T" + _widget == "TCanvas":
+                continue
+            print(f"style.configure({('T' + _widget)!r}, font={_font_spec!r})")
+        print("")
     themeName = myVars.theme
     title = myVars.projectName
     print(f"themeName = {themeName!r}\n")
@@ -1063,6 +1074,7 @@ def buildFlet() -> str:
             flet_generator.DEFAULT_STRICT_FLET_VERSION,
             naturalSizes,
             myVars.generatedFletFile,
+            getattr(myVars, "styleFont", None),
         )
     except (KeyError, TypeError, ValueError) as e:
         log.error("buildFlet: cannot generate Flet code: %s", e)
@@ -1399,6 +1411,30 @@ def setDefaultToolTheme():
         f.close()
 
 
+def applyStyleFont() -> None:
+    """Apply the stored style font to every ttk style the palette uses.
+
+    The font is a tool default, so this runs at startup as well as from the
+    menu: the styles are global, so a widget built afterwards picks it up and
+    an already-open project is redrawn with it.
+    """
+    font = getattr(myVars, "styleFont", None)
+    if not font:
+        return
+    spec = myVars.checkFontDict(dict(font))
+    if not spec:
+        return
+    myVars.style = ttk.Style()
+    for widget in myVars.widgetsUsed:
+        style_name = "T" + widget
+        if style_name == "TCanvas":
+            continue  # a canvas has no font option
+        try:
+            myVars.style.configure(style_name, font=spec)
+        except tk.TclError as e:
+            log.warning("applyStyleFont: %s: %s", style_name, e)
+
+
 def setDefaultStyleFont():
     setDefaultFont("style")
 
@@ -1420,40 +1456,27 @@ def setDefaultFont(which):
     # log.debug("font=%s", str(font))
 
     font_str = myVars.checkFontDict(font)
-    font_str = font
     log.debug("font_str=%s", font_str)
+    if not font_str:
+        return
     if font_str != "":
         if which == "style":
-            myVars.style = ttk.Style()  # .style.Style()
-            for w in myVars.widgetsUsed:
-                objType = "T" + w
-                # need to check if 'font' is valid for the widget typeG
-                # themes = myVars.style.theme_names()
-                # C.printf("Themes for %s == %s\n",objType,themes)
-                if objType != "TCanvas":
-                    myVars.style.configure(objType, font=font_str)
-                    names = myVars.style.element_names()
-                    # C.printf("Names for %s == %s\n",objType,names)
-                    for e in names:
-                        C.printf("objType %s Name: %s\n", objType, e)
-                        myVars.style.configure(e, font=font_str)
-                        myVars.style.configure(e, textfont=font_str)
-                # Look for child widgets for label.style
-                # # myVars.style.configure(objType,
-                # labelfont=font_str)
+            # Stored in the tool defaults, so it survives a restart and reaches
+            # the generated programs as well as this one.
+            myVars.styleFont = dict(font)
+            applyStyleFont()
+            saveToolDefaults()
+            log.info("default style font set to %s", font_str)
         elif which == "label":
             # Walk through all label widgets and find fonts
             for w in cw.createWidget.widgetList:
-                if w is not None:
-                    name = w.widgetName
-                    print("Name %s widget %s", name, w)
-                    # if name == 'ttk::label':
-                    keys = w.keys()
-                    if "font" in keys:
-                        try:
-                            w.configure(font=font_str)
-                        except ValueError as e:
-                            log.error("%s raised exceptopn %s", w, e)
+                if w is None:
+                    continue
+                if "font" in w.keys():
+                    try:
+                        w.configure(font=font_str)
+                    except tk.TclError as e:
+                        log.error("%s raised exception %s", w, e)
 
 
 def newProject():
@@ -4321,6 +4344,7 @@ if __name__ == "__main__":
 
     buildMainGui()
     myVars.style = ttk.Style()
+    applyStyleFont()
     # Expose drawGridLines to createWidget without a circular import
     myVars.redrawGridLines = drawGridLines
     rootWin.mainloop()

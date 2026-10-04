@@ -463,5 +463,45 @@ class PythonPreservationTests(unittest.TestCase):
         self.assertEqual(regenerated.count("def clicked_4("), 1)
 
 
+@unittest.skipIf(app is None, f"the designer cannot start here: {IMPORT_ERROR}")
+class StyleFontEmissionTests(unittest.TestCase):
+    """The style font must be written into the generated ttk program too."""
+
+    def setUp(self):
+        quiet(app.loadProject, "Calculator", CALCULATOR)
+        app.myVars.projectPath = WORK
+        app.myVars.projectFileName = os.path.join(WORK, "Calculator")
+        app.myVars.generatedPyFile = ""
+        self._saved_font = dict(app.myVars.styleFont)
+        self.addCleanup(self._restore)
+        app.myVars.styleFont = {
+            "family": "DejaVu Sans",
+            "size": 13,
+            "weight": "bold",
+            "slant": "roman",
+            "underline": False,
+            "overstrike": False,
+        }
+
+    def _restore(self):
+        app.myVars.styleFont = self._saved_font
+
+    def test_the_styles_are_configured_in_the_output(self):
+        generated = quiet(app.buildPython)
+        with open(generated, encoding="utf-8") as handle:
+            source = handle.read()
+
+        self.assertIn("style = ttk.Style()", source)
+        self.assertIn("style.configure('TButton'", source)
+        self.assertIn("DejaVu", source)
+
+    def test_nothing_is_emitted_without_a_font(self):
+        app.myVars.styleFont = {}
+        generated = quiet(app.buildPython)
+        with open(generated, encoding="utf-8") as handle:
+            source = handle.read()
+        self.assertNotIn("style.configure(", source)
+
+
 if __name__ == "__main__":
     unittest.main()

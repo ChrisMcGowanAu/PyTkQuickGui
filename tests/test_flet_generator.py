@@ -2438,6 +2438,33 @@ def clicked_5(e=None):
         self.assertIn("placeholder", source)
 
 
+class StyleFontTests(unittest.TestCase):
+    """Tools -> Set default style font must reach the generated program."""
+
+    def _emit(self, style_font=None):
+        data = project(
+            geom_manager="Place",
+            widgets=(
+                widget(
+                    "Widget1",
+                    "ttk::button",
+                    attributes=(("text", "Go"),),
+                    place={"x": "8", "y": "8", "width": "80", "height": "32"},
+                ),
+            ),
+        )
+        return flet_generator.emit_program(
+            data, widget_names("Widget1"), ROOT, style_font=style_font
+        )
+
+    def test_the_family_is_set_on_the_theme(self):
+        source = self._emit({"family": "DejaVu Sans", "size": 13})
+        self.assertIn("page.theme = ft.Theme(font_family='DejaVu Sans')", source)
+
+    def test_no_theme_line_without_a_font(self):
+        self.assertNotIn("font_family", self._emit())
+
+
 class PreservationTests(unittest.TestCase):
     """Regenerating a program must not delete what the user added to it.
 

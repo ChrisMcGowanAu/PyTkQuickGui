@@ -217,5 +217,39 @@ class ToolDefaultsTests(unittest.TestCase):
         )
 
 
+class StyleFontTests(unittest.TestCase):
+    """The style font is a tool default, so it has to survive the round trip.
+
+    It used to be applied live only, so it was gone after a restart, and no
+    generated program ever saw it.
+    """
+
+    FONT = {
+        "family": "DejaVu Sans",
+        "size": 13,
+        "weight": "bold",
+        "slant": "roman",
+        "underline": False,
+        "overstrike": False,
+    }
+
+    def test_a_font_is_kept(self):
+        self.assertEqual(tool_defaults.normalise_style_font(self.FONT), self.FONT)
+
+    def test_a_font_without_a_family_is_dropped(self):
+        self.assertEqual(tool_defaults.normalise_style_font({"size": 13}), {})
+        self.assertEqual(tool_defaults.normalise_style_font(None), {})
+
+    def test_it_survives_write_and_read(self):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        path = os.path.join(directory.name, "tool_defaults.json")
+
+        tool_defaults.write(path, {"styleFont": self.FONT})
+        restored = tool_defaults.normalise(tool_defaults.read(path))
+
+        self.assertEqual(restored["styleFont"], self.FONT)
+
+
 if __name__ == "__main__":
     unittest.main()
