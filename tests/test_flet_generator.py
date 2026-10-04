@@ -1457,26 +1457,35 @@ class FletGeneratorTests(unittest.TestCase):
 
         self.assertEqual(len(page.controls), 1)
 
-    def test_font_chooser_dict_is_parsed(self):
-        """The designer stores fonts as a dict, not an X11 string."""
+    def test_a_saved_font_dictionary_is_ignored(self):
+        """A dictionary value is a leftover, not a font.
+
+        It came from a bug that stringified the font chooser's dictionary, and
+        ttk cannot use it either (it is emitted as a string there, which Tk
+        ignores).  Parsing it here resurrected a font the user had replaced, so
+        the style font now wins in both outputs, as it should.
+        """
         stored = (
-            "{'family': 'Liberation\\\\ Mono', 'size': 18, 'weight': 'bold', "
+            "{'family': 'Liberation\\ Mono', 'size': 18, 'weight': 'bold', "
             "'slant': 'italic', 'underline': 0, 'overstrike': 0}"
         )
 
-        parsed = flet_generator.parse_font(stored)
+        self.assertEqual(flet_generator.parse_font(stored), {})
+
+    def test_a_font_string_is_still_translated(self):
+        # A positive Tk size is points, and Flet sizes are pixels, so 18 becomes
+        # 23.  (The dictionary path skipped that conversion, which is one more
+        # reason it is not worth honouring.)
+        parsed = flet_generator.parse_font("Liberation Mono 18 bold italic")
 
         self.assertEqual(parsed["font_family"], "'Liberation Mono'")
-        self.assertEqual(parsed["size"], "18")
+        self.assertEqual(parsed["size"], "23")
         self.assertEqual(parsed["weight"], "ft.FontWeight.BOLD")
         self.assertEqual(parsed["italic"], "True")
 
     def test_font_size_on_a_text_field_uses_text_size(self):
         """ft.TextField has no size field; passing one is a TypeError."""
-        font = (
-            "{'family': 'Liberation\\\\ Mono', 'size': 18, 'weight': 'normal', "
-            "'slant': 'roman', 'underline': 0, 'overstrike': 0}"
-        )
+        font = "Liberation Mono 18 normal roman"
         data = project(
             theme="dracula-dark",
             widgets=(
@@ -1504,10 +1513,10 @@ class FletGeneratorTests(unittest.TestCase):
         ast.parse(source)
         entry_block = source[source.index("Widget1 = ") : source.index("Widget2 = ")]
         entry_lines = [line.strip() for line in entry_block.split("\n")]
-        self.assertIn("text_size=18,", entry_lines)
-        self.assertNotIn("size=18,", entry_lines)  # no bare size on a field
+        self.assertIn("text_size=23,", entry_lines)
+        self.assertNotIn("size=23,", entry_lines)  # no bare size on a field
         label = source[source.index("Widget2 = ") :]
-        self.assertIn("size=18", label)
+        self.assertIn("size=23", label)
         self.assertIn("font_family='Liberation Mono'", label)
 
     def test_inverse_label_is_filled_by_a_container(self):

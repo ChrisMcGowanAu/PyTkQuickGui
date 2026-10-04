@@ -26,7 +26,6 @@ Translation notes
 
 from __future__ import annotations
 
-import ast
 import json
 import os
 import re
@@ -486,18 +485,20 @@ def tk_color(value: Any) -> str | None:
 def parse_font(value: Any) -> dict[str, str]:
     """Translate a Tk font description into Flet text properties.
 
-    Two forms turn up in saved projects: the font chooser writes a dict such as
-    ``{'family': 'Liberation Mono', 'size': 18, 'weight': 'normal', …}``, and
-    hand written or older files use the X11 ``"family size style…"`` string.
-    Symbolic fonts such as ``TkDefaultFont`` return an empty mapping.
+    A project may hold an X11 style string, ``"family size style…"``, and that
+    is translated.  Symbolic fonts such as ``TkDefaultFont`` return an empty
+    mapping.
+
+    A value that looks like a dictionary - ``{'family': 'C059', …}`` - is
+    ignored.  Nothing writes that form any more: it came from a bug where the
+    font chooser's dictionary was stringified and saved, and ttk cannot use it
+    either (it is emitted as a string there, which Tk ignores).  Honouring it
+    here resurrected a font the user had long replaced, so the style font now
+    wins in both outputs, as it should.
     """
     raw = _text(value).strip().replace("\\", "")
-    if not raw or raw.startswith("Tk"):
+    if not raw or raw.startswith("Tk") or raw.startswith("{"):
         return {}
-    if raw.startswith("{"):
-        chosen = _parse_font_dict(raw)
-        if chosen:
-            return chosen
     match = _FONT.match(raw)
     if not match:
         return {}
@@ -510,28 +511,6 @@ def parse_font(value: Any) -> dict[str, str]:
     if "bold" in rest:
         properties["weight"] = "ft.FontWeight.BOLD"
     if "italic" in rest or "oblique" in rest:
-        properties["italic"] = "True"
-    return properties
-
-
-def _parse_font_dict(raw: str) -> dict[str, str]:
-    """Return Flet text properties from a font chooser dict, or ``{}``."""
-    try:
-        chosen = ast.literal_eval(raw)
-    except (SyntaxError, ValueError):
-        return {}
-    if not isinstance(chosen, Mapping):
-        return {}
-    properties: dict[str, str] = {}
-    family = _text(chosen.get("family")).strip()
-    if family:
-        properties["font_family"] = repr(family)
-    size = _number(chosen.get("size"))
-    if isinstance(size, (int, float)) and size:
-        properties["size"] = repr(abs(int(size)))
-    if _text(chosen.get("weight")).strip().lower() in ("bold", "heavy"):
-        properties["weight"] = "ft.FontWeight.BOLD"
-    if _text(chosen.get("slant")).strip().lower() in ("italic", "oblique"):
         properties["italic"] = "True"
     return properties
 
