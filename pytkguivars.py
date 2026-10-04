@@ -111,6 +111,10 @@ RIGHT_CLICK_BINDINGS = ("<Button-3>", "<Button-2>", "<Control-Button-1>")
 
 # Default
 geomManager = DEFAULT_GEOM_MANAGER
+
+#: Font chosen with Tools -> Set default style font, kept in the tool
+#: defaults so it survives a restart and can be emitted in generated code.
+styleFont: dict = {}
 # Number of rows/columns in the initial grid (Grid mode only).
 # The grid auto-expands if more rows/cols are needed.
 gridRows: int = tool_defaults.GRID_DEFAULTS["gridRows"]
@@ -209,6 +213,7 @@ def applyToolDefaults(data: dict) -> None:
     global gridRows, gridCols, gridLineColor
     global gridRowMinsize, gridColMinsize, gridRowPad, gridColPad
     global gridWidgetDefaults, placeWidgetDefaults, fletWidgetPolicy, fletGridMode
+    global styleFont
     defaults = tool_defaults.normalise(data)
     gridRows = defaults["gridRows"]
     gridCols = defaults["gridCols"]
@@ -221,6 +226,7 @@ def applyToolDefaults(data: dict) -> None:
     placeWidgetDefaults = defaults["placeWidgetDefaults"]
     fletWidgetPolicy = defaults["fletWidgetPolicy"]
     fletGridMode = defaults["fletGridMode"]
+    styleFont = dict(defaults.get("styleFont", {}))
 
 
 def currentToolDefaults() -> dict:
@@ -237,6 +243,7 @@ def currentToolDefaults() -> dict:
         "placeWidgetDefaults": placeWidgetDefaults,
         "fletWidgetPolicy": fletWidgetPolicy,
         "fletGridMode": fletGridMode,
+        "styleFont": dict(styleFont),
     }
 
 

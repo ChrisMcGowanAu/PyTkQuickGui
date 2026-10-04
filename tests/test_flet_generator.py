@@ -2438,6 +2438,112 @@ def clicked_5(e=None):
         self.assertIn("placeholder", source)
 
 
+class StyleFontTests(unittest.TestCase):
+    """Tools -> Set default style font must reach the generated program."""
+
+    def _emit(self, style_font=None):
+        data = project(
+            geom_manager="Place",
+            widgets=(
+                widget(
+                    "Widget1",
+                    "ttk::button",
+                    attributes=(("text", "Go"),),
+                    place={"x": "8", "y": "8", "width": "80", "height": "32"},
+                ),
+            ),
+        )
+        return flet_generator.emit_program(
+            data, widget_names("Widget1"), ROOT, style_font=style_font
+        )
+
+    def test_the_family_is_set_on_the_theme(self):
+        source = self._emit({"family": "DejaVu Sans", "size": 13})
+        self.assertIn("page.theme = ft.Theme(font_family='DejaVu Sans')", source)
+
+    def test_no_theme_line_without_a_font(self):
+        self.assertNotIn("font_family", self._emit())
+
+
+class PreservationTests(unittest.TestCase):
+    """Regenerating a program must not delete what the user added to it.
+
+    The rule kept only the function names the generator knows, so a helper the
+    user wrote into the saved program disappeared on the next save while the
+    callbacks (with their edits) came back.
+    """
+
+    WIDGETS = (
+        widget(
+            "Widget1",
+            "ttk::button",
+            attributes=(("text", "Go"), ("command", "clicked_1")),
+            place={"x": "8", "y": "8", "width": "80", "height": "32"},
+        ),
+    )
+
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp_dir.cleanup)
+
+    def _emit(self, preserve_from=""):
+        data = project(geom_manager="Place", widgets=self.WIDGETS)
+        return flet_generator.emit_program(
+            data, widget_names("Widget1"), ROOT, preserve_from=preserve_from
+        )
+
+    def _save(self, source, name="program.py"):
+        path = os.path.join(self.temp_dir.name, name)
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write(source)
+        return path
+
+    def test_a_hand_written_function_survives(self):
+        first = self._emit()
+        edited = first + (
+            "\n\ndef do_calculation():\n    return 1 + 1\n"
+            "\n\ndef remove_last_ch():\n    return 0\n"
+        )
+        second = self._emit(self._save(edited))
+
+        self.assertIn("def do_calculation():", second)
+        self.assertIn("def remove_last_ch():", second)
+        self.assertIn("def clicked_1(e=None):", second)
+
+    def test_regenerating_a_generated_file_changes_nothing(self):
+        """Round trip: the generator must not re-emit its own functions."""
+        first = self._emit()
+        second = self._emit(self._save(first))
+
+        def names(source):
+            return sorted(
+                node.name
+                for node in ast.parse(source).body
+                if isinstance(node, ast.FunctionDef)
+            )
+
+        self.assertEqual(names(first), names(second))
+        self.assertEqual(second.count("def main(page"), 1)
+
+    def test_every_generated_function_is_a_known_name(self):
+        """A new generator helper must be added to GENERATED_FUNCTION_NAMES."""
+        source = self._emit()
+        data = project(geom_manager="Place", widgets=self.WIDGETS)
+        callbacks = set(
+            re.findall(r"^def (\w+)", data.get("Widget1", {}) and source, re.M)
+        )
+        for node in ast.parse(source).body:
+            if not isinstance(node, ast.FunctionDef):
+                continue
+            if node.name in callbacks:
+                continue
+            self.assertIn(
+                node.name,
+                flet_generator.GENERATED_FUNCTION_NAMES,
+                f"{node.name} is emitted but not listed in GENERATED_FUNCTION_NAMES",
+            )
+
+
 class SharedVariableTests(unittest.TestCase):
     """A spinbox and a scale on one variable must stay in step, as they do in Tk.
 

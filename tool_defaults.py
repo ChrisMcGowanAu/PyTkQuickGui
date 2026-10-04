@@ -272,8 +272,32 @@ def normalise(data: Mapping[str, Any] | None) -> dict[str, Any]:
     )
     result["fletWidgetPolicy"] = normalise_flet_policy(source.get("fletWidgetPolicy"))
     result["fletGridMode"] = flet_grid_mode(source.get("fletGridMode"))
+    result["styleFont"] = normalise_style_font(source.get("styleFont"))
     result["formatVersion"] = FORMAT_VERSION
     return result
+
+
+def normalise_style_font(source: Any) -> dict[str, Any]:
+    """Return a validated style font, or an empty dict when none is chosen.
+
+    The whole descriptor is kept because the two backends need different parts
+    of it: Tk wants one font string, Flet only a family name.
+    """
+    if not isinstance(source, Mapping):
+        return {}
+    family = str(source.get("family", "") or "").strip()
+    if not family:
+        return {}
+    font: dict[str, Any] = {"family": family}
+    try:
+        font["size"] = max(1, min(200, int(source.get("size", 0))))
+    except (TypeError, ValueError):
+        font["size"] = 0
+    for field in ("weight", "slant"):
+        font[field] = str(source.get(field, "") or "")
+    for field in ("underline", "overstrike"):
+        font[field] = bool(source.get(field, False))
+    return font
 
 
 def widget_layout(
