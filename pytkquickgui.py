@@ -427,7 +427,6 @@ def _generated_variable_lines(runDict, createdWidgetOrder, rootName) -> dict:
 
 def _parseExistingPython(
     filePath: str,
-    function_names=None,
     variable_names=None,
 ) -> tuple[dict, dict]:
     """Parse *filePath*, a previously generated .py file, and return:
@@ -496,7 +495,6 @@ def buildPython() -> str:
     )
     _preserved_funcs, _preserved_tkvars = _parseExistingPython(
         myVars.generatedPyFile,
-        project_format.callback_names(runDict, createdWidgetOrder, rootName),
         project_format.variable_names(runDict, createdWidgetOrder, rootName),
     )
     if _preserved_funcs or _preserved_tkvars:
