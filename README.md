@@ -782,4 +782,8 @@ venv/bin/python tools/smoke_flet_generated.py ~/elsewhere/*.json
 
 MIT. See [`LICENSE`](LICENSE).
 
+## Releases
+
+Notable changes by version are in [`CHANGELOG.md`](CHANGELOG.md).
+
 PyTkQuickGui — Chris McGowan, 2024–2026.
