@@ -387,7 +387,14 @@ def save_record():
 When the same generated file is selected again, PyTkQuickGui preserves edited
 callback bodies and customised Tk-variable initialisers. Widget construction
 and geometry sections are rebuilt from the current project. User functions no
-longer referenced by a widget are also retained.
+longer referenced by a widget are also retained, and so are functions the
+generator never wrote at all - a helper you add to the file survives the next
+save.
+
+Keep your own copy all the same. Put the generated file under version control,
+and move a larger body of your own code into a separate module that imports the
+generated one: the file is rebuilt from the project on every save, so it is not
+the place to keep anything you would miss.
 
 **Trial Run** writes and launches a temporary generated file. It is intended for
 layout testing and does not replace the explicitly saved Python file.
@@ -779,5 +786,9 @@ venv/bin/python tools/smoke_flet_generated.py ~/elsewhere/*.json
 ## License
 
 MIT. See [`LICENSE`](LICENSE).
+
+## Releases
+
+Notable changes by version are in [`CHANGELOG.md`](CHANGELOG.md).
 
 PyTkQuickGui — Chris McGowan, 2024–2026.

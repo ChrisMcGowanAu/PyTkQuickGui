@@ -291,7 +291,7 @@ class ProjectFormatTests(unittest.TestCase):
         )
 
         functions, variables = project_format.preserved_pieces(
-            source, ["clicked_4", "clicked_5"], ["calcvar", "flag"]
+            source, ["calcvar", "flag"]
         )
 
         # The hand written handler is kept, the untouched stub is regenerated.
@@ -300,16 +300,37 @@ class ProjectFormatTests(unittest.TestCase):
         # designer; 'flag' does not, so it is the user's.
         self.assertEqual(variables, {"flag": "flag = '1'"})
 
+    def test_a_function_the_generator_never_wrote_is_kept(self):
+        """A helper added to a generated file must survive the next save.
+
+        This used to keep only the names the generator knows, so everything the
+        user wrote themselves came back missing while the stubs did not.
+        """
+        source = (
+            "def clicked_4(e=None):\n"
+            "    print('clicked_4')\n"
+            "\n"
+            "def do_calculation():\n"
+            "    return 1 + 1\n"
+            "\n"
+            "def _append(value):\n"
+            "    return value\n"
+        )
+
+        functions, _variables = project_format.preserved_pieces(source, [])
+
+        self.assertEqual(sorted(functions), ["_append", "clicked_4", "do_calculation"])
+
     def test_a_user_edited_variable_is_kept(self):
         source = "calcvar = '99'   # my own default\n"
 
-        _functions, variables = project_format.preserved_pieces(source, [], ["calcvar"])
+        _functions, variables = project_format.preserved_pieces(source, ["calcvar"])
 
         self.assertEqual(variables, {"calcvar": "calcvar = '99'   # my own default"})
 
     def test_preserved_pieces_ignores_an_unparsable_file(self):
         functions, variables = project_format.preserved_pieces(
-            "this is not python(", ["clicked_4"], ["calcvar"]
+            "this is not python(", ["calcvar"]
         )
 
         self.assertEqual(functions, {})

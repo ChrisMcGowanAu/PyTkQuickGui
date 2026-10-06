@@ -111,6 +111,10 @@ RIGHT_CLICK_BINDINGS = ("<Button-3>", "<Button-2>", "<Control-Button-1>")
 
 # Default
 geomManager = DEFAULT_GEOM_MANAGER
+
+#: Font chosen with Tools -> Set default style font, kept in the tool
+#: defaults so it survives a restart and can be emitted in generated code.
+styleFont: dict = {}
 # Number of rows/columns in the initial grid (Grid mode only).
 # The grid auto-expands if more rows/cols are needed.
 gridRows: int = tool_defaults.GRID_DEFAULTS["gridRows"]
@@ -209,6 +213,7 @@ def applyToolDefaults(data: dict) -> None:
     global gridRows, gridCols, gridLineColor
     global gridRowMinsize, gridColMinsize, gridRowPad, gridColPad
     global gridWidgetDefaults, placeWidgetDefaults, fletWidgetPolicy, fletGridMode
+    global styleFont
     defaults = tool_defaults.normalise(data)
     gridRows = defaults["gridRows"]
     gridCols = defaults["gridCols"]
@@ -221,6 +226,7 @@ def applyToolDefaults(data: dict) -> None:
     placeWidgetDefaults = defaults["placeWidgetDefaults"]
     fletWidgetPolicy = defaults["fletWidgetPolicy"]
     fletGridMode = defaults["fletGridMode"]
+    styleFont = dict(defaults.get("styleFont", {}))
 
 
 def currentToolDefaults() -> dict:
@@ -237,6 +243,7 @@ def currentToolDefaults() -> dict:
         "placeWidgetDefaults": placeWidgetDefaults,
         "fletWidgetPolicy": fletWidgetPolicy,
         "fletGridMode": fletGridMode,
+        "styleFont": dict(styleFont),
     }
 
 
@@ -257,18 +264,35 @@ def Merge(dict1, dict2):
 
 
 def checkFontDict(font: dict) -> str:
-    font_str: str = ""
-    if font:
-        # spaces in the family name need to be escaped
-        family = font["family"]
-        family_str = family.replace(" ", "\\ ")
-        font["family"] = family_str
-        font_str = f"{font['family']} {font['size']} {font['weight']} {font['slant']}"
-        if font["underline"]:
-            font_str += " underline"
-        if font["overstrike"]:
-            font_str += " overstrike"
-            log.debug("Font is %s", str(font_str))
+    """Return a Tk font description for *font*.
+
+    The family's spaces are escaped for Tk, but on a **copy**: this used to
+    escape the caller's dictionary in place, so the escaped name was saved as
+    the tool default and escaped again on every later use, which left Tk unable
+    to find the family.  A size of 0 means "unset" and is left out, and a
+    negative size (pixels in Tk) is kept as given.
+    """
+    if not font:
+        return ""
+    family = str(font.get("family", "") or "").replace(" ", "\\ ")
+    if not family:
+        return ""
+    try:
+        size = int(font.get("size", 0) or 0)
+    except (TypeError, ValueError):
+        size = 0
+    parts = [family]
+    if size:
+        parts.append(str(size))
+    for key in ("weight", "slant"):
+        value = str(font.get(key, "") or "")
+        if value:
+            parts.append(value)
+    font_str = " ".join(parts)
+    for key in ("underline", "overstrike"):
+        if font.get(key):
+            font_str += " " + key
+    log.debug("Font is %s", font_str)
     return font_str
 
 

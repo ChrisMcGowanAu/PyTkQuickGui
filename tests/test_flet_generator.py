@@ -1457,26 +1457,35 @@ class FletGeneratorTests(unittest.TestCase):
 
         self.assertEqual(len(page.controls), 1)
 
-    def test_font_chooser_dict_is_parsed(self):
-        """The designer stores fonts as a dict, not an X11 string."""
+    def test_a_saved_font_dictionary_is_ignored(self):
+        """A dictionary value is a leftover, not a font.
+
+        It came from a bug that stringified the font chooser's dictionary, and
+        ttk cannot use it either (it is emitted as a string there, which Tk
+        ignores).  Parsing it here resurrected a font the user had replaced, so
+        the style font now wins in both outputs, as it should.
+        """
         stored = (
-            "{'family': 'Liberation\\\\ Mono', 'size': 18, 'weight': 'bold', "
+            "{'family': 'Liberation\\ Mono', 'size': 18, 'weight': 'bold', "
             "'slant': 'italic', 'underline': 0, 'overstrike': 0}"
         )
 
-        parsed = flet_generator.parse_font(stored)
+        self.assertEqual(flet_generator.parse_font(stored), {})
+
+    def test_a_font_string_is_still_translated(self):
+        # A positive Tk size is points, and Flet sizes are pixels, so 18 becomes
+        # 23.  (The dictionary path skipped that conversion, which is one more
+        # reason it is not worth honouring.)
+        parsed = flet_generator.parse_font("Liberation Mono 18 bold italic")
 
         self.assertEqual(parsed["font_family"], "'Liberation Mono'")
-        self.assertEqual(parsed["size"], "18")
+        self.assertEqual(parsed["size"], "23")
         self.assertEqual(parsed["weight"], "ft.FontWeight.BOLD")
         self.assertEqual(parsed["italic"], "True")
 
     def test_font_size_on_a_text_field_uses_text_size(self):
         """ft.TextField has no size field; passing one is a TypeError."""
-        font = (
-            "{'family': 'Liberation\\\\ Mono', 'size': 18, 'weight': 'normal', "
-            "'slant': 'roman', 'underline': 0, 'overstrike': 0}"
-        )
+        font = "Liberation Mono 18 normal roman"
         data = project(
             theme="dracula-dark",
             widgets=(
@@ -1504,10 +1513,10 @@ class FletGeneratorTests(unittest.TestCase):
         ast.parse(source)
         entry_block = source[source.index("Widget1 = ") : source.index("Widget2 = ")]
         entry_lines = [line.strip() for line in entry_block.split("\n")]
-        self.assertIn("text_size=18,", entry_lines)
-        self.assertNotIn("size=18,", entry_lines)  # no bare size on a field
+        self.assertIn("text_size=23,", entry_lines)
+        self.assertNotIn("size=23,", entry_lines)  # no bare size on a field
         label = source[source.index("Widget2 = ") :]
-        self.assertIn("size=18", label)
+        self.assertIn("size=23", label)
         self.assertIn("font_family='Liberation Mono'", label)
 
     def test_inverse_label_is_filled_by_a_container(self):
@@ -2436,6 +2445,151 @@ def clicked_5(e=None):
 
         self.assertEqual(len(page.controls), 1)
         self.assertIn("placeholder", source)
+
+
+class StyleFontTests(unittest.TestCase):
+    """Tools -> Set default style font must reach the generated program."""
+
+    def _emit(self, style_font=None):
+        data = project(
+            geom_manager="Place",
+            widgets=(
+                widget(
+                    "Widget1",
+                    "ttk::button",
+                    attributes=(("text", "Go"),),
+                    place={"x": "8", "y": "8", "width": "80", "height": "32"},
+                ),
+            ),
+        )
+        return flet_generator.emit_program(
+            data, widget_names("Widget1"), ROOT, style_font=style_font
+        )
+
+    def test_the_family_is_set_on_the_theme(self):
+        source = self._emit({"family": "DejaVu Sans", "size": 13})
+        self.assertIn("page.theme = ft.Theme(font_family='DejaVu Sans')", source)
+
+    def test_no_theme_line_without_a_font(self):
+        self.assertNotIn("font_family", self._emit())
+
+    def test_the_seed_colour_does_not_replace_the_font(self):
+        """page.theme was assigned twice, and the second one won.
+
+        The style font went in first, the project's seed colour second, so on
+        any project with a primary colour the font was silently thrown away -
+        which is exactly what the user saw: the ttk output right, Flet not.
+        """
+        data = project(
+            geom_manager="Place",
+            widgets=(
+                widget(
+                    "Widget1",
+                    "ttk::button",
+                    attributes=(("text", "7"), ("style", "primary.TButton")),
+                    place={"x": "8", "y": "8", "width": "60", "height": "40"},
+                ),
+            ),
+        )
+        source = flet_generator.emit_program(
+            data,
+            widget_names("Widget1"),
+            ROOT,
+            style_font={"family": "DejaVu Sans", "size": 14},
+        )
+
+        self.assertEqual(source.count("page.theme = ft.Theme("), 1)
+        theme_line = next(
+            line for line in source.split("\n") if "page.theme = ft.Theme(" in line
+        )
+        self.assertIn("font_family='DejaVu Sans'", theme_line)
+        if "color_scheme_seed" in source:
+            self.assertIn("color_scheme_seed", theme_line)
+
+    def test_the_chosen_size_reaches_the_text_styles(self):
+        source = self._emit({"family": "DejaVu Sans", "size": 14})
+
+        self.assertIn("_font_size = 18", source)  # 14pt -> 18px
+        self.assertIn("page.theme.text_theme", source)
+
+
+class PreservationTests(unittest.TestCase):
+    """Regenerating a program must not delete what the user added to it.
+
+    The rule kept only the function names the generator knows, so a helper the
+    user wrote into the saved program disappeared on the next save while the
+    callbacks (with their edits) came back.
+    """
+
+    WIDGETS = (
+        widget(
+            "Widget1",
+            "ttk::button",
+            attributes=(("text", "Go"), ("command", "clicked_1")),
+            place={"x": "8", "y": "8", "width": "80", "height": "32"},
+        ),
+    )
+
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp_dir.cleanup)
+
+    def _emit(self, preserve_from=""):
+        data = project(geom_manager="Place", widgets=self.WIDGETS)
+        return flet_generator.emit_program(
+            data, widget_names("Widget1"), ROOT, preserve_from=preserve_from
+        )
+
+    def _save(self, source, name="program.py"):
+        path = os.path.join(self.temp_dir.name, name)
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write(source)
+        return path
+
+    def test_a_hand_written_function_survives(self):
+        first = self._emit()
+        edited = first + (
+            "\n\ndef do_calculation():\n    return 1 + 1\n"
+            "\n\ndef remove_last_ch():\n    return 0\n"
+        )
+        second = self._emit(self._save(edited))
+
+        self.assertIn("def do_calculation():", second)
+        self.assertIn("def remove_last_ch():", second)
+        self.assertIn("def clicked_1(e=None):", second)
+
+    def test_regenerating_a_generated_file_changes_nothing(self):
+        """Round trip: the generator must not re-emit its own functions."""
+        first = self._emit()
+        second = self._emit(self._save(first))
+
+        def names(source):
+            return sorted(
+                node.name
+                for node in ast.parse(source).body
+                if isinstance(node, ast.FunctionDef)
+            )
+
+        self.assertEqual(names(first), names(second))
+        self.assertEqual(second.count("def main(page"), 1)
+
+    def test_every_generated_function_is_a_known_name(self):
+        """A new generator helper must be added to GENERATED_FUNCTION_NAMES."""
+        source = self._emit()
+        data = project(geom_manager="Place", widgets=self.WIDGETS)
+        callbacks = set(
+            re.findall(r"^def (\w+)", data.get("Widget1", {}) and source, re.M)
+        )
+        for node in ast.parse(source).body:
+            if not isinstance(node, ast.FunctionDef):
+                continue
+            if node.name in callbacks:
+                continue
+            self.assertIn(
+                node.name,
+                flet_generator.GENERATED_FUNCTION_NAMES,
+                f"{node.name} is emitted but not listed in GENERATED_FUNCTION_NAMES",
+            )
 
 
 class SharedVariableTests(unittest.TestCase):

@@ -360,16 +360,20 @@ def variable_defaults(
 
 def preserved_pieces(
     source: str,
-    function_names: Iterable[str],
     var_names: Iterable[str],
 ) -> tuple[dict[str, str], dict[str, str]]:
     """Return the parts of an earlier generated file the user has taken over.
 
-    Shared by both backends so their rules cannot drift: anything the generator
-    wrote carries :data:`AUTO_MARKER`, so a function or a variable assignment
-    without it is the user's and is returned to be emitted verbatim.  A value
-    the designer has since changed is therefore refreshed, while a hand
-    written one is kept.
+    Shared by both backends so their rules cannot drift: a *variable* the
+    generator owns carries :data:`AUTO_MARKER`, so an assignment without it is
+    the user's and is returned to be emitted verbatim.  A value the designer has
+    since changed is therefore refreshed, while a hand written one is kept.
+
+    Every unmarked function is returned, not only the ones the generator knows
+    about.  It used to keep the known names alone, so a helper the user added to
+    a generated file was silently deleted on the next save - the callbacks came
+    back (with their edits) and everything else did not.  The generators emit
+    the ones they did not write themselves, so nothing the user typed is lost.
 
     An unparsable file returns nothing, because regenerating beats refusing to.
     """
@@ -379,7 +383,6 @@ def preserved_pieces(
         tree = ast.parse(source)
     except (SyntaxError, ValueError):
         return functions, variable_lines
-    wanted_functions = set(function_names)
     wanted_variables = set(var_names)
     # Whole physical lines, not the AST segment: the marker is a trailing
     # comment, which a segment for a bare assignment would not include.
@@ -390,7 +393,7 @@ def preserved_pieces(
         segment = "\n".join(lines[start:stop])
         if not segment.strip() or AUTO_MARKER in segment:
             continue
-        if isinstance(node, ast.FunctionDef) and node.name in wanted_functions:
+        if isinstance(node, ast.FunctionDef):
             functions[node.name] = segment
         elif isinstance(node, ast.Assign) and len(node.targets) == 1:
             target = node.targets[0]

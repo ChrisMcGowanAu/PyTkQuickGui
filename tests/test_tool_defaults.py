@@ -3,6 +3,7 @@ import os
 import tempfile
 import unittest
 
+import pytkguivars as my_vars
 import tool_defaults
 
 
@@ -215,6 +216,85 @@ class ToolDefaultsTests(unittest.TestCase):
             loaded["placeWidgetDefaults"]["button"],
             {"width": 180, "height": 48},
         )
+
+
+class FontSpecTests(unittest.TestCase):
+    """checkFontDict() must not touch the dictionary it is given.
+
+    It escaped the family in place, so the escaped name was saved as the tool
+    default and escaped again on every later use - which is what left Tk unable
+    to find the family and made every widget look wrong after a restart.
+    """
+
+    FONT = {
+        "family": "Noto Sans",
+        "size": 14,
+        "weight": "normal",
+        "slant": "roman",
+        "underline": False,
+        "overstrike": False,
+    }
+
+    def test_the_dictionary_is_left_alone(self):
+        font = dict(self.FONT)
+        spec = my_vars.checkFontDict(font)
+        self.assertEqual(font["family"], "Noto Sans")
+        self.assertEqual(spec, "Noto\\ Sans 14 normal roman")
+
+    def test_an_unset_size_is_left_out(self):
+        font = dict(self.FONT, size=0)
+        self.assertEqual(my_vars.checkFontDict(font), "Noto\\ Sans normal roman")
+
+    def test_a_negative_size_is_kept(self):
+        font = dict(self.FONT, size=-13)
+        self.assertEqual(my_vars.checkFontDict(font), "Noto\\ Sans -13 normal roman")
+
+
+class StyleFontTests(unittest.TestCase):
+    """The style font is a tool default, so it has to survive the round trip.
+
+    It used to be applied live only, so it was gone after a restart, and no
+    generated program ever saw it.
+    """
+
+    FONT = {
+        "family": "DejaVu Sans",
+        "size": 13,
+        "weight": "bold",
+        "slant": "roman",
+        "underline": False,
+        "overstrike": False,
+    }
+
+    def test_a_font_is_kept(self):
+        self.assertEqual(tool_defaults.normalise_style_font(self.FONT), self.FONT)
+
+    def test_a_font_without_a_family_is_dropped(self):
+        self.assertEqual(tool_defaults.normalise_style_font({"size": 13}), {})
+        self.assertEqual(tool_defaults.normalise_style_font(None), {})
+
+    def test_an_escaped_family_is_healed(self):
+        # a build that stored Tk's escaping must not keep the backslash
+        healed = tool_defaults.normalise_style_font(
+            {"family": "Noto\\ Sans", "size": 14}
+        )
+        self.assertEqual(healed["family"], "Noto Sans")
+
+    def test_a_negative_size_is_kept(self):
+        healed = tool_defaults.normalise_style_font(
+            {"family": "Noto Sans", "size": -13}
+        )
+        self.assertEqual(healed["size"], -13)
+
+    def test_it_survives_write_and_read(self):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        path = os.path.join(directory.name, "tool_defaults.json")
+
+        tool_defaults.write(path, {"styleFont": self.FONT})
+        restored = tool_defaults.normalise(tool_defaults.read(path))
+
+        self.assertEqual(restored["styleFont"], self.FONT)
 
 
 if __name__ == "__main__":

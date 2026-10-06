@@ -23,6 +23,7 @@ import io
 import json
 import os
 import re
+import subprocess
 import sys
 import tempfile
 import tkinter as tk
@@ -425,6 +426,177 @@ class SelectionTests(unittest.TestCase):
         self._select(self.second)
         cw.findCreateWidgetObject(self.second)._groupFromPopup()
         self.assertEqual(app.myVars.groups, {"mygroup": [self.first, self.second]})
+
+
+@unittest.skipIf(app is None, f"the designer cannot start here: {IMPORT_ERROR}")
+class PythonPreservationTests(unittest.TestCase):
+    """A helper added to a generated ttk program must survive the next save.
+
+    Both backends shared the rule that kept only the function names the
+    generator knows, so hand written code in either output was deleted on the
+    next save.
+    """
+
+    def setUp(self):
+        quiet(app.loadProject, "Calculator", CALCULATOR)
+        # Save into the scratch directory rather than beside the project, but
+        # do NOT stub saveProject: it is what collects the widgets' callbacks.
+        app.myVars.projectPath = WORK
+        app.myVars.projectFileName = os.path.join(WORK, "Calculator")
+        app.myVars.generatedPyFile = ""
+
+    def test_a_hand_written_function_survives(self):
+        first = quiet(app.buildPython)
+        with open(first, encoding="utf-8") as handle:
+            source = handle.read()
+        self.assertIn("def clicked_4(", source)
+
+        edited = os.path.join(WORK, "edited_ttk.py")
+        with open(edited, "w", encoding="utf-8") as handle:
+            handle.write(source + "\n\ndef my_helper():\n    return 1\n")
+        app.myVars.generatedPyFile = edited
+
+        second = quiet(app.buildPython)
+        with open(second, encoding="utf-8") as handle:
+            regenerated = handle.read()
+
+        self.assertIn("def my_helper():", regenerated)
+        self.assertEqual(regenerated.count("def clicked_4("), 1)
+
+
+@unittest.skipIf(app is None, f"the designer cannot start here: {IMPORT_ERROR}")
+class StyleFontEmissionTests(unittest.TestCase):
+    """The style font must be written into the generated ttk program too."""
+
+    def setUp(self):
+        quiet(app.loadProject, "Calculator", CALCULATOR)
+        app.myVars.projectPath = WORK
+        app.myVars.projectFileName = os.path.join(WORK, "Calculator")
+        app.myVars.generatedPyFile = ""
+        self._saved_font = dict(app.myVars.styleFont)
+        self.addCleanup(self._restore)
+        app.myVars.styleFont = {
+            "family": "DejaVu Sans",
+            "size": 13,
+            "weight": "bold",
+            "slant": "roman",
+            "underline": False,
+            "overstrike": False,
+        }
+
+    def _restore(self):
+        app.myVars.styleFont = self._saved_font
+
+    def test_the_styles_are_configured_in_the_output(self):
+        generated = quiet(app.buildPython)
+        with open(generated, encoding="utf-8") as handle:
+            source = handle.read()
+
+        # On the window's own style, after the window: a Style of its own
+        # before ttk.Window() leaves ttkbootstrap with two roots and it refuses
+        # to start at all.
+        self.assertIn("rootWin.style.configure('TButton'", source)
+        self.assertNotIn("ttk.Style()", source)
+        self.assertIn("DejaVu", source)
+
+    def test_nothing_is_emitted_without_a_font(self):
+        app.myVars.styleFont = {}
+        generated = quiet(app.buildPython)
+        with open(generated, encoding="utf-8") as handle:
+            source = handle.read()
+        self.assertNotIn("style.configure(", source)
+
+
+@unittest.skipIf(app is None, f"the designer cannot start here: {IMPORT_ERROR}")
+class GeneratedProgramTests(unittest.TestCase):
+    """The generated ttk program has to start on its own.
+
+    Tools -> Set default style font made it emit ``style = ttk.Style()`` before
+    the window, and ttk.Window() then refused it: "a Style is already bound to
+    an existing live root".  Running it inside the designer's process cannot
+    show that, because the designer's own root is already there - so this runs
+    it the way the Trial Run does, in a separate process.
+    """
+
+    FONT = {
+        "family": "DejaVu Sans",
+        "size": 13,
+        "weight": "bold",
+        "slant": "roman",
+        "underline": False,
+        "overstrike": False,
+    }
+
+    def setUp(self):
+        quiet(app.loadProject, "Calculator", CALCULATOR)
+        app.myVars.projectPath = WORK
+        app.myVars.projectFileName = os.path.join(WORK, "Calculator")
+        app.myVars.generatedPyFile = ""
+        self._saved_font = dict(app.myVars.styleFont)
+        self.addCleanup(self._restore)
+        app.myVars.styleFont = dict(self.FONT)
+
+    def _restore(self):
+        app.myVars.styleFont = self._saved_font
+
+    def test_it_starts_in_its_own_process(self):
+        generated = quiet(app.buildPython)
+        with open(generated, encoding="utf-8") as handle:
+            source = handle.read()
+        probe = os.path.join(WORK, "startup_probe.py")
+        with open(probe, "w", encoding="utf-8") as handle:
+            handle.write(
+                source.replace(
+                    "rootWin.mainloop()",
+                    "rootWin.after(400, rootWin.destroy)\nrootWin.mainloop()",
+                )
+            )
+        result = subprocess.run(  # the returncode is what is being asserted
+            [sys.executable, probe],
+            capture_output=True,
+            text=True,
+            timeout=120,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr[-400:])
+
+    def test_the_styles_come_after_the_window(self):
+        generated = quiet(app.buildPython)
+        with open(generated, encoding="utf-8") as handle:
+            lines = handle.read().split("\n")
+        window = next(
+            i for i, line in enumerate(lines) if line.startswith("rootWin = ttk.Window")
+        )
+        style = next(i for i, line in enumerate(lines) if "style.configure(" in line)
+        self.assertGreater(style, window, "a Style before the window is the crash")
+        self.assertNotIn("ttk.Style()", "\n".join(lines))
+
+
+@unittest.skipIf(app is None, f"the designer cannot start here: {IMPORT_ERROR}")
+class ThemedDialogTests(unittest.TestCase):
+    """Hand-built dialogs must take the theme's background, not the desktop grey.
+
+    "New Project - Layout" (and "Generate Flet" and "Grid settings") are plain
+    tk.Toplevel windows, because ttkbootstrap's ttk.Toplevel takes its arguments
+    differently, and a plain one is filled with the system grey - which looks
+    wrong the moment the theme is dark.
+    """
+
+    def test_a_themed_toplevel_takes_the_theme_background(self):
+        window = app.themedToplevel("test dialog")
+        self.addCleanup(window.destroy)
+        self.assertEqual(
+            str(window.cget("background")), str(app.rootWin.style.colors.bg)
+        )
+
+    def test_only_the_helper_builds_a_plain_toplevel(self):
+        with open(app.__file__, encoding="utf-8") as handle:
+            source = handle.read()
+        # \b so this does not match inside ttk.Toplevel(
+        plain = re.findall(r"\btk\.Toplevel\(", source)
+        self.assertEqual(
+            len(plain), 1, "every dialog should come from themedToplevel()"
+        )
 
 
 if __name__ == "__main__":

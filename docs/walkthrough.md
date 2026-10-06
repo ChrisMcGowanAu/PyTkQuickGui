@@ -16,9 +16,14 @@ take.
    cp -r examples/* "$HOME/.config/pytkgui/examples/"
    ```
 
-3. Make the UI readable on video. The default font is small at 1080p; **Tools >
-   Set default label font** and **Tools > Set default style font** both take a
-   larger size, and the window can be dragged to a 16:9 shape before recording.
+3. Make the UI readable on video. The default font is small at 1080p, and a ttk
+   widget has no font of its own - a ttkbootstrap button takes its font from the
+   *style* - so **Tools > Set default style font** is the one that sizes buttons
+   and labels. Do it *before* you place any widgets: the Calculator's digits and
+   operators look cramped at the default size, and resizing the font afterwards
+   means re-setting it. **Tools > Set default label font** is the narrower tool:
+   it sets the font on each label widget. The window can be dragged to a 16:9
+   shape before recording.
 4. Keep `docs/example_*.png` open in a second window: they are the stills for
    cutaways and for the website.
 
@@ -32,7 +37,7 @@ take.
 | 1:00 | **File > New Project**, name it `Demo`, choose Place. Right-click the canvas, pick **Button**. Drag it to move, drag an edge to resize. Right-click it, choose **Edit**, change the text and the bootstyle, press Apply. If the widget has a `textvariable`, the text you type becomes that variable's value. | Placing, moving and editing by hand. |
 | 1:45 | **File > Open Project > examples > tabs**. Click the body of a tab, right-click, choose **Edit**, and change the tab captions. | A notebook where every tab is an ordinary Frame you can fill. |
 | 2:30 | **File > Trial Run**. | The real ttkbootstrap program, running. This is the first payoff. |
-| 3:00 | **File > Generate Python**, save it as `demo.py`, open the file in an editor. Point out the readable widget calls, and that a callback you edited in a previous version is carried over rather than overwritten. | The generated Python at `demo.py`. |
+| 3:00 | **File > Generate Python**, save it as `demo.py`, open the file in an editor. Point out the readable widget calls, and that a callback you edited in a previous version is carried over rather than overwritten - as is any helper you add yourself. Mention that keeping the file under version control is still the sensible habit. | The generated Python at `demo.py`. |
 | 3:45 | **File > Generate Flet**, then **File > Trial Run (Flet)**. If you want a second screen in the shot, run the saved file in a browser instead: `venv/bin/flet run --web <file>`. | The same layout running as a Flet application, on the desktop and as a web page. The Flet compatibility report is worth showing here: it lists anything that had to be approximated. |
 | 4:30 | Optional second act: **File > Open Project > examples > sudokupack**, then **Tools > Edit Grid settings**, and drag a widget so it snaps. | Grid mode, and how a project's grid is configured. |
 | 5:00 | **File > Save Project**, then Ctrl+Z a few times. Mention that each save keeps rolling `-saveN` backups, and where `examples/` came from. | The JSON project and the undo stack. |

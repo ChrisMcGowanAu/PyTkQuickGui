@@ -26,7 +26,6 @@ Translation notes
 
 from __future__ import annotations
 
-import ast
 import json
 import os
 import re
@@ -165,7 +164,36 @@ _TEXT_BINDING_HELPERS = (
     "    if target is not None:",
     "        target.update()",
 )
+#: Every text style Flet themes, so the style font can be applied to all of
+#: them (there is no title_* in this version of Flet).
+TEXT_THEME_STYLES = (
+    "display_large",
+    "display_medium",
+    "display_small",
+    "headline_large",
+    "headline_medium",
+    "headline_small",
+    "body_large",
+    "body_medium",
+    "body_small",
+    "label_large",
+    "label_medium",
+    "label_small",
+)
+
 SECTION_FUNCTIONS = "####### Functions #######"
+
+#: Functions this generator writes itself.  Anything else found in an earlier
+#: copy of the file is the user's, and is emitted again verbatim.
+GENERATED_FUNCTION_NAMES = (
+    "main",
+    "set_text",
+    "_as_number",
+    "_step_value",
+    "_step_field",
+    "_flet_major",
+    "_check_flet_version",
+)
 SECTION_WIDGETS = "####### Widgets #######"
 SECTION_MAIN = "####### Main  #######"
 
@@ -474,18 +502,20 @@ def tk_color(value: Any) -> str | None:
 def parse_font(value: Any) -> dict[str, str]:
     """Translate a Tk font description into Flet text properties.
 
-    Two forms turn up in saved projects: the font chooser writes a dict such as
-    ``{'family': 'Liberation Mono', 'size': 18, 'weight': 'normal', …}``, and
-    hand written or older files use the X11 ``"family size style…"`` string.
-    Symbolic fonts such as ``TkDefaultFont`` return an empty mapping.
+    A project may hold an X11 style string, ``"family size style…"``, and that
+    is translated.  Symbolic fonts such as ``TkDefaultFont`` return an empty
+    mapping.
+
+    A value that looks like a dictionary - ``{'family': 'C059', …}`` - is
+    ignored.  Nothing writes that form any more: it came from a bug where the
+    font chooser's dictionary was stringified and saved, and ttk cannot use it
+    either (it is emitted as a string there, which Tk ignores).  Honouring it
+    here resurrected a font the user had long replaced, so the style font now
+    wins in both outputs, as it should.
     """
     raw = _text(value).strip().replace("\\", "")
-    if not raw or raw.startswith("Tk"):
+    if not raw or raw.startswith("Tk") or raw.startswith("{"):
         return {}
-    if raw.startswith("{"):
-        chosen = _parse_font_dict(raw)
-        if chosen:
-            return chosen
     match = _FONT.match(raw)
     if not match:
         return {}
@@ -498,28 +528,6 @@ def parse_font(value: Any) -> dict[str, str]:
     if "bold" in rest:
         properties["weight"] = "ft.FontWeight.BOLD"
     if "italic" in rest or "oblique" in rest:
-        properties["italic"] = "True"
-    return properties
-
-
-def _parse_font_dict(raw: str) -> dict[str, str]:
-    """Return Flet text properties from a font chooser dict, or ``{}``."""
-    try:
-        chosen = ast.literal_eval(raw)
-    except (SyntaxError, ValueError):
-        return {}
-    if not isinstance(chosen, Mapping):
-        return {}
-    properties: dict[str, str] = {}
-    family = _text(chosen.get("family")).strip()
-    if family:
-        properties["font_family"] = repr(family)
-    size = _number(chosen.get("size"))
-    if isinstance(size, (int, float)) and size:
-        properties["size"] = repr(abs(int(size)))
-    if _text(chosen.get("weight")).strip().lower() in ("bold", "heavy"):
-        properties["weight"] = "ft.FontWeight.BOLD"
-    if _text(chosen.get("slant")).strip().lower() in ("italic", "oblique"):
         properties["italic"] = "True"
     return properties
 
@@ -1224,6 +1232,10 @@ class _Emitter:
         self.defined: set[str] = set()
         self.helpers: list[str] = []
         self.text_bindings: dict[str, list[tuple[str, str]]] = {}
+        # Tools -> Set default style font, when one is set: ttk applies that
+        # font to every widget, so it wins over the size hints below.
+        self.style_family: str = ""
+        self.style_size: int = 0
         # Numeric controls (a Slider's value) need a number where a text
         # control takes the string, so they are tracked separately.
         self.numeric_bindings: dict[str, list[tuple[str, str]]] = {}
@@ -1550,8 +1562,9 @@ class _Emitter:
             return variable
         return repr("")
 
-    @staticmethod
-    def _text_style(colour: str | None = None, size: int = DEFAULT_TEXT_SIZE) -> str:
+    def _text_style(
+        self, colour: str | None = None, size: int = DEFAULT_TEXT_SIZE
+    ) -> str:
         """Return an ``ft.TextStyle`` matching ttk's plain text.
 
         Flet renders a TextStyle that leaves the weight unset in *bold* (the
@@ -1559,8 +1572,19 @@ class _Emitter:
         a heavy face), which made button captions and check/radio labels look
         bolder than the ttk originals.  Both the weight and the letter spacing
         are therefore pinned.
+
+        The size argument is a hint that matches ttk's default rendering.  A
+        style font set in the tool wins over it, family and size together: that
+        font is what every ttk widget uses, which is why the user set it - the
+        calculator's digits and operators were pinned at 12 by the hint and
+        stayed too small however the tool was set up.
         """
-        parts = [f"size={size}", "weight=ft.FontWeight.NORMAL", "letter_spacing=0"]
+        if self.style_size:
+            size = self.style_size
+        parts = [f"size={size}"]
+        if self.style_family:
+            parts.append(f"font_family={self.style_family!r}")
+        parts += ["weight=ft.FontWeight.NORMAL", "letter_spacing=0"]
         if colour:
             # Callers pass the raw colour, not a Python literal.
             parts.insert(0, f"color={str(colour).strip(chr(39) + chr(34))!r}")
@@ -2745,6 +2769,7 @@ def emit_program(
     strict_flet_version: bool = DEFAULT_STRICT_FLET_VERSION,
     natural_sizes: Mapping[str, Sequence[int]] | None = None,
     preserve_from: str = "",
+    style_font: Mapping[str, Any] | None = None,
 ) -> str:
     """Return a complete, runnable Flet program for *project_data*.
 
@@ -2780,7 +2805,22 @@ def emit_program(
         None,
         natural_sizes,
     )
+    # Tools -> Set default style font, if one is set.  A positive Tk size is
+    # points and Flet sizes are pixels, as parse_font() does for a widget's own
+    # font.  These reach every text style the emitter writes.
+    style_family = str((style_font or {}).get("family", "") or "").strip()
+    _style_points = (style_font or {}).get("size") or 0
+    try:
+        _style_points = int(_style_points)
+    except (TypeError, ValueError):
+        _style_points = 0
+    style_size = (
+        int(abs(_style_points) * 1.33) if _style_points > 0 else abs(_style_points)
+    )
+
     emitter = _Emitter(project)
+    emitter.style_family = style_family
+    emitter.style_size = style_size
     for scrollbar, attachment in project.scroll_attachments.items():
         if project.skipped(scrollbar):
             continue
@@ -2797,6 +2837,17 @@ def emit_program(
     palette_background = project.colour("bg")
     background = palette_background or tk_color(project_data.get("backgroundColor"))
     project_name = _text(project_data.get("ProjectName")) or root_name
+    style_family = str((style_font or {}).get("family", "") or "").strip()
+    # A positive Tk size is points and Flet sizes are pixels, as parse_font()
+    # does for a widget's own font.
+    _style_points = (style_font or {}).get("size") or 0
+    try:
+        _style_points = int(_style_points)
+    except (TypeError, ValueError):
+        _style_points = 0
+    style_size = (
+        int(abs(_style_points) * 1.33) if _style_points > 0 else abs(_style_points)
+    )
 
     lines: list[str] = [
         '"""Flet UI generated by PyTkQuickGui.',
@@ -2805,8 +2856,11 @@ def emit_program(
         f"Layout  : {project.geom_manager or 'Place'}",
         f"Theme   : {theme or 'default'}  (ttkbootstrap theme - not a Flet theme)",
         "",
-        "Regenerating this file overwrites it, so keep hand written changes in a",
-        "separate module that imports this one.",
+        "Regenerating this file keeps the functions you have written in it, so",
+        "add handlers and helpers freely - only the widget construction and the",
+        "layout are rebuilt.  Keep your own copy all the same: put the file under",
+        "version control, and move a larger body of your own code into a separate",
+        "module that imports this one.",
         '"""',
         "",
         "import flet as ft",
@@ -2912,6 +2966,13 @@ def emit_program(
                 lines.append(f"    global {', '.join(project.variables)}")
             lines.append(f"    {STUB_SENTINEL}")
             lines.append(f"    print({callback!r})")
+        # Emit any function the tool did not write: a helper the user added to
+        # this file used to be deleted on the next save.  The generator's own
+        # functions are skipped - they are emitted by name above or below.
+        for name, text in sorted(preserved_functions.items()):
+            if name in project.callbacks or name in GENERATED_FUNCTION_NAMES:
+                continue
+            lines.extend(("", "", text))
     else:
         lines.append("# Add your event handlers here.")
 
@@ -2947,14 +3008,48 @@ def emit_program(
     if background:
         lines.append("    page.bgcolor = BACKGROUND_COLOR")
     seed = project.colour("primary")
+    # The style font and the seed colour both shape the theme, so they are set
+    # in one ft.Theme(): assigning page.theme twice throws the first away.
+    theme_arguments: list[str] = []
+    if style_family:
+        theme_arguments.append(f"font_family={style_family!r}")
     if seed:
+        theme_arguments.append(f"color_scheme_seed={seed!r}")
         lines.extend(
             (
                 "    # Seed Flet's Material theme with the project's primary",
                 "    # colour so state-dependent controls fill with the theme",
                 "    # colour: a ticked checkbox or a selected radio is painted,",
                 "    # an untouched one stays empty, as ttk draws them.",
-                f"    page.theme = ft.Theme(color_scheme_seed={seed!r})",
+            )
+        )
+    if style_family:
+        lines.append(
+            "    # Tools -> Set default style font: the family and the size, so"
+            " the Flet program is as legible as the designer."
+        )
+    if theme_arguments:
+        lines.append(f"    page.theme = ft.Theme({', '.join(theme_arguments)})")
+    if style_family and style_size:
+        # ttk applies one font to every widget, so the Flet text styles are set
+        # to that size too, keeping each style's weight and slant.
+        names = ", ".join(f'"{name}"' for name in TEXT_THEME_STYLES)
+        lines.extend(
+            (
+                f"    _font_size = {style_size}",
+                f"    for _name in ({names},):",
+                "        _style = getattr(page.theme.text_theme, _name, None)",
+                "        if _style is not None:",
+                "            setattr(",
+                "                page.theme.text_theme,",
+                "                _name,",
+                "                ft.TextStyle(",
+                f"                    font_family={style_family!r},",
+                "                    size=_font_size,",
+                "                    weight=_style.weight,",
+                "                    italic=_style.italic,",
+                "                ),",
+                "            )",
             )
         )
     if project.images:
@@ -3039,9 +3134,7 @@ def _read_preserved(
             existing = handle.read()
     except OSError:
         return {}, {}
-    return project_format.preserved_pieces(
-        existing, project.callbacks, project.variables
-    )
+    return project_format.preserved_pieces(existing, project.variables)
 
 
 def window_size_for(
