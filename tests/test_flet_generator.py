@@ -2473,6 +2473,45 @@ class StyleFontTests(unittest.TestCase):
     def test_no_theme_line_without_a_font(self):
         self.assertNotIn("font_family", self._emit())
 
+    def test_the_seed_colour_does_not_replace_the_font(self):
+        """page.theme was assigned twice, and the second one won.
+
+        The style font went in first, the project's seed colour second, so on
+        any project with a primary colour the font was silently thrown away -
+        which is exactly what the user saw: the ttk output right, Flet not.
+        """
+        data = project(
+            geom_manager="Place",
+            widgets=(
+                widget(
+                    "Widget1",
+                    "ttk::button",
+                    attributes=(("text", "7"), ("style", "primary.TButton")),
+                    place={"x": "8", "y": "8", "width": "60", "height": "40"},
+                ),
+            ),
+        )
+        source = flet_generator.emit_program(
+            data,
+            widget_names("Widget1"),
+            ROOT,
+            style_font={"family": "DejaVu Sans", "size": 14},
+        )
+
+        self.assertEqual(source.count("page.theme = ft.Theme("), 1)
+        theme_line = next(
+            line for line in source.split("\n") if "page.theme = ft.Theme(" in line
+        )
+        self.assertIn("font_family='DejaVu Sans'", theme_line)
+        if "color_scheme_seed" in source:
+            self.assertIn("color_scheme_seed", theme_line)
+
+    def test_the_chosen_size_reaches_the_text_styles(self):
+        source = self._emit({"family": "DejaVu Sans", "size": 14})
+
+        self.assertIn("_font_size = 18", source)  # 14pt -> 18px
+        self.assertIn("page.theme.text_theme", source)
+
 
 class PreservationTests(unittest.TestCase):
     """Regenerating a program must not delete what the user added to it.
