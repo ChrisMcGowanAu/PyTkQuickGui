@@ -74,6 +74,10 @@ Linux (apt based distributions)
     sudo apt update
     sudo apt install python3-full python3-venv python3-pip python3-tk git
 
+   Debian and Ubuntu mark their system Python as externally managed (PEP 668),
+   so pip refuses to install into it - "error: externally-managed-environment".
+   Everything below therefore goes into the venv.
+
 2. Clone the repository (HTTPS, no GitHub account needed)
 
     cd /opt                                   # or wherever you keep source

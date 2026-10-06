@@ -81,16 +81,31 @@ sudo apt install python3-tk
 ## Installation
 
 ```bash
-sudo apt install python3.13-full
+# python3-full follows whichever python3 your distribution ships - on a
+# release with 3.13 that same package is python3.13-full
+sudo apt update
+sudo apt install python3-full python3-venv python3-pip python3-tk git
 
 git clone https://github.com/ChrisMcGowanAu/PyTkQuickGui.git
 cd PyTkQuickGui
 
-python -m venv venv
+python3 -m venv venv
 source venv/bin/activate
+pip install --upgrade pip
 pip install -r requirments.txt
 python pytkquickgui.py
 ```
+
+Debian and Ubuntu mark their system Python as *externally managed* (PEP 668),
+so `pip` refuses to install into it:
+
+```
+error: externally-managed-environment
+```
+
+That is why everything above goes into a venv. INSTALL.TXT spells out each
+command with `venv/bin/` instead of relying on the activation, which is handy
+when you are copying commands one at a time.
 
 On Windows, activate the environment with:
 
@@ -748,7 +763,7 @@ hit it, the traceback from the steps above points at the Python line.
 Run the unit tests from the repository root:
 
 ```bash
-python -m unittest discover -s tests -v
+venv/bin/python -m unittest discover -s tests -v
 ```
 
 When contributing:

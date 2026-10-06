@@ -17,6 +17,10 @@ the tool's directory.
   Calculator" label still carry an old font (`C059`) saved as a dictionary. No
   output uses it now, but the attribute editor shows it, and it looks like a
   bug. Select each widget → Edit → clear the font field → Apply.
+- **Consider your older calculator instead of the shipped one.** It needs a few
+  edits, so the editor has something real to do: fixing properties and nudging
+  geometry. That demonstrates more than a layout that already works, and the
+  shipped example can still be the target on the closing card.
 - **Restart the tool** if you have changed its code — a running instance keeps
   the modules it started with.
 - Have `docs/example_Calculator_tk.png` and `docs/example_Calculator_flet.png`
@@ -30,7 +34,7 @@ the tool's directory.
 | 0:15 | **File → Open Project → examples → Calculator**. | The finished layout: a title, the display, nineteen buttons. |
 | 0:30 | Drag a button to move it, then Ctrl+Z. Point out the dotted grid and `Layout: Place` in the toolbar. | Editing the layout by hand. |
 | 0:50 | Right-click the canvas → **Button**. Drag it into place. Right-click it → **Edit**, set its text and bootstyle, Apply. | Adding one more button (`%`, or a `←`). |
-| 1:30 | One line on Place versus Grid: Place for free-form, Grid for rows and columns. | Optional — the concept, without a detour. |
+| 1:30 | Right-click a widget → **Layout** to set x, y, width and height as numbers, alongside the dragging. One line on Place versus Grid. | Property and geometry editing — where an older project needs attention. |
 | 2:00 | Right-click each button → **Edit** → set `command` to a function name (`clicked_7`, `clicked_plus`, …). | The wiring: nothing runs yet, but each button knows its handler. |
 | 3:00 | **File → Generate Python**, save as `calculator.py`, open it in an editor. | The generated program: widgets, the variables section, one stub per button. |
 | 3:30 | Type your own `do_calculation`, `append` and `remove_last_ch` into the file, above the stubs. | **Your code**, in the generated file. |
