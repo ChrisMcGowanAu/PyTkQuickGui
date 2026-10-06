@@ -1,3 +1,8 @@
+[![Lint](https://github.com/ChrisMcGowanAu/PyTkQuickGui/actions/workflows/lint.yml/badge.svg)](https://github.com/ChrisMcGowanAu/PyTkQuickGui/actions/workflows/lint.yml)
+[![Dependency Graph](https://github.com/ChrisMcGowanAu/PyTkQuickGui/actions/workflows/dependabot/update-graph/badge.svg)](https://github.com/ChrisMcGowanAu/PyTkQuickGui/actions/workflows/dependabot/update-graph)
+[![Pylint](https://github.com/ChrisMcGowanAu/PyTkQuickGui/actions/workflows/pylint.yml/badge.svg)](https://github.com/ChrisMcGowanAu/PyTkQuickGui/actions/workflows/pylint.yml)
+[![Python application](https://github.com/ChrisMcGowanAu/PyTkQuickGui/actions/workflows/python-app.yml/badge.svg)](https://github.com/ChrisMcGowanAu/PyTkQuickGui/actions/workflows/python-app.yml)
+[![Python Package using Conda](https://github.com/ChrisMcGowanAu/PyTkQuickGui/actions/workflows/python-package-conda.yml/badge.svg)](https://github.com/ChrisMcGowanAu/PyTkQuickGui/actions/workflows/python-package-conda.yml)
 # PyTkQuickGui
 
 # Now able to export FLET code. Still experimental.
