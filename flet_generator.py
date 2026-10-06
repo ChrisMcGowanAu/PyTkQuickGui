@@ -1232,6 +1232,10 @@ class _Emitter:
         self.defined: set[str] = set()
         self.helpers: list[str] = []
         self.text_bindings: dict[str, list[tuple[str, str]]] = {}
+        # Tools -> Set default style font, when one is set: ttk applies that
+        # font to every widget, so it wins over the size hints below.
+        self.style_family: str = ""
+        self.style_size: int = 0
         # Numeric controls (a Slider's value) need a number where a text
         # control takes the string, so they are tracked separately.
         self.numeric_bindings: dict[str, list[tuple[str, str]]] = {}
@@ -1558,8 +1562,9 @@ class _Emitter:
             return variable
         return repr("")
 
-    @staticmethod
-    def _text_style(colour: str | None = None, size: int = DEFAULT_TEXT_SIZE) -> str:
+    def _text_style(
+        self, colour: str | None = None, size: int = DEFAULT_TEXT_SIZE
+    ) -> str:
         """Return an ``ft.TextStyle`` matching ttk's plain text.
 
         Flet renders a TextStyle that leaves the weight unset in *bold* (the
@@ -1567,8 +1572,19 @@ class _Emitter:
         a heavy face), which made button captions and check/radio labels look
         bolder than the ttk originals.  Both the weight and the letter spacing
         are therefore pinned.
+
+        The size argument is a hint that matches ttk's default rendering.  A
+        style font set in the tool wins over it, family and size together: that
+        font is what every ttk widget uses, which is why the user set it - the
+        calculator's digits and operators were pinned at 12 by the hint and
+        stayed too small however the tool was set up.
         """
-        parts = [f"size={size}", "weight=ft.FontWeight.NORMAL", "letter_spacing=0"]
+        if self.style_size:
+            size = self.style_size
+        parts = [f"size={size}"]
+        if self.style_family:
+            parts.append(f"font_family={self.style_family!r}")
+        parts += ["weight=ft.FontWeight.NORMAL", "letter_spacing=0"]
         if colour:
             # Callers pass the raw colour, not a Python literal.
             parts.insert(0, f"color={str(colour).strip(chr(39) + chr(34))!r}")
@@ -2789,7 +2805,22 @@ def emit_program(
         None,
         natural_sizes,
     )
+    # Tools -> Set default style font, if one is set.  A positive Tk size is
+    # points and Flet sizes are pixels, as parse_font() does for a widget's own
+    # font.  These reach every text style the emitter writes.
+    style_family = str((style_font or {}).get("family", "") or "").strip()
+    _style_points = (style_font or {}).get("size") or 0
+    try:
+        _style_points = int(_style_points)
+    except (TypeError, ValueError):
+        _style_points = 0
+    style_size = (
+        int(abs(_style_points) * 1.33) if _style_points > 0 else abs(_style_points)
+    )
+
     emitter = _Emitter(project)
+    emitter.style_family = style_family
+    emitter.style_size = style_size
     for scrollbar, attachment in project.scroll_attachments.items():
         if project.skipped(scrollbar):
             continue
