@@ -12,8 +12,8 @@ using tkinter and ttkbootstrap. Design a window on the live canvas, edit widget
 attributes and layout, save the project as JSON, then generate a readable Python
 program.
 
-The project is approaching beta. Grid and Place projects are usable and under
-active testing; Pack remains disabled while the other two geometry managers are
+Grid and Place TK geometry managers are usable and under active testing; 
+Pack remains disabled while the other two geometry managers are
 stabilised.
 
 ### The examples, in both backends
