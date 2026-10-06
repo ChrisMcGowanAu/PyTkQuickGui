@@ -285,12 +285,15 @@ def normalise_style_font(source: Any) -> dict[str, Any]:
     """
     if not isinstance(source, Mapping):
         return {}
-    family = str(source.get("family", "") or "").strip()
+    # Tk escapes spaces in a family name; an earlier build saved that escaped
+    # form as the default, so accept it and keep the plain name.
+    family = str(source.get("family", "") or "").replace("\\ ", " ").strip()
     if not family:
         return {}
     font: dict[str, Any] = {"family": family}
     try:
-        font["size"] = max(1, min(200, int(source.get("size", 0))))
+        # A negative size is pixels in Tk; 0 means unset.
+        font["size"] = max(-200, min(200, int(source.get("size", 0) or 0)))
     except (TypeError, ValueError):
         font["size"] = 0
     for field in ("weight", "slant"):
