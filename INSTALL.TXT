@@ -5,16 +5,19 @@ This file takes a fresh machine to a running designer.  It is written for
 Linux first, then Windows and macOS.  If you only want to try the tool, the
 short version is:
 
-    # Full python
-    sudo apt install python3.13.full
-    
+    # Python, pip, venv, Tkinter and git
+    sudo apt update
+    sudo apt install python3-full python3-venv python3-pip python3-tk git
+
     git clone https://github.com/ChrisMcGowanAu/PyTkQuickGui.git
     cd PyTkQuickGui
     python3 -m venv venv
     venv/bin/pip install --upgrade pip
     venv/bin/pip install -r requirments.txt
 
-    echo tokyo-night-dark > $HOME/.config/pytkgui/defaulTheme.txt
+    # Optional: start on a dark theme instead of the shipped default
+    mkdir -p "$HOME/.config/pytkgui"
+    echo tokyo-night-dark > "$HOME/.config/pytkgui/defaultTheme.txt"
 
     venv/bin/python pytkquickgui.py
 
